@@ -119,6 +119,15 @@ export const configurationEn = {
   'config.skillFileList': 'Captured files',
   'config.executableFile': 'executable',
   'error.skillDesktopOnly': 'Directory import is available in the desktop app.',
+  'error.runPath': 'Run inputs contain an unsafe or conflicting path.',
+  'error.runIntegrity':
+    'The saved run inputs are missing or have changed. The original snapshot was preserved.',
+  'error.runConfiguration':
+    'The selected configuration cannot be captured for this engine installation.',
+  'error.runExists': 'A snapshot with this identity already exists and cannot be overwritten.',
+  'error.runLimit': 'The run inputs exceed the supported file, directory, or size limits.',
+  'error.runSourceChanged':
+    'The engine, working directory, or observed native configuration changed. Prepare a new run before continuing.',
   'error.skillImportBusy': 'Another Skill import is still in progress.',
   'error.skillEntry': 'The selected directory must contain a nonempty UTF-8 SKILL.md file.',
   'error.skillUnsafePath':

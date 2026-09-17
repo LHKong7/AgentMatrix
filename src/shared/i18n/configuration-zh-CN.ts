@@ -111,6 +111,12 @@ export const configurationZh = {
   'config.skillFileList': '已捕获的文件',
   'config.executableFile': '可执行文件',
   'error.skillDesktopOnly': '目录导入仅在桌面应用中可用。',
+  'error.runPath': '运行输入包含不安全或冲突的路径。',
+  'error.runIntegrity': '保存的运行输入缺失或已更改。原快照已保留。',
+  'error.runConfiguration': '所选配置无法为此引擎安装创建运行快照。',
+  'error.runExists': '此标识对应的快照已存在，无法覆盖。',
+  'error.runLimit': '运行输入超过支持的文件数、目录数或大小限制。',
+  'error.runSourceChanged': '引擎、工作目录或已观察的原生配置发生了变化。请创建新运行后再继续。',
   'error.skillImportBusy': '另一个 Skill 导入仍在进行中。',
   'error.skillEntry': '所选目录必须包含非空的 UTF-8 SKILL.md 文件。',
   'error.skillUnsafePath':
