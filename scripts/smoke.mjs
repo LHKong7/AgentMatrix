@@ -252,6 +252,10 @@ try {
       await dialog.getByLabel('Pi context files', { exact: true }).selectOption('ignore')
       await dialog.getByLabel('Pi thinking level', { exact: true }).fill('high')
     }
+    if (agentName === 'DSH Agent') {
+      await dialog.getByRole('tab', { name: 'Engine settings', exact: true }).click()
+      await dialog.getByLabel('DSH instruction placement', { exact: true }).selectOption('prefix')
+    }
     await dialog.getByRole('tab', { name: 'Resolved preview', exact: true }).click()
     await dialog
       .getByText('The engine installation must be verified before launch.', { exact: true })
@@ -276,6 +280,10 @@ try {
   assert.equal(
     current.agents.find((item) => item.name === 'DSH Agent').engineOptions.profileTemplate,
     'acp',
+  )
+  assert.equal(
+    current.agents.find((item) => item.name === 'DSH Agent').engineOptions.appendPosition,
+    'prefix',
   )
 
   let dialog = await editResource('Shared prompts', 'Smoke Prompt')
@@ -412,6 +420,11 @@ try {
     await page.screenshot({ path: process.env.AGENT_MATRIX_PI_SCREENSHOT, fullPage: true })
   await page.getByRole('button', { name: '取消', exact: true }).click()
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await page.getByRole('button', { name: '编辑 DSH Agent', exact: true }).click()
+  await page.getByRole('tab', { name: '引擎专属配置', exact: true }).click()
+  assert.equal(await page.getByLabel('DSH 指令位置', { exact: true }).inputValue(), 'prefix')
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
   await page.getByRole('button', { name: '编辑 Smoke Agent', exact: true }).click()
   await page.getByLabel('名称', { exact: true }).fill('Updated Agent')
   await page.getByRole('tab', { name: '解析预览', exact: true }).click()
@@ -473,7 +486,7 @@ try {
   )
   assert.deepEqual(runtimeErrors, [])
   console.log(
-    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, Pi trust/context settings, prompt and Skill revisions, directory capture/reimport, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
+    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, Pi trust/context settings, DSH instruction placement, prompt and Skill revisions, directory capture/reimport, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
   )
 } catch (error) {
   if (page && !page.isClosed()) {

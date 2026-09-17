@@ -98,6 +98,11 @@ export const configurationEn = {
   'config.piTrustHint':
     'Project trust does not approve tools. Context files are controlled separately. Shared Skills are loaded explicitly; discovered extensions stay disabled.',
   'config.dshProfile': 'DSH profile',
+  'config.dshAppendPosition': 'DSH instruction placement',
+  'config.dshAppendPrefix': 'Before native guidance',
+  'config.dshAppendSuffix': 'After native guidance',
+  'config.dshAppendHint':
+    'Place shared appended instructions before or after native guidance. With prompt replacement, this controls their position relative to the replacement text.',
   'config.dshHint':
     'The initial integration targets a pinned ACP composition. SDK profiles remain unsupported by the planned runtime.',
   'config.nativeId': 'Native plugin ID',

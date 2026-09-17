@@ -87,6 +87,7 @@ export const sessionEn = {
   'sessions.failure.engine': 'The engine could not complete the operation.',
   'error.runtimeUnsupported':
     'Runtime execution is currently available for OpenCode 1.18.16 and Pi 0.85.1 on macOS/Linux only.',
+  'error.dshConfiguration': 'DeepSeek Harness cannot apply this configuration: {feature}.',
   'error.runtimeProbe':
     'The CLI version check failed. Check its executable path and prefix arguments.',
   'error.runtimeCwd': 'Choose an existing absolute working directory in the Agent configuration.',

@@ -37,7 +37,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Browser preview disables credential storage.
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
-OpenCode and Pi execution are connected to the desktop UI and verified on macOS against local provider fixtures. DeepSeek Harness remains a configurable draft without a desktop runtime adapter. External provider acceptance, complete configuration application reporting, native configuration import, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
+OpenCode and Pi execution are connected to the desktop UI and verified on macOS against local provider fixtures. DeepSeek Harness remains a configurable draft without a desktop runtime adapter; its [configuration adapter](docs/dsh-configuration.md) passes native Prompt/Skill/MCP and policy fixtures. External provider acceptance, complete configuration application reporting, native configuration import, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
 
 Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires native adapter compatibility checks before launch.
 
@@ -58,7 +58,7 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run check`         | Run ESLint, unit tests, TypeScript, and production builds                                                   |
 | `npm run test:smoke`    | Build and test a real Electron window, including language switching and persistence                         |
 | `npm run test:sessions` | Build and test desktop sessions with an explicitly selected OpenCode or Pi CLI and a local provider fixture |
-| `npm run probe:dsh`     | Opt-in installed DSH ACP lifecycle through native DeepSeek and pi-ai local provider fixtures                |
+| `npm run probe:dsh`     | Opt-in installed DSH ACP lifecycle and managed configuration through two local provider routes              |
 | `npm run probe:pi`      | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                   |
 | `npm run probe:acp`     | Opt-in installed OpenCode/DSH handshake through the application ACP client                                  |
 | `npm run format`        | Format source and documentation                                                                             |

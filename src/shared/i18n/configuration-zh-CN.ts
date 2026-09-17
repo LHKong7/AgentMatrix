@@ -96,6 +96,11 @@ export const configurationZh = {
   'config.piTrustHint':
     '项目信任不代表批准工具执行。上下文文件单独控制；共享 Skill 显式加载，自动发现的扩展保持禁用。',
   'config.dshProfile': 'DSH Profile',
+  'config.dshAppendPosition': 'DSH 指令位置',
+  'config.dshAppendPrefix': '原生指令之前',
+  'config.dshAppendSuffix': '原生指令之后',
+  'config.dshAppendHint':
+    '将共享追加指令放在原生指令之前或之后。使用 Prompt 替换时，此选项决定追加指令相对替换内容的位置。',
   'config.dshHint': '首批接入采用固定版本的 ACP 组件组合，计划中的运行时尚不支持 SDK Profile。',
   'config.nativeId': '原生插件 ID',
   'config.source': '来源',

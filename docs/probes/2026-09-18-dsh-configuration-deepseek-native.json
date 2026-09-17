@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-09-17T20:44:53.239Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "route": "deepseek-native",
+  "engineVersion": "0.1.5-rc.2",
+  "externalProviderCalls": false,
+  "compositionReadback": true,
+  "completePromptAndLiteralBraces": true,
+  "appendKeepsNativeIdentity": true,
+  "personaPrefixAndSuffix": true,
+  "projectRulesPreserved": true,
+  "directorySkillInvocation": true,
+  "skillReferenceRead": true,
+  "mcpStdioSecretEnvironmentAndCwd": true,
+  "mcpProviderCredentialIsolation": true,
+  "oldAndNewPromptSnapshots": true,
+  "toolApproval": true,
+  "toolDenial": true,
+  "providerCalls": 11
+}

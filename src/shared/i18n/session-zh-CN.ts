@@ -77,6 +77,7 @@ export const sessionZhCN: Record<keyof typeof sessionEn, string> = {
   'sessions.failure.storage': '会话历史不可用，执行与权限操作已停止。',
   'sessions.failure.engine': '引擎未能完成此操作。',
   'error.runtimeUnsupported': '目前仅支持在 macOS/Linux 上运行 OpenCode 1.18.16 和 Pi 0.85.1。',
+  'error.dshConfiguration': 'DeepSeek Harness 无法应用此配置：{feature}。',
   'error.runtimeProbe': 'CLI 版本检查失败，请检查可执行文件路径与前置参数。',
   'error.runtimeCwd': '请在 Agent 配置中填写现有工作目录的绝对路径。',
   'error.runtimeDesktopOnly': 'Agent 会话与 CLI 检查需要使用桌面应用。',

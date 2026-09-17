@@ -296,6 +296,9 @@ export function AgentEditor({
                           engineOptions: {
                             kind: 'deepseek-harness',
                             patchReload: 'startup',
+                            ...(draft.engineOptions?.kind === 'deepseek-harness'
+                              ? { appendPosition: draft.engineOptions.appendPosition }
+                              : {}),
                             profileTemplate: profileTemplate as 'acp' | 'sdk' | 'sdk-minimal',
                           },
                         })
@@ -306,6 +309,23 @@ export function AgentEditor({
                       <option value="sdk-minimal">SDK minimal</option>
                     </SelectField>
                     <p className="hint">{t('config.dshHint')}</p>
+                    <SelectField
+                      label={t('config.dshAppendPosition')}
+                      value={draft.engineOptions.appendPosition ?? 'suffix'}
+                      onChange={(appendPosition) => {
+                        if (draft.engineOptions?.kind === 'deepseek-harness')
+                          patch({
+                            engineOptions: {
+                              ...draft.engineOptions,
+                              appendPosition: appendPosition as 'prefix' | 'suffix',
+                            },
+                          })
+                      }}
+                    >
+                      <option value="suffix">{t('config.dshAppendSuffix')}</option>
+                      <option value="prefix">{t('config.dshAppendPrefix')}</option>
+                    </SelectField>
+                    <p className="hint">{t('config.dshAppendHint')}</p>
                   </>
                 )}
               </>

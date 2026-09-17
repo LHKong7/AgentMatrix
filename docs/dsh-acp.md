@@ -1,6 +1,6 @@
 # DeepSeek Harness ACP lifecycle evidence
 
-The selected integration route is **DSH 0.1.5-rc.2 with the shipped ACP profile**, using AgentMatrix's ACP v1 client and process supervisor. The SDK limitation recorded in the [initial probe](engine-probe-2026-09-18.md) still motivates this choice: the installed SDK lacks cancellation and resume operations. The local ACP lifecycle now passes on macOS arm64. DSH configuration/runtime adapters and the desktop launch path remain unimplemented.
+The selected integration route is **DSH 0.1.5-rc.2 with the shipped ACP profile**, using AgentMatrix's ACP v1 client and process supervisor. The SDK limitation recorded in the [initial probe](engine-probe-2026-09-18.md) still motivates this choice: the installed SDK lacks cancellation and resume operations. The local ACP lifecycle now passes on macOS arm64. The [configuration adapter](dsh-configuration.md) now passes separate native fixtures; the shared runtime and desktop launch path remain open.
 
 ## Version and provider boundaries
 
@@ -21,7 +21,7 @@ The probe starts from the published `dsh-base` and `dsh-acp-app` bundles. It cre
 
 `system-prompt` receives separate `personaPrefix` and `personaSuffix` values; both appear in actual provider requests. A live overlay edit leaves the running process's prompt unchanged; a subsequent process and new session use the edited value. The shipped profile declares `patchReload: startup`, and the probe checks both that declaration and the observed restart behavior.
 
-This does not implement complete System Prompt replacement or prove that mutable settings cannot change a provider later. The native settings and credentials seams are separate from startup patch composition. The application adapter must capture selected sources, isolate mutable native state, validate effective routing, and reject incompatible reuse. Full-prompt replacement, Skills, MCP, and saved-profile translation remain separate adapter work.
+This does not implement complete System Prompt replacement or prove that mutable settings cannot change a provider later. The native settings and credentials seams are separate from startup patch composition. The application adapter captures selected sources and isolates native controls; the runtime still needs effective session readback and restoration validation. Full-prompt replacement, Skills, stdio MCP, and saved-profile translation are verified separately by the [configuration adapter fixture](dsh-configuration.md).
 
 ## Observed runtime behavior
 
@@ -49,4 +49,4 @@ npm run probe:dsh
 
 The test creates temporary home/config/project directories, disables native telemetry, supplies synthetic credentials only to child environments, and binds a local HTTP provider fixture. It checks both routes, file effects, both cancellation paths, source precedence, restart behavior, native restoration, and process-group cleanup. It never calls an external model provider or edits the user's DSH configuration. Report output is optional. Fixture files are removed after confirmed process cleanup and retained if cleanup fails.
 
-The shared ACP client now exposes capability-checked session listing and typed config-option changes. Deterministic tests cover these methods separately from native fixtures. Passing this probe supplies the local ACP feasibility evidence for V4; V2, D1–D4, external endpoint/model/key acceptance, shared Skill/MCP mapping, and the cross-engine desktop scenario remain open.
+The shared ACP client now exposes capability-checked session listing and typed config-option changes. Deterministic tests cover these methods separately from native fixtures. Passing this probe supplies the local ACP feasibility evidence for V4; V2, complete D1–D4 acceptance, external endpoint/model/key verification, and the cross-engine desktop scenario remain open. Shared Skill/stdio-MCP configuration mapping now has separate local evidence.

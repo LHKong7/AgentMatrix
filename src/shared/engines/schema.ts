@@ -192,6 +192,7 @@ export const engineOptionsSchema = z.discriminatedUnion('kind', [
       kind: z.literal('deepseek-harness'),
       profileTemplate: z.enum(['acp', 'sdk', 'sdk-minimal']),
       patchReload: z.literal('startup'),
+      appendPosition: z.enum(['prefix', 'suffix']).optional(),
     })
     .strict(),
 ])
