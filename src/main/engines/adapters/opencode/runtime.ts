@@ -14,6 +14,7 @@ import {
 import { openCodeContract } from './configuration'
 import { verifyOpenCodeReadback } from './readback'
 import { redactText } from '../../process/redacted-tail'
+import { prepareOpenCodePluginAttachment } from './plugins'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -46,6 +47,8 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   // Native config loading can itself migrate files. Such changes invalidate this captured plan.
   await store.verifyForReuse(snapshotId)
   if (signal.aborted) throw new RuntimeFailure('process-exit')
+  const plugins = await prepareOpenCodePluginAttachment(manifest, store.paths(snapshotId))
+  if (plugins) Object.assign(launch.environment, plugins.environment)
   let active: AcpTurn | null = null
   let handlerFailure: RuntimeFailure | null = null
   let attachment: AcpAttachment | undefined
@@ -98,6 +101,11 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       throw new RuntimeFailure('process-exit')
     }
     const owned = attachment
+    const closed = owned.closed.finally(async () => {
+      signal.removeEventListener('abort', abort)
+      await plugins?.cleanup()
+    })
+    void closed.catch(() => {})
     const initialization = await owned.client.initialize('0.1.0')
     if (initialization.agentInfo?.version !== manifest.installation.version)
       throw new RuntimeFailure('configuration', 'installation.version')
@@ -113,9 +121,11 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
           : null
       if (!response) throw new RuntimeFailure('unsupported', 'resume')
       checkedConfig(response.configOptions)
+      await plugins?.verify(owned.process.pid, response.configOptions)
     } else {
       const created = await owned.client.newSession({ cwd: manifest.cwd, mcpServers: [] })
       checkedConfig(created.configOptions)
+      await plugins?.verify(owned.process.pid, created.configOptions)
       nativeSessionId = created.sessionId
     }
     if (
@@ -126,8 +136,6 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       throw new RuntimeFailure('protocol')
     if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     const id = nativeSessionId
-    const closed = owned.closed.finally(() => signal.removeEventListener('abort', abort))
-    void closed.catch(() => {})
     return {
       configurationChecks: [
         'inputs.integrity',
@@ -136,6 +144,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         'opencode.config',
         'opencode.session-model',
         'opencode.session-agent',
+        ...(plugins ? ['opencode.plugins' as const] : []),
       ],
       nativeSessionId: id,
       closed,
@@ -148,6 +157,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         const turn = new AcpTurn(id, launch.secrets ?? [], handlers)
         active = turn
         try {
+          await plugins?.verify(owned.process.pid)
           const result = await owned.client.prompt(
             { sessionId: id, prompt: [{ type: 'text', text }] },
             manifest.agent.execution.timeoutMs ?? 600_000,
@@ -171,6 +181,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   } catch (error) {
     signal.removeEventListener('abort', abort)
     await attachment?.close()
+    await plugins?.cleanup()
     if (error instanceof RuntimeFailure) throw error
     throw new RuntimeFailure(
       error instanceof AcpFailure && error.code === 'timeout' ? 'timeout' : 'protocol',

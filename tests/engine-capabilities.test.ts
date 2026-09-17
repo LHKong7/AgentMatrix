@@ -62,8 +62,8 @@ describe('engine configuration constraints before native work', () => {
       const plugins = report.capabilities.find((row) => row.feature === 'plugins')!
       expect(plugins).toMatchObject({
         requested: false,
-        mechanism: 'unsupported',
-        availability: 'blocked',
+        mechanism: kind === 'opencode' ? 'adapter' : 'unsupported',
+        availability: kind === 'opencode' ? 'unknown' : 'blocked',
       })
       expect(
         report.capabilities.find((row) => row.feature === 'authentication')!.availability,
@@ -267,7 +267,7 @@ describe('engine configuration constraints before native work', () => {
       expect(engineConfigurationIssues(value)[0]!.code).toBe('command-value')
     },
   )
-  it('blocks native plugin activation without deleting or disabling the selected binding', async () => {
+  it('requires runtime plugin checks and blocks pure mode without deleting the binding', async () => {
     const value = configuration()
     value.nativePlugins = [
       {
@@ -281,13 +281,19 @@ describe('engine configuration constraints before native work', () => {
       },
     ]
     const report = await describeConfigurationCapabilities(value)
-    expect(report.eligibleForStartupChecks).toBe(false)
+    expect(report.eligibleForStartupChecks).toBe(true)
     expect(report.capabilities.find((row) => row.feature === 'plugins')).toMatchObject({
       requested: true,
-      mechanism: 'unsupported',
-      availability: 'blocked',
+      mechanism: 'adapter',
+      availability: 'unknown',
     })
     expect(value.nativePlugins).toHaveLength(1)
+    value.installation.prefixArgs = ['--pure']
+    expect(engineConfigurationIssues(value)).toContainEqual({
+      code: 'plugins-pure-mode',
+      field: 'plugins',
+      nativeFeature: 'nativePlugins.pure-mode',
+    })
   })
 })
 

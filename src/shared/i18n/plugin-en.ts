@@ -4,7 +4,7 @@ export const pluginEn = {
   'plugin.result': 'Installed file inspection',
   'plugin.filesOnly': 'Files checked · Activation unverified',
   'plugin.scope':
-    'Checks the selected local entry and adjacent package metadata. Dependencies, exported plugin ID, hooks, and runtime compatibility still need verification. Session activation is not yet available.',
+    'Checks the selected entry and adjacent package metadata. Supported OpenCode ESM plugins are checked again at session startup and resume. Transitive dependencies are not captured; this inspection alone does not prove activation.',
   'plugin.engineHint': 'File inspection currently supports OpenCode installations.',
   'plugin.versionHint':
     'Entry resolution follows OpenCode {version}. The selected engine version has not been verified against this contract.',
@@ -29,7 +29,7 @@ export const pluginEn = {
   'plugin.versionMismatch':
     'The configured version differs from the installed package version. Review it before saving.',
   'plugin.idHint':
-    'Enter the native plugin ID separately; a package name does not establish the exported plugin ID.',
+    'V1 exported IDs are checked at startup. For legacy modules without an exported ID, this is a label; source digests identify the binding.',
   'error.pluginDesktopOnly': 'Installed plugin inspection is available in the desktop app.',
   'error.pluginBusy': 'Another plugin inspection is still in progress.',
   'error.pluginEngine': 'Choose a saved OpenCode installation before inspecting a plugin.',
@@ -44,4 +44,10 @@ export const pluginEn = {
   'error.pluginLimit': 'Inspection is limited to 256 KiB of package metadata and a 20 MB entry.',
   'error.pluginChanged': 'Plugin files changed during inspection. Retry after edits finish.',
   'error.pluginRead': 'The installed plugin files could not be read.',
+  'error.pluginExports':
+    'Select an ESM plugin with explicit JavaScript/TypeScript exports. CommonJS and export-star entries are not supported yet.',
+  'error.pluginDuplicate': 'Two selected plugins resolve to the same entry. Keep one binding.',
+  'error.pluginVersion': 'The installed package version differs from the selected plugin version.',
+  'error.pluginRange':
+    'The installed plugin requires a different OpenCode version or declares an invalid version range.',
 } as const

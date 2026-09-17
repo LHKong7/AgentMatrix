@@ -1,6 +1,8 @@
 import type { supportEn } from './support-en'
 
 export const supportZhCN: Record<keyof typeof supportEn, string> = {
+  'support.issue.plugins-pure-mode':
+    'OpenCode pure 模式会跳过外部插件。使用已选插件启动前，请移除 --pure。',
   'support.title': '引擎兼容性',
   'support.blocked': '此配置可继续保存为草稿；开始新会话前需要解决以下适配限制。',
   'support.eligible': '当前设置未触发已知的适配限制，启动时仍需检查。',

@@ -5,6 +5,7 @@ import { isAbsolute, join } from 'node:path'
 import { parseDocument } from 'yaml'
 import { z } from 'zod'
 import { appError } from '../../../../shared/errors'
+import { planOpenCodePlugins } from './plugins'
 import type { SecretReference } from '../../../../shared/engines/schema'
 import type {
   ResolvedAgentConfiguration,
@@ -123,7 +124,7 @@ export async function planOpenCode(
     promptPaths: {},
     skillPaths: {},
     files: [],
-    externalSources: context.sources,
+    externalSources: structuredClone(context.sources),
   }
   let secretIndex = 0
   const secret = (reference: SecretReference | null, prefix = ''): NativeExpression => {
@@ -239,6 +240,7 @@ export async function planOpenCode(
       }
     }
   }
+  const plugins = await planOpenCodePlugins(configuration, paths, generated, agentName)
   const native = {
     $schema: 'https://opencode.ai/config.json',
     autoupdate: false,
@@ -246,6 +248,7 @@ export async function planOpenCode(
     model: modelRoute,
     small_model: modelRoute,
     default_agent: agentName,
+    plugin: plugins.length ? plugins : undefined,
     provider: {
       [providerId]: {
         name: connection.name,

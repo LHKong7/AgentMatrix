@@ -50,6 +50,7 @@ const server = createServer(async (request, response) => {
         model: input.model,
         role: body.includes('NEW_ROLE_MARKER') ? 'new' : 'original',
         read,
+        plugin: body.includes('DESKTOP_PLUGIN_MARKER'),
         directoryRead: read
           ? body.includes('SMOKE_FILE_MARKER_ALTERNATE')
             ? 'alternate'
@@ -135,7 +136,27 @@ if (isPi) {
     profileTemplate: 'acp',
     patchReload: 'startup',
   }
-} else workspace.installations[0].prefixArgs = ['--pure']
+} else {
+  const path = join(root, 'desktop-plugin.mjs')
+  await writeFile(
+    path,
+    `export default { id: 'desktop-plugin', async server() { return Object.freeze({
+    'experimental.chat.system.transform'(_input, output) { output.system.push('DESKTOP_PLUGIN_MARKER'); }
+  }); } };\n`,
+  )
+  workspace.nativePlugins = [
+    {
+      id: 'desktop-plugin',
+      name: 'Desktop plugin',
+      nativeId: 'desktop-plugin',
+      engineInstallationId: 'oc',
+      version: 'fixture',
+      source: 'local desktop fixture',
+      path,
+    },
+  ]
+  workspace.agents[0].nativePluginIds = ['desktop-plugin']
+}
 workspace.installations[0].version = null
 workspace.installations[0].probedAt = null
 workspace.installations[0].modes = []
@@ -422,6 +443,10 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     return window.agentMatrix.sessions.configuration({ sessionId })
   })
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
+  if (!isPi && !isDsh) {
+    assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
+    assert.ok(value.observation.checks.includes('opencode.plugins'))
+  }
   if (process.env.AGENT_MATRIX_REPORT_SCREENSHOT)
     await page.screenshot({
       path: process.env.AGENT_MATRIX_REPORT_SCREENSHOT + (title === '配置报告' ? '.zh.png' : ''),
@@ -595,6 +620,7 @@ try {
   if (!isPi) await page.getByRole('button', { name: /^允许一次/ }).click()
   await status('就绪')
   assert.equal(calls.at(-1).directoryRead, 'default')
+  if (!isPi && !isDsh) assert.equal(calls.at(-1).plugin, true)
   assert.equal(
     await page.locator('.message.assistant pre').textContent(),
     'UI_REPLY <script>not executable</script>',
@@ -738,6 +764,7 @@ try {
   await status('Ready')
   assert.equal(calls.at(-1).role, 'new')
   assert.equal(calls.at(-1).directoryRead, 'alternate')
+  if (!isPi && !isDsh) assert.equal(calls.at(-1).plugin, true)
   const latest = (await sessions()).find((session) => session.id !== original.id)
   assert.ok(latest)
   assert.equal(latest.cwd, alternateCwd)
@@ -812,6 +839,15 @@ try {
     permissionReply: isPi ? 'unsupported: no universal per-tool approval' : true,
     toolResult: calls.some((call) => call.read),
     rendererReloadWithoutResubmit: true,
+    selectedPluginActivation:
+      !isPi && !isDsh
+        ? {
+            capturedBinding: true,
+            nativeHookReachedProvider: true,
+            newAndResumedInstanceVerified: true,
+            englishAndChineseReport: true,
+          }
+        : 'not supported',
     streamingCancellation: true,
     messageDelivery: isDsh ? 'Committed semantic messages' : 'Streaming text',
     configurationReport: {

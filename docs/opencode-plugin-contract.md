@@ -1,6 +1,6 @@
 # OpenCode plugin lifecycle contract
 
-This is installed-release evidence for the selected-plugin work in A6/B3, using **OpenCode 1.18.16 on macOS arm64**. It is not product activation acceptance. The fixture adds native plugin declarations directly to generated inputs; normal AgentMatrix plugin bindings remain blocked until an activation verifier is implemented.
+This is installed-release evidence for the selected-plugin work in A6/B3, using **OpenCode 1.18.16 on macOS arm64**. The fixture adds native plugin declarations directly to generated inputs. The subsequent [production activation implementation and its separate evidence](opencode-plugin-activation.md) cover normal AgentMatrix ESM plugin bindings.
 
 The [recorded result](probes/2026-09-18-opencode-plugin-contract.json) comes from `tests/opencode-plugin-installed.probe.ts`. The test uses the production OpenCode runtime, a temporary project/home/config, local fixture modules, and a local synthetic Chat Completions endpoint. It exercises startup, a streamed response, native resume in a new process, and pure mode. Native startup may maintain OpenCode's own SDK dependencies; the result does not claim zero registry traffic or external-provider acceptance.
 
@@ -21,7 +21,7 @@ The [recorded result](probes/2026-09-18-opencode-plugin-contract.json) comes fro
 
 The pinned [loader](https://github.com/anomalyco/opencode/blob/v1.18.16/packages/opencode/src/plugin/loader.ts) distinguishes local and package-manager sources and drops failed loads. The [plugin lifecycle](https://github.com/anomalyco/opencode/blob/v1.18.16/packages/opencode/src/plugin/index.ts) handles V1 versus legacy exports, config hooks, and per-instance disposal. The test checks these behaviors at the installed CLI boundary rather than inferring successful activation from these sources alone.
 
-## Required implementation follow-up
+## Requirements established by this probe
 
 Activation evidence must identify the requested binding, captured source/version, current attachment, and current native instance. It must survive neither an instance disposal nor a later failed initialization, and must be regenerated when resuming a native conversation. All required initializers and config hooks must finish successfully before the adapter reports the binding as verified. The current fixture's two cycles are an observation, not a count that the production verifier should hardcode. Neither cycle emitted a dispose receipt before readiness, so absence of disposal cannot identify the active one.
 
@@ -29,7 +29,7 @@ The fixture also writes a distinct instance marker into the generated native age
 
 A bridge must preserve alias deduplication, multiple legacy initializers, V1 behavior, options, hook order, and separate tool/auth hook objects. Combining arbitrary hook objects into one would change native semantics. Any unsupported export or dependency form needs an explicit diagnostic. The bridge must not import selected code into Electron while preparing or inspecting a draft.
 
-Source observations also need startup/resume validation and a stated dependency coverage boundary. Range checks against saved CLI metadata help expose invalid declarations but are not runtime compatibility evidence. Generic activation, native options editing, complete dependency coverage, Pi extensions, and DSH plugin recognition remain open.
+The subsequent activation implementation adds nonce/binding checks, description preservation, source revalidation, and instance-specific lifecycle receipts. Native options editing, CommonJS/export-star coverage, complete dependency provenance, Pi extensions, and DSH plugin recognition remain open. The generic native probe above intentionally remains independent of that production verifier.
 
 ## Reproduce
 

@@ -71,6 +71,8 @@ export const reportEn = {
   'report.check.opencode.config': 'OpenCode debug config, checked in a separate native process',
   'report.check.opencode.session-model': 'OpenCode ACP selected model',
   'report.check.opencode.session-agent': 'OpenCode ACP selected agent',
+  'report.check.opencode.plugins':
+    'Selected OpenCode plugins initialized and configured in the acknowledged native instance; transitive dependencies not captured',
   'report.check.pi.state': 'Pi RPC state: route, endpoint, thinking, and idle policy',
   'report.check.pi.skills': 'Pi RPC discovered Skill commands; invocation not checked',
   'report.check.dsh.composition': 'DSH config dump matched; plugins were not activated by the dump',

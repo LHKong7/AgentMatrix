@@ -1,4 +1,6 @@
 export const supportEn = {
+  'support.issue.plugins-pure-mode':
+    'OpenCode pure mode skips external plugins. Remove --pure before starting with selected plugins.',
   'support.title': 'Engine compatibility',
   'support.blocked':
     'Keep this profile as a draft. Resolve these adapter constraints before starting a new session.',

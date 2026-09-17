@@ -296,7 +296,9 @@ describe('OpenCode configuration', () => {
         ]
         workspace.agents[0]!.mcpServerIds = ['sse']
       }
-      await expect(plan()).rejects.toThrow('error.openCodeConfiguration')
+      await expect(plan()).rejects.toThrow(
+        feature === 'native-plugin' ? 'error.pluginMissing' : 'error.openCodeConfiguration',
+      )
     },
   )
 })

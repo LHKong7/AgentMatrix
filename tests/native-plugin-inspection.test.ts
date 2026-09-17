@@ -200,7 +200,7 @@ describe('read-only installed OpenCode plugin inspection', () => {
       inspectNativePlugin(workspace, { installationId: 'oc', path: plugin, execute: true }),
     ).rejects.toThrow()
   })
-  it('keeps activation blocked after a successful filesystem inspection', async () => {
+  it('does not promote a successful filesystem inspection into runtime verification', async () => {
     const workspace = openCodeWorkspace('/absent', root)
     await metadata({ version: '1.2.3', main: './dist/server.mjs' })
     await inspectNativePlugin(workspace, { installationId: 'oc', path: plugin })
@@ -216,10 +216,7 @@ describe('read-only installed OpenCode plugin inspection', () => {
     workspace.agents[0]!.nativePluginIds.push('plugin')
     const resolved = resolveAgentProfile(workspace, 'reviewer')
     if (resolved.status !== 'resolved') throw new Error('Invalid fixture')
-    expect(engineConfigurationIssues(resolved.configuration)).toContainEqual({
-      code: 'native-plugins',
-      field: 'plugins',
-      nativeFeature: 'nativePlugins.activation',
-    })
+    expect(engineConfigurationIssues(resolved.configuration)).toEqual([])
+    expect(workspace.nativePlugins[0]).not.toHaveProperty('verification')
   })
 })

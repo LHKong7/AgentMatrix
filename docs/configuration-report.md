@@ -22,6 +22,8 @@ The report reads and verifies the saved manifest and captured files, then compar
 | DSH connection, authentication references, Prompt/Skill/MCP wiring, policy and profile composition     | Exact native configuration dump                  | Labeled **composition matched; application unknown** because the dump does not activate plugins                                 |
 | Missing readback                                                                                       | None                                             | Explicitly unknown; generated files or Ready state are not substituted as proof                                                 |
 
+For selected OpenCode ESM plugins, `opencode.plugins` records initializer and config-hook completion in the instance acknowledged by ACP. It is checked on new sessions and resume; read-only file inspection cannot supply it. Complete dependency capture and arbitrary hook behavior remain outside this observation. See [activation checks](opencode-plugin-activation.md).
+
 Unset sampling defaults and unsupported reasoning readback remain unknown. The report presents the captured request and the scope of its native checks; it is not an assertion that every field is applied or continuously unchanged. Failures/interruption remain visible alongside historical evidence.
 
 ## Saved changes and assets

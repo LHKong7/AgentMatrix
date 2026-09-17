@@ -68,6 +68,8 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
   'report.check.opencode.config': '在独立原生进程中检查 OpenCode debug config',
   'report.check.opencode.session-model': 'OpenCode ACP 当前模型',
   'report.check.opencode.session-agent': 'OpenCode ACP 当前 Agent',
+  'report.check.opencode.plugins':
+    '已选 OpenCode 插件已在会话确认的原生实例中完成初始化和配置；未捕获传递依赖',
   'report.check.pi.state': 'Pi RPC 状态：路线、接口、推理与空闲策略',
   'report.check.pi.skills': 'Pi RPC 已发现的 Skill 命令；未验证调用',
   'report.check.dsh.composition': 'DSH 配置导出匹配；导出过程未启动插件',

@@ -64,6 +64,7 @@ export function buildConfigurationReport(
           prompts: ['opencode.config'],
           skills: ['opencode.config'],
           mcp: ['opencode.config'],
+          plugins: manifest.nativePlugins.length ? ['opencode.plugins'] : [],
         } as Partial<Record<ConfigurationField, ConfigurationCheck[]>>)
       : kind === 'pi'
         ? ({

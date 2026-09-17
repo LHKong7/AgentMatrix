@@ -6,7 +6,7 @@ export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
   'plugin.result': '已安装文件检查',
   'plugin.filesOnly': '文件已检查 · 激活尚未验证',
   'plugin.scope':
-    '检查所选本地入口和相邻的包元数据。依赖、导出的插件 ID、钩子和运行时兼容性仍需验证，目前尚不能在会话中激活插件。',
+    '检查所选入口和相邻包元数据。支持的 OpenCode ESM 插件会在会话启动与恢复时再次验证。传递依赖未捕获，仅凭此次文件检查不能证明激活成功。',
   'plugin.engineHint': '文件检查目前支持 OpenCode 安装。',
   'plugin.versionHint': '入口解析依据 OpenCode {version}。所选引擎版本尚未通过此契约的验证。',
   'plugin.package': '包名称',
@@ -27,7 +27,8 @@ export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
   'plugin.metadataDigest': '包元数据 SHA-256',
   'plugin.useVersion': '使用包版本',
   'plugin.versionMismatch': '配置版本与已安装的包版本不同，请在保存前核对。',
-  'plugin.idHint': '请单独填写原生插件 ID；包名称不能证明导出的插件 ID。',
+  'plugin.idHint':
+    'V1 导出的 ID 会在启动时核对。没有导出 ID 的旧式模块使用此字段作为标签，并以来源摘要标识绑定。',
   'error.pluginDesktopOnly': '已安装插件检查仅在桌面应用中可用。',
   'error.pluginBusy': '另一个插件检查仍在进行中。',
   'error.pluginEngine': '请先选择已保存的 OpenCode 安装，再检查插件。',
@@ -41,4 +42,9 @@ export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
   'error.pluginLimit': '检查上限为 256 KiB 包元数据和 20 MB 入口文件。',
   'error.pluginChanged': '检查过程中插件文件发生了变化，请在编辑完成后重试。',
   'error.pluginRead': '无法读取已安装的插件文件。',
+  'error.pluginExports':
+    '请选择包含显式 JavaScript/TypeScript 导出的 ESM 插件。目前不支持 CommonJS 和 export-star 入口。',
+  'error.pluginDuplicate': '两个已选插件解析到了同一入口，请只保留一个绑定。',
+  'error.pluginVersion': '已安装的包版本与所选插件版本不一致。',
+  'error.pluginRange': '已安装的插件要求其他 OpenCode 版本，或声明了无效的版本范围。',
 }

@@ -40,7 +40,7 @@ function contained(root: string, path: string) {
 }
 
 /** Bounded, nonblocking regular-file reads. No import, subprocess, package manager, or network. */
-async function inspectFile(path: string, limit: number, keepBytes: boolean) {
+export async function inspectFile(path: string, limit: number, keepBytes: boolean) {
   const resolvedPath = await realpath(path)
   const handle = await open(
     resolvedPath,

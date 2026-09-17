@@ -11,6 +11,7 @@ export const configurationCheckSchema = z.enum([
   'opencode.config',
   'opencode.session-model',
   'opencode.session-agent',
+  'opencode.plugins',
   'pi.state',
   'pi.skills',
   'dsh.composition',

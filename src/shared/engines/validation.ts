@@ -10,6 +10,7 @@ export type EngineIssueCode =
   | 'prefix-arguments'
   | 'native-options'
   | 'native-plugins'
+  | 'plugins-pure-mode'
   | 'protocol'
   | 'authentication'
   | 'secret-reference'
@@ -114,8 +115,11 @@ export function engineConfigurationIssues(
     !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(agent.engineOptions.agent)
   )
     add('native-options', 'engine-options', 'engineOptions.agent')
-  if (configuration.nativePlugins.length)
-    add('native-plugins', 'plugins', 'nativePlugins.activation')
+  if (configuration.nativePlugins.length) {
+    if (kind !== 'opencode') add('native-plugins', 'plugins', 'nativePlugins.activation')
+    else if (installation.prefixArgs.some((arg) => /^--pure(?:=|$)/.test(arg)))
+      add('plugins-pure-mode', 'plugins', 'nativePlugins.pure-mode')
+  }
   if (kind === 'pi' && agent.execution.approval === 'ask')
     add('universal-approval', 'execution', 'execution.universal-approval')
   const protocol = connection.protocol

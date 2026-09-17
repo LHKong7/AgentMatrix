@@ -1,6 +1,6 @@
 # Installed native plugin inspection
 
-AgentMatrix can inspect an explicitly selected installed **OpenCode** plugin from its library editor. This is the first implementation step for the native plugin scope in A6/B3. It does not pass the plugin activation gate: profiles with native plugin bindings remain blocked by launch validation for all three engines.
+AgentMatrix can inspect an explicitly selected installed **OpenCode** plugin from its library editor. Inspection remains read-only. Supported OpenCode ESM bindings now have separate [startup and resume activation checks](opencode-plugin-activation.md); Pi and DeepSeek Harness plugin activation remain pending.
 
 ## Desktop workflow
 
@@ -21,17 +21,17 @@ The resolver is based on OpenCode **1.18.16**. It recognizes explicit server exp
 
 Package metadata is limited to 256 KiB and entry files to 20 MB. Reads require regular files and reject detected concurrent changes. Installation directory symlinks are supported and their physical paths are shown; declared package entries escaping their directory are rejected. These checks are deliberately stricter than the native loader for malformed metadata and ambiguous directory resolution. They are not a snapshot of the full dependency tree and cannot establish that a module will import or initialize successfully.
 
-## Work still required for activation
+## Separate activation checks
 
-Activation must verify the installed plugin's identity and source observations again at startup and resume, establish the dependency and compatibility boundary, pass the selected references to the native runtime, and observe successful initialization in that same runtime attachment. Plugin source changes must invalidate stale evidence. Hook effects need their own checks; successful initialization alone does not prove every hook works.
+The activation path verifies the captured entry/package observations at startup and resume and checks initializer/config-hook receipts from the instance acknowledged by ACP. Inspection results do not substitute for these checks. Complete dependency coverage remains open. Hook effects need their own checks; successful initialization alone does not prove every hook works.
 
-The [installed-release contract probe](opencode-plugin-contract.md) confirms that local packages bypass the native engine-range gate. It also verifies that OpenCode can continue after a plugin load, initialization, or config-hook error, and that pure mode excludes external plugins. Reading the generated configuration or receiving an ACP session is therefore insufficient activation evidence. The implementation must account for these behaviors before enabling bound plugins. See the [pinned plugin lifecycle](https://github.com/anomalyco/opencode/blob/v1.18.16/packages/opencode/src/plugin/index.ts).
+The [installed-release contract probe](opencode-plugin-contract.md) confirms that local packages bypass the native engine-range gate. It also verifies that OpenCode can continue after a plugin load, initialization, or config-hook error, and that pure mode excludes external plugins. Reading generated configuration or receiving an ACP session is therefore insufficient activation evidence; the separate activation verifier handles these cases.
 
 Pi extension selection and DeepSeek Harness plugin/composition recognition remain separate adapter work. No Pi MCP extension is chosen implicitly. The [native plugin installation documentation](https://opencode.ai/docs/plugins/) describes package-manager installation and local discovery; automatic installation remains outside AgentMatrix's initial scope.
 
 ## Validation
 
-Unit coverage exercises semantic ranges, prerelease rules, unknown probe metadata, export/main precedence, adjacent versus ancestor metadata, index selection, linked installations, file digests, metadata filtering, missing and malformed files, size limits, path escapes, edits during inspection, request validation, and the continued activation block.
+Unit coverage exercises semantic ranges, prerelease rules, unknown probe metadata, export/main precedence, adjacent versus ancestor metadata, index selection, linked installations, file digests, metadata filtering, missing and malformed files, size limits, path escapes, edits during inspection, request validation, and the separation of file inspection from runtime evidence.
 
 The Electron configuration smoke fixture checks the real preload/IPC/filesystem path in both languages, explicit version adoption, matching/mismatching/unknown range diagnostics, unchanged native ID/source, no workspace mutation from inspection, error display, clearing obsolete results, and saved reference persistence across restart. Its installed entry would write a marker if executed; the fixture checks that no marker exists. This validates read-only desktop inspection on macOS, not native plugin execution or cross-platform runtime acceptance.
 
