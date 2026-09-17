@@ -1,5 +1,10 @@
 import { StringDecoder } from 'node:string_decoder'
 
+export function redactText(text: string, secrets: readonly string[]): string {
+  const filter = new RedactedTail(secrets)
+  return filter.push(Buffer.from(text)) + filter.finish()
+}
+
 function trailingPrefix(text: string, secret: string): number {
   const prefix = new Int32Array(secret.length)
   for (let index = 1, length = 0; index < secret.length; index++) {

@@ -2,7 +2,7 @@ import { createServer } from 'node:http'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { planOpenCode } from '../src/main/engines/adapters/opencode/configuration'
 import { inspectOpenCodeSources } from '../src/main/engines/adapters/opencode/sources'
@@ -17,6 +17,9 @@ import type {
   RuntimeTurnHandlers,
 } from '../src/main/engines/runtime'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
+import { SessionCoordinator, type SessionRuntimeFactory } from '../src/main/sessions/coordinator'
+import { SessionJournal } from '../src/main/sessions/journal'
+import type { SessionSnapshot, SessionDelivery } from '../src/shared/sessions/schema'
 
 async function capture(launch: ProcessLaunch, args: string[]): Promise<string> {
   const child = new ManagedProcess({ ...launch, args })
@@ -229,6 +232,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Missing fixture address')
     let runtime: RuntimeSession | undefined
+    let coordinator: SessionCoordinator | undefined
     try {
       const workspace = openCodeWorkspace(executable, cwd)
       workspace.connections[0]!.baseUrl = `http://127.0.0.1:${address.port}/v1`
@@ -433,6 +437,137 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       await runtime.closed
       await runtime.dispose()
       expect(await store.verifyForReuse('native')).toEqual(manifest)
+
+      // Exercise the same production runtime through durable application commands.
+      const journalDirectory = join(root, 'sessions')
+      let managedConnections = 0
+      const factory: SessionRuntimeFactory = {
+        create: async () => ({
+          agentId: manifest.agent.id,
+          installationId: manifest.installation.id,
+          engineVersion: manifest.installation.version!,
+          mode: manifest.launch.mode,
+          cwd: manifest.cwd,
+          snapshotId: 'native',
+          snapshotDigest: manifest.digest,
+        }),
+        connect: async (snapshot, signal) => {
+          managedConnections++
+          return connectOpenCode({
+            ...connectOptions,
+            signal,
+            ...(snapshot.status === 'resuming'
+              ? { previousNativeSessionId: snapshot.nativeSessionId! }
+              : {}),
+          })
+        },
+      }
+      coordinator = new SessionCoordinator(new SessionJournal(journalDirectory), factory)
+      const created = await coordinator.command({
+        kind: 'create',
+        commandId: 'managed-create',
+        agentId: manifest.agent.id,
+      })
+      const managedId = created.id
+      const waitForStatus = async (status: SessionSnapshot['status']) => {
+        await vi.waitFor(
+          async () => {
+            const state = await coordinator!.get({ sessionId: managedId })
+            if (state.status === 'failed')
+              throw new Error(`Managed session failed: ${state.failure?.code}`)
+            expect(state.status).toBe(status)
+          },
+          { timeout: 20_000, interval: 25 },
+        )
+        return coordinator!.get({ sessionId: managedId })
+      }
+      const deliveries: SessionDelivery[] = []
+      await coordinator.subscribe(
+        'fixture-frame',
+        { sessionId: managedId, subscriptionId: 'fixture', afterCursor: 0 },
+        (event) => deliveries.push(event),
+      )
+      await coordinator.command({ kind: 'start', commandId: 'managed-start', sessionId: managedId })
+      const managedReady = await waitForStatus('ready')
+      phase = 'permission'
+      const managedSend = {
+        kind: 'send' as const,
+        commandId: 'managed-send',
+        sessionId: managedId,
+        runId: managedReady.runId!,
+        messageId: 'managed-user',
+        text: `Read fixture.txt. Secret: ${key}`,
+      }
+      await coordinator.command(managedSend)
+      const managedWaiting = await waitForStatus('waiting')
+      const request = managedWaiting.pendingRequests[0]!
+      if (request.kind !== 'permission') throw new Error('Missing managed permission')
+      phase = 'resume'
+      await coordinator.command({
+        kind: 'respond',
+        commandId: 'managed-approve',
+        sessionId: managedId,
+        runId: managedReady.runId!,
+        turnId: managedWaiting.activeTurn!.id,
+        requestId: request.id,
+        response: {
+          kind: 'choice',
+          optionId: request.options.find((option) => option.kind === 'allow_once')!.id,
+        },
+      })
+      const managedFinished = await waitForStatus('ready')
+      expect(managedFinished.lastTurn?.outcome).toBe('completed')
+      const requestCount = mainRequests
+      await coordinator.command(managedSend)
+      expect(mainRequests).toBe(requestCount)
+      const managedHistory = await coordinator.readEvents({
+        sessionId: managedId,
+        afterCursor: 0,
+        limit: 500,
+      })
+      expect(JSON.stringify(managedHistory)).not.toContain(key)
+      expect(
+        managedHistory.events.some((event) => event.data.kind === 'interaction.resolved'),
+      ).toBe(true)
+      await vi.waitFor(() =>
+        expect(deliveries.filter((event) => event.kind === 'event').length).toBe(
+          managedHistory.events.length,
+        ),
+      )
+      expect(
+        deliveries.flatMap((delivery) => (delivery.kind === 'event' ? [delivery.event] : [])),
+      ).toEqual(managedHistory.events)
+      await coordinator.shutdown()
+      expect((await coordinator.get({ sessionId: managedId })).status).toBe('interrupted')
+      coordinator = new SessionCoordinator(new SessionJournal(journalDirectory), factory)
+      await coordinator.command(managedSend)
+      expect(managedConnections).toBe(1)
+      await coordinator.command({
+        kind: 'resume',
+        commandId: 'managed-resume',
+        sessionId: managedId,
+        previousRunId: managedReady.runId!,
+      })
+      const managedResumed = await waitForStatus('ready')
+      expect(managedResumed.runId).not.toBe(managedReady.runId)
+      expect(managedResumed.nativeSessionId).toBe(managedReady.nativeSessionId)
+      await coordinator.command({
+        ...managedSend,
+        commandId: 'resumed-send',
+        runId: managedResumed.runId!,
+        messageId: 'resumed-user',
+        text: 'Report retained context.',
+      })
+      await waitForStatus('ready')
+      expect(requests.at(-1)?.hasToolResult).toBe(true)
+      await coordinator.command({
+        kind: 'close',
+        commandId: 'managed-close',
+        sessionId: managedId,
+        runId: managedResumed.runId,
+      })
+      await waitForStatus('closed')
+      expect(await store.verifyForReuse('native')).toEqual(manifest)
       const nativePath = join(cwd, 'opencode.jsonc')
       const nativeContents =
         '{\n  // Preserved native project setting\n  "$schema": "https://opencode.ai/config.json",\n  "agent": { "build": { "prompt": "NATIVE_OVERRIDE_MARKER" } },\n  "compaction": { "auto": false }\n}\n'
@@ -474,18 +609,23 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
               cancellationDuringStreaming: true,
               cancellationDuringPermission: true,
               permissionPersistenceFailureClosesRuntime: true,
+              durableCoordinator:
+                'Create/start/send/permission/events/shutdown/restart/resume/close with the production OpenCode runtime',
+              commandReplayDoesNotResubmit: true,
+              managedJournalCredentialRedaction: true,
               nativeResume:
                 'Same native session ID and retained file/Skill/MCP history after process restart',
               nativeOverrides:
                 'Project prompt override rejected by readback; native file preserved; changed source blocks snapshot reuse',
               productionRuntime:
-                'OpenCode runtime adapter exercised; session coordinator, IPC, and UI are not connected',
+                'OpenCode runtime and durable coordinator exercised; desktop factory, IPC, and UI are not connected',
             },
             null,
             2,
           ) + '\n',
         )
     } finally {
+      await coordinator?.shutdown()
       await runtime?.dispose()
       server.closeAllConnections()
       await new Promise<void>((resolve) => server.close(() => resolve()))

@@ -69,6 +69,49 @@ afterEach(async () => {
 })
 
 describe('durable session journal', () => {
+  it('indexes durable command receipts across restart and rejects duplicate receipts in valid event sequences', async () => {
+    const { journal, directory, path } = await fixture()
+    const receipt = { id: 'start-command', digest: 'b'.repeat(64) }
+    await journal.append('s', 0, {
+      runId: 'run',
+      turnId: null,
+      receipt,
+      data: { kind: 'run.starting' },
+    })
+    await expect(
+      journal.append('s', 1, {
+        runId: 'run',
+        turnId: null,
+        receipt,
+        data: { kind: 'run.ready', nativeSessionId: 'native' },
+      }),
+    ).rejects.toThrow('sessionCommandConflict')
+    await journal.append('s', 1, {
+      runId: 'run',
+      turnId: null,
+      data: { kind: 'run.ready', nativeSessionId: 'native' },
+    })
+    const restarted = new SessionJournal(directory, () => date)
+    expect(await restarted.receipt('s', receipt.id)).toEqual({ ...receipt, cursor: 1 })
+    const snapshot = await restarted.get('s')
+    const forged = {
+      kind: 'event',
+      event: {
+        sessionId: 's',
+        cursor: snapshot.cursor + 1,
+        timestamp: date,
+        runId: 'next-run',
+        turnId: null,
+        receipt,
+        data: { kind: 'run.resuming' },
+      },
+    }
+    await appendFile(path, JSON.stringify(forged) + '\n')
+    const original = await readFile(path)
+    await expect(new SessionJournal(directory).get('s')).rejects.toThrow('sessionStorage')
+    expect(await readFile(path)).toEqual(original)
+  })
+
   it('stores strict LF frames, preserves split UTF-8 and Unicode separators, and pages the full history', async () => {
     const { journal, path } = await fixture()
     await start(journal)

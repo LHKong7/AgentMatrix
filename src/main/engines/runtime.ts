@@ -14,6 +14,7 @@ export type RuntimeTurnResult = Pick<
 export interface RuntimeSession {
   readonly nativeSessionId: string
   readonly closed: Promise<ProcessResult>
+  redact(text: string): string
   send(text: string, handlers: RuntimeTurnHandlers): Promise<RuntimeTurnResult>
   cancel(): Promise<void>
   dispose(): Promise<ProcessResult>

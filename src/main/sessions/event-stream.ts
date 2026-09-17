@@ -42,6 +42,7 @@ export class SessionEventStream {
   private events: { event: SessionEvent; bytes: number }[] = []
   private bytes = 0
   private subscribers = new Map<string, Subscriber>()
+  private unavailable = false
   private readonly limits: z.output<typeof limitsSchema>
 
   constructor(snapshot: SessionSnapshot, limits: z.input<typeof limitsSchema> = {}) {
@@ -54,6 +55,7 @@ export class SessionEventStream {
   }
 
   append(input: z.input<typeof appendSchema>, timestamp = new Date().toISOString()): SessionEvent {
+    if (this.unavailable) throw appError('error.sessionStorage')
     const event = sessionEventSchema.parse({
       ...appendSchema.parse(input),
       sessionId: this.state.id,
@@ -99,6 +101,7 @@ export class SessionEventStream {
     input: z.infer<typeof sessionSubscriptionSchema>,
     receive: Subscriber['receive'],
   ): { snapshot: SessionSnapshot; unsubscribe: () => void } {
+    if (this.unavailable) throw appError('error.sessionStorage')
     const query = sessionSubscriptionSchema.parse(input)
     if (query.sessionId !== this.state.id) throw appError('error.sessionStale')
     if (query.afterCursor > this.state.cursor) throw appError('error.sessionCursor')
@@ -140,6 +143,25 @@ export class SessionEventStream {
   removeOwner(owner: string): void {
     for (const [key, subscriber] of this.subscribers) {
       if (subscriber.owner === owner) this.subscribers.delete(key)
+    }
+  }
+
+  /** A failed durable append invalidates controls without fabricating a persisted transition. */
+  fail(): void {
+    this.unavailable = true
+    for (const subscriber of this.subscribers.values()) {
+      subscriber.queue = [
+        {
+          kind: 'unavailable',
+          subscriptionId: subscriber.id,
+          failure: { code: 'storage', detail: '' },
+        },
+      ]
+      subscriber.bytes = sizeOf(subscriber.queue[0])
+      if (!subscriber.scheduled) {
+        subscriber.scheduled = true
+        setImmediate(() => this.drain(subscriber))
+      }
     }
   }
 

@@ -11,6 +11,7 @@ import {
   sessionEventQuerySchema,
   sessionEventSchema,
   sessionSnapshotSchema,
+  type CommandReceipt,
   type SessionEvent,
   type SessionEventPage,
   type SessionSnapshot,
@@ -43,6 +44,7 @@ interface LoadedSession {
   snapshot: SessionSnapshot
   fingerprint: string
   bytes: number
+  receipts: Map<string, CommandReceipt & { cursor: number }>
 }
 
 /** One instance per application process; all operations are serialized, including replay and repair. */
@@ -80,13 +82,32 @@ export class SessionJournal {
         throw appError('error.sessionStorage')
       }
       const info = await this.fileInfo(path)
-      this.sessions.set(snapshot.id, { snapshot, fingerprint: fingerprint(info), bytes: info.size })
+      this.sessions.set(snapshot.id, {
+        snapshot,
+        fingerprint: fingerprint(info),
+        bytes: info.size,
+        receipts: new Map(
+          snapshot.creationReceipt
+            ? [[snapshot.creationReceipt.id, { ...snapshot.creationReceipt, cursor: 0 }]]
+            : [],
+        ),
+      })
       return structuredClone(snapshot)
     })
   }
 
   get(sessionId: string): Promise<SessionSnapshot> {
     return this.serial(async () => structuredClone((await this.load(sessionId)).snapshot))
+  }
+
+  receipt(
+    sessionId: string,
+    commandId: string,
+  ): Promise<(CommandReceipt & { cursor: number }) | null> {
+    const id = entityId.parse(commandId)
+    return this.serial(async () =>
+      structuredClone((await this.load(sessionId)).receipts.get(id) ?? null),
+    )
   }
 
   list(): Promise<SessionSnapshot[]> {
@@ -173,6 +194,12 @@ export class SessionJournal {
       return cached
     }
     let snapshot: SessionSnapshot | undefined
+    const receipts = new Map<string, CommandReceipt & { cursor: number }>()
+    const remember = (receipt: CommandReceipt | undefined, cursor: number) => {
+      if (!receipt) return
+      if (receipts.has(receipt.id)) throw appError('error.sessionStorage')
+      receipts.set(receipt.id, { ...receipt, cursor })
+    }
     const result = await this.scan(path, (record) => {
       if (record.kind === 'session') {
         if (
@@ -184,10 +211,12 @@ export class SessionJournal {
         )
           throw appError('error.sessionStorage')
         snapshot = record.snapshot
+        remember(snapshot.creationReceipt, 0)
       } else {
         if (!snapshot || record.event.cursor !== snapshot.cursor + 1)
           throw appError('error.sessionStorage')
         snapshot = applySessionEvent(snapshot, record.event)
+        remember(record.event.receipt, record.event.cursor)
       }
     })
     if (!snapshot) throw appError('error.sessionStorage')
@@ -218,7 +247,7 @@ export class SessionJournal {
         await handle.close()
       }
     }
-    const loaded = { snapshot, fingerprint: fingerprint(info), bytes: info.size }
+    const loaded = { snapshot, fingerprint: fingerprint(info), bytes: info.size, receipts }
     if (runningStates.has(snapshot.status)) {
       await this.appendLoaded(
         loaded,
@@ -239,6 +268,8 @@ export class SessionJournal {
     input: z.infer<typeof appendSchema>,
     recovering = false,
   ): Promise<SessionEvent> {
+    if (input.receipt && session.receipts.has(input.receipt.id))
+      throw appError('error.sessionCommandConflict')
     const event = sessionEventSchema.parse({
       ...input,
       sessionId: session.snapshot.id,
@@ -275,6 +306,8 @@ export class SessionJournal {
       session.snapshot = next
       session.fingerprint = fingerprint(info)
       session.bytes = info.size
+      if (event.receipt)
+        session.receipts.set(event.receipt.id, { ...event.receipt, cursor: event.cursor })
       return event
     } catch {
       this.sessions.delete(session.snapshot.id)

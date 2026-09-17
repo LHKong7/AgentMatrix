@@ -218,6 +218,9 @@ export const en = {
     'An existing migration backup conflicts with this workspace. Both files were preserved.',
   'error.schemaVersion': 'This workspace version cannot be migrated.',
   'error.sessionState': 'This operation is unavailable in the current session state.',
+  'error.sessionCommandConflict': 'This command ID was already used with different data.',
+  'error.sessionStopping':
+    'The application is shutting down. New session operations are unavailable.',
   'error.sessionStale':
     'This control belongs to an earlier session, run, turn, or request. Refresh the session.',
   'error.sessionExpired': 'This interaction request has expired.',

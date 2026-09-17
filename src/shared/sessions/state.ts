@@ -10,7 +10,7 @@ import {
   type SessionStatus,
 } from './schema'
 
-type SessionIdentity = Pick<
+export type SessionIdentity = Pick<
   SessionSnapshot,
   | 'id'
   | 'agentId'
@@ -21,6 +21,7 @@ type SessionIdentity = Pick<
   | 'snapshotId'
   | 'snapshotDigest'
   | 'createdAt'
+  | 'creationReceipt'
 >
 
 export function createSessionSnapshot(identity: SessionIdentity): SessionSnapshot {

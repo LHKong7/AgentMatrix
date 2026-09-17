@@ -202,6 +202,8 @@ export const zhCN = {
   'error.migrationBackup': '已有迁移备份与当前工作空间冲突，两个文件均已保留。',
   'error.schemaVersion': '无法迁移此版本的工作空间。',
   'error.sessionState': '当前会话状态不支持此操作。',
+  'error.sessionCommandConflict': '此命令 ID 已用于不同的数据。',
+  'error.sessionStopping': '应用正在退出，暂不接受新的会话操作。',
   'error.sessionStale': '此操作属于之前的会话、进程、回合或请求，请刷新会话。',
   'error.sessionExpired': '此交互请求已过期。',
   'error.sessionChoice': '请选择此交互请求提供的响应。',

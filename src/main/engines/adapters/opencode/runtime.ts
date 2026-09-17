@@ -13,6 +13,7 @@ import {
 } from '../../runtime'
 import { openCodeContract } from './configuration'
 import { verifyOpenCodeReadback } from './readback'
+import { redactText } from '../../process/redacted-tail'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -130,6 +131,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     return {
       nativeSessionId: id,
       closed,
+      redact: (text) => redactText(text, launch.secrets ?? []),
       async send(text: string, handlers: RuntimeTurnHandlers): Promise<RuntimeTurnResult> {
         if (active || signal.aborted || owned.client.signal.aborted)
           throw new RuntimeFailure('protocol', 'turn.state')

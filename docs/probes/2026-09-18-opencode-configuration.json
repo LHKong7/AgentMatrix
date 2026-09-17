@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-17T19:02:54.398Z",
+  "checkedAt": "2026-09-17T19:14:47.692Z",
   "engine": "opencode",
   "engineVersion": "1.18.16",
   "platform": "darwin",
@@ -20,7 +20,10 @@
   "cancellationDuringStreaming": true,
   "cancellationDuringPermission": true,
   "permissionPersistenceFailureClosesRuntime": true,
+  "durableCoordinator": "Create/start/send/permission/events/shutdown/restart/resume/close with the production OpenCode runtime",
+  "commandReplayDoesNotResubmit": true,
+  "managedJournalCredentialRedaction": true,
   "nativeResume": "Same native session ID and retained file/Skill/MCP history after process restart",
   "nativeOverrides": "Project prompt override rejected by readback; native file preserved; changed source blocks snapshot reuse",
-  "productionRuntime": "OpenCode runtime adapter exercised; session coordinator, IPC, and UI are not connected"
+  "productionRuntime": "OpenCode runtime and durable coordinator exercised; desktop factory, IPC, and UI are not connected"
 }

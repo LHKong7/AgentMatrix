@@ -114,6 +114,14 @@ export const sessionCommandSchema = z.discriminatedUnion('kind', [
 ])
 export type SessionCommand = z.infer<typeof sessionCommandSchema>
 
+export const commandReceiptSchema = z
+  .object({
+    id: entityId,
+    digest: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict()
+export type CommandReceipt = z.infer<typeof commandReceiptSchema>
+
 const turnFields = { id: entityId, messageId: entityId, startedAt: z.iso.datetime() }
 const completedTurnSchema = z
   .object({
@@ -135,6 +143,7 @@ export const sessionSnapshotSchema = z
     snapshotId: entityId,
     snapshotDigest: z.string().regex(/^[a-f0-9]{64}$/),
     createdAt: z.iso.datetime(),
+    creationReceipt: commandReceiptSchema.optional(),
     updatedAt: z.iso.datetime(),
     cursor: sessionCursorSchema,
     status: z.enum([
@@ -264,6 +273,7 @@ export const sessionEventSchema = z
     runId: entityId.nullable(),
     turnId: entityId.nullable(),
     data: sessionEventDataSchema,
+    receipt: commandReceiptSchema.optional(),
   })
   .strict()
 export type SessionEvent = z.infer<typeof sessionEventSchema>
@@ -291,6 +301,7 @@ export interface SessionEventPage {
 export type SessionDelivery =
   | { kind: 'event'; subscriptionId: string; event: SessionEvent }
   | { kind: 'reset-required'; subscriptionId: string; snapshot: SessionSnapshot }
+  | { kind: 'unavailable'; subscriptionId: string; failure: z.infer<typeof sessionFailureSchema> }
 
 /** The preload must register its listener before invoking subscribe to avoid lost events. */
 export interface SessionApi {
