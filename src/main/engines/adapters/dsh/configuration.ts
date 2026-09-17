@@ -1,3 +1,5 @@
+import { piApis as apis } from '../../../../shared/engines/contracts'
+import { assertEngineConfiguration } from '../../../../shared/engines/validation'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -22,13 +24,6 @@ export interface DshPlanContext {
   composition: DshComposition
   readSkillEntry(skill: ResolvedSkill): Promise<string>
 }
-const apis = {
-  'openai-chat-completions': 'openai-completions',
-  'openai-responses': 'openai-responses',
-  'anthropic-messages': 'anthropic-messages',
-  gemini: 'google-generative-ai',
-} as const
-
 /** Application-owned component; prompt bytes are variable values, never JavaScript or native templates. */
 const bridge = `exports.name = 'agentmatrix-managed';
 exports.inject = ['systemPrompt', 'tools'];
@@ -68,23 +63,8 @@ export async function planDsh(
   paths: RunPaths,
   context: DshPlanContext,
 ): Promise<GeneratedInputs> {
-  const { agent, installation, model, connection } = configuration
-  if (
-    installation.kind !== 'deepseek-harness' ||
-    installation.version !== dshContract.engineVersion ||
-    !installation.modes.includes('acp')
-  )
-    return dshUnsupported('installation.version')
-  if (installation.prefixArgs.length) return dshUnsupported('installation.prefixArgs')
-  if (
-    agent.engineOptions &&
-    (agent.engineOptions.kind !== 'deepseek-harness' ||
-      agent.engineOptions.profileTemplate !== 'acp')
-  )
-    return dshUnsupported('profileTemplate')
-  if (configuration.nativePlugins.length) return dshUnsupported('nativePlugins.activation')
-  if (model.parameters.temperature !== undefined || model.parameters.topP !== undefined)
-    return dshUnsupported('model.sampling')
+  assertEngineConfiguration(configuration, { expectedEngine: 'deepseek-harness' })
+  const { agent, model, connection } = configuration
   const native = connection.protocol === 'deepseek-official'
   if (
     [...Object.keys(connection.headers), ...Object.keys(connection.secretHeaders)].some(

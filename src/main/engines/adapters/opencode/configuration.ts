@@ -1,3 +1,5 @@
+import { engineContracts, openCodeProviders } from '../../../../shared/engines/contracts'
+import { assertEngineConfiguration } from '../../../../shared/engines/validation'
 import { createHash } from 'node:crypto'
 import { isAbsolute, join } from 'node:path'
 import { parseDocument } from 'yaml'
@@ -10,11 +12,7 @@ import type {
 } from '../../../../shared/engines/resolution'
 import type { GeneratedInputs, RunPaths } from '../../../../shared/engines/run-inputs'
 
-export const openCodeContract = {
-  id: 'opencode-acp',
-  version: '1',
-  engineVersion: '1.18.16',
-} as const
+export const openCodeContract = engineContracts.opencode
 export interface OpenCodePlanContext {
   configHome: string
   sources: GeneratedInputs['externalSources']
@@ -89,29 +87,16 @@ export async function planOpenCode(
   paths: RunPaths,
   context: OpenCodePlanContext,
 ): Promise<GeneratedInputs> {
+  assertEngineConfiguration(configuration, { expectedEngine: 'opencode' })
   const { installation, agent, connection, model } = configuration
   if (!isAbsolute(context.configHome)) return unsupported('native.configHome')
-  if (
-    installation.kind !== 'opencode' ||
-    installation.version !== openCodeContract.engineVersion ||
-    !installation.modes.includes('acp')
-  )
-    return unsupported('installation.version')
-  if (configuration.nativePlugins.length) return unsupported('nativePlugins.activation')
   if (agent.engineOptions && agent.engineOptions.kind !== 'opencode')
     return unsupported('engineOptions')
-  if (model.parameters.reasoning !== undefined) return unsupported('model.parameters.reasoning')
   const protocol = connection.protocol
   const npm =
-    protocol === 'openai-chat-completions'
-      ? '@ai-sdk/openai-compatible'
-      : protocol === 'openai-responses'
-        ? '@ai-sdk/openai'
-        : protocol === 'anthropic-messages'
-          ? '@ai-sdk/anthropic'
-          : protocol === 'gemini'
-            ? '@ai-sdk/google'
-            : null
+    protocol && Object.hasOwn(openCodeProviders, protocol)
+      ? openCodeProviders[protocol as keyof typeof openCodeProviders]
+      : null
   if (!npm || !connection.baseUrl || !model.modelId)
     return unsupported(`connection.protocol:${protocol}`)
   const providerId = `agentmatrix-${connection.id}`

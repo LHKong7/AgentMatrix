@@ -1,0 +1,46 @@
+{
+  "checkedAt": "2026-09-17T21:44:03.335Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "pi",
+  "version": "0.85.1",
+  "route": "Local Chat Completions protocol fixture",
+  "externalProviderCalls": false,
+  "desktopVersionProbe": true,
+  "configurationPreflight": {
+    "blockedBeforeCapture": true,
+    "startDisabled": true,
+    "draftStillEditable": true,
+    "capabilityDimensions": true,
+    "englishAndChinese": true
+  },
+  "profileToSession": true,
+  "permissionReply": "unsupported: no universal per-tool approval",
+  "toolResult": true,
+  "rendererReloadWithoutResubmit": true,
+  "streamingCancellation": true,
+  "messageDelivery": "Streaming text",
+  "configurationReport": {
+    "nativeEvidence": true,
+    "persistedAfterRestart": true,
+    "pendingAssetVersions": true,
+    "englishAndChinese": true,
+    "sensitiveValuesOmitted": true
+  },
+  "permissionCancellation": "unsupported: no universal per-tool approval",
+  "sharedPromptOldAndNewSnapshots": true,
+  "libraryImpact": {
+    "beforeSave": true,
+    "unchangedAfterRevert": true,
+    "retainedAndProposedVersions": true,
+    "alreadyPending": true,
+    "noWorkspaceOrSessionWrites": true,
+    "englishAndChinese": true
+  },
+  "appQuitAndRestart": true,
+  "nativeResume": true,
+  "confirmedClose": true,
+  "englishAndChinese": true,
+  "journalCredentialRedaction": true,
+  "untrustedTextEscaped": true
+}

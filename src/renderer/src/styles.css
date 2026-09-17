@@ -1631,3 +1631,32 @@ input[type='checkbox'] {
   gap: 8px;
   margin-top: 16px;
 }
+
+.engine-support {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.engine-support h3 {
+  font-size: 13px;
+}
+.engine-support small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.engine-support summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.engine-support .support-digest {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+.session-create > .engine-support {
+  flex-basis: 100%;
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}

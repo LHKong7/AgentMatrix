@@ -1,3 +1,4 @@
+import { EngineSupport } from './EngineSupport'
 import { useRef, useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
 import { formatError } from '../../../shared/errors'
@@ -25,6 +26,7 @@ function defaultOptions(kind: EngineKind | undefined): AgentProfile['engineOptio
 export function AgentEditor({
   agent,
   workspace,
+  platform,
   isNew,
   busy,
   onSave,
@@ -32,6 +34,7 @@ export function AgentEditor({
 }: {
   agent: AgentProfile
   workspace: EngineWorkspace
+  platform?: string
   isNew: boolean
   busy: boolean
   onSave: (agent: AgentProfile) => Promise<void>
@@ -330,7 +333,9 @@ export function AgentEditor({
                 )}
               </>
             )}
-            {tab === 'preview' && <ProfilePreview workspace={workspace} profile={draft} />}
+            {tab === 'preview' && (
+              <ProfilePreview workspace={workspace} profile={draft} platform={platform} />
+            )}
             <p className="hint">{t('config.savedForNewSessions')}</p>
           </div>
           {error != null && (
@@ -356,9 +361,11 @@ export function AgentEditor({
 function ProfilePreview({
   workspace,
   profile,
+  platform,
 }: {
   workspace: EngineWorkspace
   profile: AgentProfile
+  platform?: string
 }) {
   const { t, locale } = useI18n()
   try {
@@ -380,6 +387,7 @@ function ProfilePreview({
           </ul>
         ) : (
           <>
+            <EngineSupport configuration={result.configuration} platform={platform} />
             <h3>{t('config.resolved')}</h3>
             <dl>
               <dt>{t('config.engine')}</dt>

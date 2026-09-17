@@ -240,7 +240,13 @@ export const capabilitySchema = z
     mode: runtimeModeSchema,
     profileDigest: z.string().regex(/^[a-f0-9]{64}$/),
     evidence: z.array(
-      z.object({ source: z.string().max(4000), checkedAt: z.iso.datetime() }).strict(),
+      z
+        .object({
+          kind: z.enum(['contract', 'runtime']),
+          source: z.string().max(4000),
+          checkedAt: z.iso.datetime(),
+        })
+        .strict(),
     ),
   })
   .strict()
@@ -256,7 +262,7 @@ export function isVerifiedCapability(
     capability.availability === 'ready' &&
     capability.mechanism !== 'unsupported' &&
     capability.mechanism !== 'unknown' &&
-    capability.evidence.length > 0 &&
+    capability.evidence.some((evidence) => evidence.kind === 'runtime') &&
     capability.installationId === current.installationId &&
     capability.engineVersion === current.engineVersion &&
     capability.mode === current.mode &&

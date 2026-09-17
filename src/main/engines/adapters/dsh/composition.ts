@@ -1,3 +1,4 @@
+import { engineContracts } from '../../../../shared/engines/contracts'
 import { createRequire } from 'node:module'
 import { createHash } from 'node:crypto'
 import { dirname, join } from 'node:path'
@@ -8,7 +9,7 @@ import { appError } from '../../../../shared/errors'
 import type { GeneratedInputs } from '../../../../shared/engines/run-inputs'
 import { observeExternalFile } from '../../run-input-store'
 
-export const dshContract = { id: 'dsh-acp', version: '1', engineVersion: '0.1.5-rc.2' } as const
+export const dshContract = engineContracts['deepseek-harness']
 export const dshBundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-acp-app'] as const
 const rowSchema = z.looseObject({ id: z.string(), name: z.string().optional() })
 export type DshRow = z.infer<typeof rowSchema>

@@ -1,3 +1,4 @@
+import { supportEn } from './support-en'
 import { impactEn } from './impact-en'
 import { configurationEn } from './configuration-en'
 import { sessionEn } from './session-en'
@@ -8,6 +9,7 @@ export const en = {
   ...sessionEn,
   ...reportEn,
   ...impactEn,
+  ...supportEn,
   'nav.agents': 'My Agents',
   'nav.mcpServers': 'MCP Servers',
   'nav.skills': 'Skills',

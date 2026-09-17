@@ -129,7 +129,7 @@ describe('capability evidence', () => {
     engineVersion: '1.18.16',
     mode: 'acp',
     profileDigest: 'a'.repeat(64),
-    evidence: [{ source: 'local-probe', checkedAt: '2026-09-18T00:00:00Z' }],
+    evidence: [{ kind: 'runtime', source: 'local-probe', checkedAt: '2026-09-18T00:00:00Z' }],
   }
   it('requires successful evidence for the exact installation and effective configuration', () => {
     expect(isVerifiedCapability(capability, capability)).toBe(true)

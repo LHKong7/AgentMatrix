@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
@@ -162,17 +162,26 @@ async function navigate(label) {
     .getByRole('button', { name: new RegExp(`^${label}`) })
     .click()
 }
+// waitForFunction treats a returned Promise as truthy. Poll awaited IPC results in the test process.
+async function waitForIpc(check, label, timeout = 45_000) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (await check()) return
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  throw new Error(`Timed out waiting for ${label}`)
+}
 async function status(value) {
   const expected = { Ready: 'ready', 就绪: 'ready', Interrupted: 'interrupted', Closed: 'closed' }[
     value
   ]
-  await page.waitForFunction(
-    async (status) => {
-      const sessionId = document.querySelector('.conversation')?.getAttribute('data-session-id')
-      return sessionId && (await window.agentMatrix.sessions.get({ sessionId })).status === status
-    },
-    expected,
-    { timeout: 45_000 },
+  await waitForIpc(
+    () =>
+      page.evaluate(async (status) => {
+        const sessionId = document.querySelector('.conversation')?.getAttribute('data-session-id')
+        return sessionId && (await window.agentMatrix.sessions.get({ sessionId })).status === status
+      }, expected),
+    `session status ${expected}`,
   )
   await page
     .getByTestId('session-status')
@@ -189,16 +198,20 @@ async function send(text) {
   await page.getByRole('button', { name: 'Send message', exact: true }).click()
   // A user-message acknowledgment can advance the cursor while the old Ready state is still visible.
   // Wait for this turn to start (or finish quickly) before checking Ready or provider evidence.
-  await page.waitForFunction(
-    async ({ id, cursor, priorTurn }) => {
-      const state = await window.agentMatrix.sessions.get({ sessionId: id })
-      return (
-        state.cursor > cursor &&
-        ((state.activeTurn && state.activeTurn.id !== priorTurn) ||
-          (state.lastTurn && state.lastTurn.id !== priorTurn))
-      )
-    },
-    { id: sessionId, cursor: before.cursor, priorTurn: before.lastTurn?.id ?? null },
+  await waitForIpc(
+    () =>
+      page.evaluate(
+        async ({ id, cursor, priorTurn }) => {
+          const state = await window.agentMatrix.sessions.get({ sessionId: id })
+          return (
+            state.cursor > cursor &&
+            ((state.activeTurn && state.activeTurn.id !== priorTurn) ||
+              (state.lastTurn && state.lastTurn.id !== priorTurn))
+          )
+        },
+        { id: sessionId, cursor: before.cursor, priorTurn: before.lastTurn?.id ?? null },
+      ),
+    'submitted turn',
   )
 }
 const sessions = () => page.evaluate(() => window.agentMatrix.sessions.list())
@@ -225,12 +238,100 @@ try {
   await language('en')
   await navigate('Engines')
   await page.getByRole('button', { name: 'Check installation', exact: true }).click()
-  await page.waitForFunction(
-    async (version) =>
-      (await window.agentMatrix.loadWorkspace()).installations[0].version === version,
-    version,
+  await waitForIpc(
+    () =>
+      page.evaluate(async (version) => {
+        const installation = (await window.agentMatrix.loadWorkspace()).installations[0]
+        return (
+          installation.version === version && installation.probedAt && installation.modes.length > 0
+        )
+      }, version),
+    'completed installation probe',
   )
+  const supportedWorkspace = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  const rejectedCreation = await page.evaluate(
+    async ({ isPi, isDsh }) => {
+      const draft = await window.agentMatrix.loadWorkspace()
+      if (isPi) draft.agents[0].execution.approval = 'ask'
+      else if (isDsh) draft.models[0].parameters.temperature = 0.5
+      else draft.models[0].parameters.reasoning = 'high'
+      await window.agentMatrix.saveWorkspace(draft)
+      try {
+        await window.agentMatrix.sessions.command({
+          kind: 'create',
+          commandId: crypto.randomUUID(),
+          agentId: 'reviewer',
+        })
+        return 'unexpectedly accepted'
+      } catch (error) {
+        return error.message
+      }
+    },
+    { isPi, isDsh },
+  )
+  assert.match(
+    rejectedCreation,
+    /execution.universal-approval|model.sampling|model.parameters.reasoning/,
+  )
+  assert.equal((await sessions()).length, 0)
+  const capturedRuns = await readdir(join(dataDirectory, 'runs')).catch((error) => {
+    if (error.code === 'ENOENT') return []
+    throw error
+  })
+  assert.deepEqual(capturedRuns, [])
+  await page.reload()
+  await page.locator('.card-grid').waitFor()
   await navigate('Sessions')
+  const compatibility = page.getByTestId('engine-support')
+  await compatibility
+    .locator('[data-testid="engine-support-state"][data-state="blocked"]')
+    .waitFor()
+  assert.equal(
+    await page.getByRole('button', { name: 'Start new session', exact: true }).isDisabled(),
+    true,
+  )
+  await compatibility.getByText('Capability details', { exact: true }).click()
+  await compatibility.locator('[data-capability="model"]').waitFor()
+  assert.match(
+    await compatibility.locator('[data-capability="model"]').textContent(),
+    /Not verified for this profile/,
+  )
+  if (process.env.AGENT_MATRIX_SUPPORT_SCREENSHOT)
+    await page.screenshot({ path: process.env.AGENT_MATRIX_SUPPORT_SCREENSHOT, fullPage: true })
+  await language('zh-CN')
+  await compatibility.getByRole('heading', { name: '引擎兼容性', exact: true }).waitFor()
+  assert.match(
+    await compatibility.locator('[data-capability="model"]').textContent(),
+    /此配置尚未验证/,
+  )
+  assert.equal(
+    await page.getByRole('button', { name: '启动新会话', exact: true }).isDisabled(),
+    true,
+  )
+  if (process.env.AGENT_MATRIX_SUPPORT_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.AGENT_MATRIX_SUPPORT_SCREENSHOT + '.zh.png',
+      fullPage: true,
+    })
+  await language('en')
+  await navigate('My Agents')
+  await page.getByRole('button', { name: 'Edit Reviewer', exact: true }).click()
+  const editor = page.getByRole('dialog')
+  await editor.getByRole('tab', { name: 'Resolved preview', exact: true }).click()
+  await editor.locator('[data-testid="engine-support-state"][data-state="blocked"]').waitFor()
+  assert.equal(
+    await editor.getByRole('button', { name: 'Save Agent', exact: true }).isEnabled(),
+    true,
+  )
+  await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.evaluate(async (previous) => {
+    const current = await window.agentMatrix.loadWorkspace()
+    await window.agentMatrix.saveWorkspace({ ...previous, revision: current.revision })
+  }, supportedWorkspace)
+  await page.reload()
+  await page.locator('.card-grid').waitFor()
+  await navigate('Sessions')
+  await page.locator('[data-testid="engine-support-state"][data-state="checks-pending"]').waitFor()
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
   await status('Ready')
   const original = (await sessions())[0]
@@ -358,7 +459,7 @@ try {
   await status('Ready')
   assert.equal(calls.at(-1).role, 'original')
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
-  await page.waitForFunction(async () => (await window.agentMatrix.sessions.list()).length === 2)
+  await waitForIpc(async () => (await sessions()).length === 2, 'new conversation capture')
   await status('Ready')
   await send('Use the newly saved role')
   await status('Ready')
@@ -401,6 +502,13 @@ try {
     route: 'Local Chat Completions protocol fixture',
     externalProviderCalls: false,
     desktopVersionProbe: true,
+    configurationPreflight: {
+      blockedBeforeCapture: true,
+      startDisabled: true,
+      draftStillEditable: true,
+      capabilityDimensions: true,
+      englishAndChinese: true,
+    },
     profileToSession: true,
     permissionReply: isPi ? 'unsupported: no universal per-tool approval' : true,
     toolResult: calls.some((call) => call.read),

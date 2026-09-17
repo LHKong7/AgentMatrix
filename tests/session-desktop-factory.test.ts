@@ -98,6 +98,42 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
     ).rejects.toMatchObject({ code: 'configuration' })
     expect(f.resolveSecret).not.toHaveBeenCalled()
   })
+  it.each(['opencode', 'pi', 'deepseek-harness'] as const)(
+    'rejects known %s constraints before reading native sources or capturing run files',
+    async (kind) => {
+      const f = await fixture()
+      const state = await f.workspace.load()
+      state.installations[0] = {
+        ...state.installations[0]!,
+        kind,
+        version: kind === 'opencode' ? '1.18.16' : kind === 'pi' ? '0.85.1' : '0.1.5-rc.2',
+        modes: kind === 'pi' ? ['pi-rpc'] : ['acp'],
+        probedAt: new Date().toISOString(),
+        executable: join(f.root, 'missing-binary'),
+      }
+      state.agents[0]!.engineOptions =
+        kind === 'opencode'
+          ? { kind, agent: 'build' }
+          : kind === 'pi'
+            ? { kind }
+            : { kind, profileTemplate: 'acp', patchReload: 'startup' }
+      if (kind === 'opencode') state.models[0]!.parameters.reasoning = 'high'
+      else if (kind === 'pi') state.agents[0]!.execution.approval = 'ask'
+      else state.models[0]!.parameters.temperature = 0.5
+      await f.workspace.save(state)
+      const feature =
+        kind === 'opencode'
+          ? 'model.parameters.reasoning'
+          : kind === 'pi'
+            ? 'execution.universal-approval'
+            : 'model.sampling'
+      await expect(
+        f.factory.create('blocked', { kind: 'create', commandId: 'blocked', agentId: 'reviewer' }),
+      ).rejects.toThrow(feature)
+      await expect(readdir(join(f.root, 'runs'))).rejects.toMatchObject({ code: 'ENOENT' })
+      expect(f.resolveSecret).not.toHaveBeenCalled()
+    },
+  )
   it('keeps a retry on its captured revisions and lets new sessions capture library edits', async () => {
     const f = await fixture()
     await f.factory.probe({ installationId: 'oc' })

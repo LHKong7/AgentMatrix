@@ -1,3 +1,5 @@
+import { engineConfigurationIssues } from '../../../shared/engines/validation'
+import { EngineSupport } from './EngineSupport'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LoaderCircle, MessageSquare, Plus, RefreshCw, Send, Square } from 'lucide-react'
 import type { EngineWorkspace } from '../../../shared/engines/workspace'
@@ -20,10 +22,12 @@ type Response = Extract<SessionCommand, { kind: 'respond' }>['response']
 export function SessionsPanel({
   workspace,
   desktop,
+  platform,
   initialAgent,
 }: {
   workspace: EngineWorkspace
   desktop: boolean
+  platform?: string
   initialAgent: string | null
 }) {
   const { t, locale } = useI18n()
@@ -48,7 +52,17 @@ export function SessionsPanel({
     workspace.installations.find((engine) => engine.id === profile?.engineInstallationId)?.kind ??
       '',
   )
-  const resolution = profile ? resolveAgentProfile(workspace, profile.id) : null
+  const resolution = useMemo(
+    () => (profile ? resolveAgentProfile(workspace, profile.id) : null),
+    [workspace, profile],
+  )
+  const engineIssues = useMemo(
+    () =>
+      resolution?.status === 'resolved'
+        ? engineConfigurationIssues(resolution.configuration, { platform })
+        : [],
+    [resolution, platform],
+  )
 
   useEffect(() => {
     let active = true,
@@ -210,7 +224,12 @@ export function SessionsPanel({
         <button
           className="button primary"
           disabled={
-            !desktop || busy || !profile?.enabled || !supported || resolution?.status !== 'resolved'
+            !desktop ||
+            busy ||
+            !profile?.enabled ||
+            !supported ||
+            resolution?.status !== 'resolved' ||
+            engineIssues.length > 0
           }
           onClick={() =>
             void act(async () => {
@@ -233,6 +252,9 @@ export function SessionsPanel({
           {t('sessions.new')}
         </button>
         <p className="hint">{desktop ? t('sessions.support') : t('error.runtimeDesktopOnly')}</p>
+        {resolution?.status === 'resolved' && (
+          <EngineSupport configuration={resolution.configuration} platform={platform} />
+        )}
         {resolution?.status === 'invalid' && (
           <div className="session-diagnostics">
             {resolution.issues.map((issue, index) => (

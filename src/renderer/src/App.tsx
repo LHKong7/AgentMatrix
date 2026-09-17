@@ -265,6 +265,7 @@ export function App() {
               workspace={workspace}
               desktop={info?.storage === 'desktop'}
               initialAgent={sessionAgent}
+              platform={info?.platform}
             />
           ) : (
             <>
@@ -560,6 +561,7 @@ export function App() {
           agent={editor.value}
           workspace={workspace}
           isNew={editor.isNew}
+          platform={info?.platform}
           busy={saving}
           onClose={() => setEditor(null)}
           onSave={async (agent) => {

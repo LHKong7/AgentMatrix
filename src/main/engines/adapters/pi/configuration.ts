@@ -1,3 +1,9 @@
+import { engineContracts, piApis } from '../../../../shared/engines/contracts'
+import {
+  assertEngineConfiguration,
+  selectedPiThinking,
+} from '../../../../shared/engines/validation'
+export { piApis } from '../../../../shared/engines/contracts'
 import { createHash } from 'node:crypto'
 import { realpath } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -11,17 +17,11 @@ import type {
 } from '../../../../shared/engines/resolution'
 import type { GeneratedInputs, RunPaths } from '../../../../shared/engines/run-inputs'
 
-export const piContract = { id: 'pi-rpc', version: '1', engineVersion: '0.85.1' } as const
+export const piContract = engineContracts.pi
 export interface PiPlanContext {
   sources: GeneratedInputs['externalSources']
   readSkillEntry(skill: ResolvedSkill): Promise<string>
 }
-export const piApis = {
-  'openai-chat-completions': 'openai-completions',
-  'openai-responses': 'openai-responses',
-  'anthropic-messages': 'anthropic-messages',
-  gemini: 'google-generative-ai',
-} as const
 const unsupported = (feature: string): never => {
   throw appError('error.piConfiguration', { feature })
 }
@@ -57,14 +57,9 @@ export function piLiteral(value: string): string {
 export function piThinking(
   configuration: Pick<ResolvedAgentConfiguration, 'agent' | 'model'>,
 ): string {
-  const engine = configuration.agent.engineOptions
-  const requested = engine?.kind === 'pi' ? engine.thinkingLevel : undefined
-  const shared = configuration.model.parameters.reasoning
-  if (requested && shared && requested !== shared) return unsupported('model.reasoning-conflict')
-  const selected = requested || shared || 'off'
-  if (!['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].includes(selected))
-    return unsupported('model.thinkingLevel')
-  return selected
+  const result = selectedPiThinking(configuration)
+  if (result.issue) return unsupported(result.issue.nativeFeature)
+  return result.value
 }
 
 /** Produce immutable inputs; the separate launcher verifies native state before using them. */
@@ -73,17 +68,9 @@ export async function planPi(
   paths: RunPaths,
   context: PiPlanContext,
 ): Promise<GeneratedInputs> {
+  assertEngineConfiguration(configuration, { expectedEngine: 'pi' })
   const { installation, agent, connection, model } = configuration
-  if (
-    installation.kind !== 'pi' ||
-    installation.version !== piContract.engineVersion ||
-    !installation.modes.includes('pi-rpc')
-  )
-    return unsupported('installation.version')
   if (agent.engineOptions && agent.engineOptions.kind !== 'pi') return unsupported('engineOptions')
-  if (configuration.mcpServers.length) return unsupported('mcp.extension-required')
-  if (configuration.nativePlugins.length) return unsupported('nativePlugins.activation')
-  if (agent.execution.approval === 'ask') return unsupported('execution.universal-approval')
   if (
     !connection.protocol ||
     !(connection.protocol in piApis) ||

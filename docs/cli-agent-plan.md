@@ -156,6 +156,8 @@ A probe task produces a recorded result, including failures or unavailable route
 
 **Configuration application:** a save updates shared assets, not a running process. New sessions resolve new revisions. Resume validates the previous snapshot, native persistence, executable version, credentials, and external-source changes. If continuity cannot be established, diagnose it or offer a distinct new session; never describe a new session as native resume. Supported live changes require an explicit operation, acknowledgment, and a new effective revision.
 
+**Capability progress:** Shared [engine compatibility checks](engine-capabilities.md) now feed Agent previews, disabled launch controls, the desktop factory, and all three planners. Configuration-scoped descriptors distinguish contract evidence from runtime evidence and preserve independent mechanism/verification/availability. Native availability aggregation and full A8 acceptance remain open.
+
 ## 6. Phase B: complete OpenCode through ACP
 
 | ID  | Work item                                       | Priority | Depends on                         | Deliverable and acceptance                                                                                                                                                                                                                                                                                                                                    |

@@ -1,3 +1,5 @@
+import { assertEngineConfiguration } from '../../shared/engines/validation'
+import { resolveAgentProfile } from '../../shared/engines/resolution'
 import { previewLibraryImpact } from '../engines/library-impact'
 import type { LibraryImpactQuery } from '../../shared/engines/impact'
 import { createHash } from 'node:crypto'
@@ -165,6 +167,9 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
         throw appError('error.runtimeUnsupported')
       if (command.cwd) profile.execution.cwd = command.cwd
       if (!profile.execution.cwd) throw appError('error.runtimeCwd')
+      const resolved = resolveAgentProfile(state, profile.id)
+      if (resolved.status !== 'resolved') throw appError('error.runConfiguration')
+      assertEngineConfiguration(resolved.configuration, { platform: process.platform })
       const cwd = await realpath(profile.execution.cwd).catch(() => {
         throw appError('error.runtimeCwd')
       })
