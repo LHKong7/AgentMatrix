@@ -1,12 +1,13 @@
 import { appError } from '../shared/errors'
 import { resolveLocale } from '../shared/i18n'
-import { app, BrowserWindow, ipcMain, session, type IpcMainInvokeEvent } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, session, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { channels, type AppInfo } from '../shared/api'
 import { EngineWorkspaceStore } from './engine-workspace-store'
 import { CredentialVault } from './credentials/vault'
 import { electronCipher } from './credentials/electron-cipher'
+import { SkillDirectoryStore } from './assets/skill-directory-store'
 
 app.setName('AgentMatrix')
 if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
@@ -67,9 +68,13 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   void app.whenReady().then(() => {
+    const skillDirectories = new SkillDirectoryStore(
+      join(app.getPath('userData'), 'assets', 'skills'),
+    )
     const store = new EngineWorkspaceStore(
       join(app.getPath('userData'), 'workspace.json'),
       resolveLocale([app.getLocale()]),
+      (revision) => skillDirectories.verify(revision),
     )
     const vault = new CredentialVault(
       join(app.getPath('userData'), 'credentials', 'vault.json'),
@@ -107,6 +112,20 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle(channels.credentialDelete, (event, input: unknown) => {
       verifySender(event)
       return vault.remove(input)
+    })
+    let importingSkill = false
+    ipcMain.handle(channels.skillImport, async (event) => {
+      verifySender(event)
+      if (importingSkill) throw appError('error.skillImportBusy')
+      importingSkill = true
+      try {
+        const result = await dialog.showOpenDialog(mainWindow!, { properties: ['openDirectory'] })
+        if (result.canceled || !result.filePaths[0]) return null
+        verifySender(event)
+        return await skillDirectories.capture(result.filePaths[0])
+      } finally {
+        importingSkill = false
+      }
     })
     createWindow()
     app.on('activate', () => {

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
 
 const dataDirectory = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-'))
+const skillSource = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-skill-'))
 const runtimeErrors = []
 const env = { ...process.env, AGENT_MATRIX_DATA_DIR: dataDirectory }
 delete env.ELECTRON_RUN_AS_NODE
@@ -122,6 +123,17 @@ async function editResource(nav, name) {
   await navigate(nav)
   await page.getByRole('button', { name: `Edit ${name}`, exact: true }).click()
   return page.getByRole('dialog')
+}
+
+// Substitute only the native OS chooser; the real IPC, capture service, store, and UI still run.
+async function chooseSkillDirectory(path) {
+  await app.evaluate(({ dialog }, selected) => {
+    const original = dialog.showOpenDialog
+    dialog.showOpenDialog = async () => {
+      dialog.showOpenDialog = original
+      return { canceled: selected === null, filePaths: selected === null ? [] : [selected] }
+    }
+  }, path)
 }
 
 try {
@@ -278,6 +290,45 @@ try {
     2,
   )
 
+  const skillEntry =
+    '---\nname: smoke-directory\ndescription: Retain frontmatter\n---\n\n# Imported workflow 中文\n'
+  await mkdir(join(skillSource, 'scripts'))
+  await writeFile(join(skillSource, 'SKILL.md'), skillEntry)
+  await writeFile(join(skillSource, 'scripts/check.sh'), '#!/bin/sh\nexit 37\n', { mode: 0o700 })
+  await writeFile(join(skillSource, 'reference.bin'), Buffer.from([0, 255, 1]))
+  await addResource('Skills', 'Directory Skill', async (dialog) => {
+    await chooseSkillDirectory(null)
+    await dialog.getByRole('button', { name: 'Import Skill directory', exact: true }).click()
+    await dialog.getByRole('button', { name: 'Import Skill directory', exact: true }).waitFor()
+    assert.equal(await dialog.getByLabel('Skill instructions', { exact: true }).inputValue(), '')
+    await chooseSkillDirectory(skillSource)
+    await dialog.getByRole('button', { name: 'Import Skill directory', exact: true }).click()
+    await dialog.getByText(/3 captured files/).waitFor()
+    await dialog.locator('summary').filter({ hasText: 'Captured files' }).click()
+    await dialog.getByText('scripts/check.sh', { exact: true }).waitFor()
+    if (process.env.AGENT_MATRIX_SCREENSHOT)
+      await page.screenshot({
+        path: `${process.env.AGENT_MATRIX_SCREENSHOT}.skill.png`,
+        fullPage: true,
+      })
+  })
+  const imported = (await state()).skills.find((item) => item.name === 'Directory Skill')
+  assert.equal(imported.currentVersion, 1)
+  assert.equal(imported.versions[0].kind, 'directory')
+  const firstDirectory = join(dataDirectory, 'assets/skills', imported.versions[0].digest, 'files')
+  assert.equal(await readFile(join(firstDirectory, 'SKILL.md'), 'utf8'), skillEntry)
+  await writeFile(join(skillSource, 'SKILL.md'), '# New directory revision\n')
+  dialog = await editResource('Skills', 'Directory Skill')
+  await chooseSkillDirectory(skillSource)
+  await dialog.getByRole('button', { name: 'Import Skill directory', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('[aria-label="Version"]').value === '2')
+  await saveResource()
+  const updatedDirectory = (await state()).skills.find((item) => item.name === 'Directory Skill')
+  assert.equal(updatedDirectory.versions.length, 2)
+  assert.deepEqual(updatedDirectory.versions[0], imported.versions[0])
+  assert.equal(await readFile(join(firstDirectory, 'SKILL.md'), 'utf8'), skillEntry)
+  await rm(skillSource, { recursive: true })
+
   const preferences = await app.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows()[0].webContents.getLastWebPreferences(),
   )
@@ -336,6 +387,11 @@ try {
   await launch()
   assert.equal(await page.locator('html').getAttribute('lang'), 'zh-CN')
   assert.equal((await readdir(dataDirectory)).filter((name) => name.endsWith('.bak')).length, 1)
+  assert.deepEqual(
+    (await state()).skills.find((item) => item.name === 'Directory Skill'),
+    updatedDirectory,
+  )
+  assert.equal(await readFile(join(firstDirectory, 'SKILL.md'), 'utf8'), skillEntry)
   await page.getByRole('button', { name: '编辑 Smoke Agent', exact: true }).click()
   await page.getByLabel('名称', { exact: true }).fill('Updated Agent')
   await page.getByRole('tab', { name: '解析预览', exact: true }).click()
@@ -397,7 +453,7 @@ try {
   )
   assert.deepEqual(runtimeErrors, [])
   console.log(
-    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, prompt and Skill revisions, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
+    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, prompt and Skill revisions, directory capture/reimport, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
   )
 } catch (error) {
   if (page && !page.isClosed()) {
@@ -410,4 +466,5 @@ try {
 } finally {
   await app?.close().catch(() => {})
   await rm(dataDirectory, { recursive: true, force: true })
+  await rm(skillSource, { recursive: true, force: true })
 }

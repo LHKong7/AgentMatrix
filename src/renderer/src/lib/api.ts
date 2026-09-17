@@ -5,6 +5,9 @@ import { BrowserWorkspaceStore } from '../../../shared/engines/browser-store'
 
 // Browser preview never reads desktop files or stores plaintext credentials.
 const browserApi: AgentMatrixApi = {
+  async importSkillDirectory() {
+    throw appError('error.skillDesktopOnly')
+  },
   async getCredentialStatus() {
     return { available: false, credentials: [] }
   },

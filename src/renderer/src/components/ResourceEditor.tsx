@@ -16,6 +16,7 @@ import {
   type ModelConnection,
 } from '../../../shared/engines/schema'
 import type { EngineWorkspace, McpDefinition, PromptAsset } from '../../../shared/engines/workspace'
+import { importSkillRevision } from '../../../shared/engines/skill-import'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
 import { Modal } from './Modal'
@@ -51,12 +52,13 @@ export function ResourceEditor({
   onSave: (resource: LibraryEntry) => Promise<void>
   onClose: () => void
 }) {
-  const { t, locale } = useI18n()
+  const { t, locale, number } = useI18n()
   const [draft, setDraft] = useState(resource)
   const [content, setContent] = useState(contentOf(resource))
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [credentials, setCredentials] = useState<CredentialMetadata[]>([])
+  const [importing, setImporting] = useState(false)
   const isNew = !workspace[kind].some((item) => item.id === resource.id)
   useEffect(() => {
     let mounted = true
@@ -105,6 +107,30 @@ export function ResourceEditor({
   const changeInstallation = (value: EngineInstallation, patch: Partial<EngineInstallation>) =>
     setDraft({ ...value, ...patch, version: null, modes: [], probedAt: null })
 
+  async function importDirectory() {
+    if (!('sourcePath' in draft)) return
+    setImporting(true)
+    setError(null)
+    try {
+      const captured = await api.importSkillDirectory()
+      if (!captured) return
+      setDraft(importSkillRevision(draft, captured, isNew))
+      setContent('')
+      setDirty(true)
+    } catch (failure) {
+      setError(failure)
+    } finally {
+      setImporting(false)
+    }
+  }
+  const directoryRevision =
+    'versions' in draft
+      ? draft.versions.find(
+          (item) =>
+            item.version === draft.currentVersion && 'kind' in item && item.kind === 'directory',
+        )
+      : undefined
+
   return (
     <Modal
       title={t(isNew ? 'resources.add' : 'resources.edit', {
@@ -112,10 +138,10 @@ export function ResourceEditor({
       })}
       subtitle={t('config.libraryHint')}
       onClose={close}
-      busy={busy}
+      busy={busy || importing}
     >
       <form onSubmit={submit} onChange={() => setDirty(true)}>
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || importing}>
           <div className="modal-body">
             <TextField
               label={t('common.name')}
@@ -379,11 +405,21 @@ export function ResourceEditor({
                   </SelectField>
                 )}
                 {'sourcePath' in draft && (
-                  <TextField
-                    label={t('resourceEditor.source')}
-                    value={draft.sourcePath}
-                    onChange={(sourcePath) => setDraft({ ...draft, sourcePath })}
-                  />
+                  <>
+                    <TextField
+                      label={t('resourceEditor.source')}
+                      value={draft.sourcePath}
+                      onChange={(sourcePath) => setDraft({ ...draft, sourcePath })}
+                    />
+                    <button
+                      className="button secondary"
+                      type="button"
+                      onClick={() => void importDirectory()}
+                    >
+                      {t(importing ? 'config.importingSkill' : 'config.importSkill')}
+                    </button>
+                    <p className="hint">{t('config.importSkillHint')}</p>
+                  </>
                 )}
                 <SelectField
                   label={t('resourceEditor.version')}
@@ -400,13 +436,30 @@ export function ResourceEditor({
                     </option>
                   ))}
                 </SelectField>
-                {draft.versions.find(
-                  (revision) =>
-                    revision.version === draft.currentVersion &&
-                    'kind' in revision &&
-                    revision.kind === 'directory',
-                ) ? (
-                  <p className="hint">{t('config.directoryReadOnly')}</p>
+                {directoryRevision && 'files' in directoryRevision ? (
+                  <>
+                    <p className="hint">{t('config.directoryReadOnly')}</p>
+                    <p className="hint">
+                      {t('config.skillFiles', {
+                        count: number(directoryRevision.files.length),
+                        bytes: number(
+                          directoryRevision.files.reduce((sum, file) => sum + file.bytes, 0),
+                        ),
+                      })}
+                    </p>
+                    <code className="asset-digest">SHA-256: {directoryRevision.digest}</code>
+                    <details>
+                      <summary>{t('config.skillFileList')}</summary>
+                      <ul className="asset-file-list">
+                        {directoryRevision.files.map((file) => (
+                          <li key={file.path}>
+                            <code>{file.path}</code> · {number(file.bytes)} B{' '}
+                            {file.executable ? ` · ${t('config.executableFile')}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </>
                 ) : (
                   <TextField
                     label={t(

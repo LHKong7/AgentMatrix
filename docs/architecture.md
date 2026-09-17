@@ -16,7 +16,7 @@ The renderer displays and edits drafts, committing page state only after a succe
 
 - `AgentProfile` binds an engine installation and model profile to shared assets, requested execution policy, and engine-specific options. Null bindings permit incomplete drafts; shared resolution reports missing inputs.
 - Connections separate protocol, endpoint, and authentication references from model IDs and optional parameters. The UI never substitutes a default sampling temperature.
-- Prompt and Skill assets retain immutable revisions. Bindings follow the latest revision or pin a saved version; prompt application mode is explicit. Skill source paths record provenance; directory capture is not connected yet.
+- Prompt and Skill assets retain immutable revisions. Bindings follow the latest revision or pin a saved version; prompt application mode is explicit. Skills support inline Markdown and captured directories. Directory import publishes private, content-addressed files before the editor can save a reference; new directory revisions are verified by the main process before workspace publication. See [Skill capture boundaries](skill-capture.md).
 - MCP definitions distinguish stdio, Streamable HTTP, and SSE, with typed authentication and environment references. These forms do not connect to servers.
 - Resource bundles contain prompt, Skill, and MCP bindings. Native plugin metadata belongs to a specific engine installation and does not authorize installation or execution.
 - `resolveAgentProfile` combines enabled bundles with direct bindings, resolves versions, deduplicates resources, and reports conflicts. Direct bindings take precedence. Its output always requires adapter validation; the UI labels previews as planned configuration.
@@ -49,6 +49,8 @@ To add or change UI text, update both catalogs and use a key rather than a liter
 ## Extension boundaries
 
 Future runtime code belongs in a module or utility process managed by the main process. It will own streaming model requests, MCP connections, tool execution, cancellation, and logs. Return events through explicit IPC APIs; do not expose `ipcRenderer` or arbitrary filesystem/shell access to the UI.
+
+The directory-import IPC opens a native folder chooser in the main process. The renderer cannot supply a filesystem path or read captured file contents through that API. The sender is checked before opening the chooser and again before copying. The response contains source provenance and a bounded file manifest, which the user attaches to a Skill by saving its draft. Browser preview reports that directory import requires the desktop app.
 
 The main-process `CredentialVault` stores ciphertext in `userData/credentials/vault.json` using Electron’s asynchronous `safeStorage` encryption. It serializes mutations, checks per-credential revisions, atomically replaces private files, and preserves corrupt storage. The preload exposes only metadata, replacement, and deletion; decrypted values are available only to the main-process runtime. Missing secure backends, including Linux `basic_text`, cannot save credentials. Browser preview never stores credentials. Active v2 editors bind credential IDs or environment references; consuming them for a CLI run remains runtime work. Plugin installation requires separate manifest validation, provenance, and permission design. The current resource-bundle model does not authorize execution of third-party code.
 

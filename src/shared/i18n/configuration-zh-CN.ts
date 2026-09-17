@@ -103,6 +103,22 @@ export const configurationZh = {
     '删除“{name}”？相关绑定会被移除，依赖此配置的 Agent 可能变为待补齐的草稿。',
   'config.bundleHint': '资源组合引用共享资产，与可执行的原生插件独立管理。',
   'error.assetDirectoryEdit': '目录版本不能作为 Markdown 编辑，请导入新版本。',
+  'config.importSkill': '导入 Skill 目录',
+  'config.importingSkill': '正在导入 Skill…',
+  'config.importSkillHint':
+    '捕获所选目录中的 SKILL.md 和全部文件。脚本仅保存、不执行；不支持符号链接。保存后绑定此版本。',
+  'config.skillFiles': '已捕获 {count} 个文件 · {bytes} 字节',
+  'config.skillFileList': '已捕获的文件',
+  'config.executableFile': '可执行文件',
+  'error.skillDesktopOnly': '目录导入仅在桌面应用中可用。',
+  'error.skillImportBusy': '另一个 Skill 导入仍在进行中。',
+  'error.skillEntry': '所选目录必须包含非空的 UTF-8 SKILL.md 文件。',
+  'error.skillUnsafePath':
+    '目录包含不安全、存在歧义或不支持的路径。请使用普通文件和文件夹，不要包含符号链接或仅大小写不同的名称。',
+  'error.skillLimit': 'Skill 超过导入限制：1,000 个文件、单文件 20 MB、总计 100 MB 或 32 层目录。',
+  'error.skillChanged': '导入过程中源文件发生了变化。请在文件停止编辑后重试。',
+  'error.skillCaptureInvalid':
+    '捕获的 Skill 缺失或已被更改。请恢复原文件或导入新版本；已保存的快照不会被覆盖。',
   'resolution.agent-missing': '找不到 Agent 配置。',
   'resolution.agent-disabled': '此 Agent 已停用。',
   'resolution.engine-required': '请选择引擎安装。',

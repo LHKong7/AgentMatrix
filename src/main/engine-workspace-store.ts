@@ -6,6 +6,7 @@ import type { Locale } from '../shared/i18n'
 import { migrateWorkspaceDocument } from '../shared/engines/migration'
 import { engineWorkspaceSchema, type EngineWorkspace } from '../shared/engines/workspace'
 import { createInitialEngineWorkspace, validateAssetHistory } from '../shared/engines/editing'
+import type { DirectoryRevision } from './assets/skill-directory-store'
 
 /** Active schema v2 persistence, including atomic migration of the legacy document. */
 export class EngineWorkspaceStore {
@@ -13,6 +14,7 @@ export class EngineWorkspaceStore {
   constructor(
     readonly filePath: string,
     private readonly initialLocale: Locale = 'en',
+    private readonly verifyDirectory?: (revision: DirectoryRevision) => Promise<unknown>,
   ) {}
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.queue.then(operation)
@@ -29,6 +31,18 @@ export class EngineWorkspaceStore {
       const current = await this.read()
       if (parsed.data.revision !== current.revision) throw appError('error.conflict')
       validateAssetHistory(current, parsed.data)
+      for (const skill of parsed.data.skills) {
+        const previous = current.skills.find((item) => item.id === skill.id)
+        for (const revision of skill.versions) {
+          if (
+            revision.kind !== 'directory' ||
+            previous?.versions.some((item) => item.version === revision.version)
+          )
+            continue
+          if (!this.verifyDirectory) throw appError('error.skillCaptureInvalid')
+          await this.verifyDirectory(revision)
+        }
+      }
       const next = { ...parsed.data, revision: current.revision + 1 }
       await this.write(next)
       return next

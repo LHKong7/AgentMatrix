@@ -1,4 +1,5 @@
 import type { EngineWorkspace } from './engines/workspace'
+import type { CapturedSkillDirectory } from './engines/skill-import'
 import type {
   CredentialInput,
   CredentialMetadata,
@@ -20,6 +21,7 @@ export interface AgentMatrixApi {
   getCredentialStatus(): Promise<CredentialStatus>
   setCredential(input: CredentialInput): Promise<CredentialMetadata>
   deleteCredential(input: DeleteCredentialInput): Promise<void>
+  importSkillDirectory(): Promise<CapturedSkillDirectory | null>
 }
 
 export const channels = {
@@ -29,4 +31,5 @@ export const channels = {
   credentialStatus: 'credentials:status',
   credentialSet: 'credentials:set',
   credentialDelete: 'credentials:delete',
+  skillImport: 'skills:import-directory',
 } as const

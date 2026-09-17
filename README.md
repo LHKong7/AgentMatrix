@@ -28,6 +28,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
 - **Shared connections and models:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents.
 - **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit.
+- **Skill directory imports:** select a directory in the desktop editor to capture `SKILL.md`, scripts, and references with file digests. Reimport creates a new revision while retaining previous bytes; importing never executes scripts.
 - **MCP definitions:** configure stdio, Streamable HTTP, or SSE, with arguments, environment values, secret references, headers, and authentication metadata.
 - **Resource bundles:** reuse prompt, Skill, and MCP bindings. Native plugins have separate metadata tied to an engine installation.
 - **Resolved previews:** inspect shared bindings and draft diagnostics before native adapter validation. Direct bindings override bundle bindings; disabled assets are excluded. Removing definitions cleans references while retaining dependent agents as drafts.
@@ -35,7 +36,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Browser preview disables credential storage.
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
-This is a configuration management foundation. **CLI execution, model requests, MCP connections, Skill directory imports, native configuration imports, and third-party plugin installation are not implemented.** Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
+This is a configuration management foundation. **CLI execution, model requests, MCP connections, native configuration imports, and third-party plugin installation are not implemented.** Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
 
 Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires a future adapter compatibility check before launch.
 
@@ -94,13 +95,15 @@ Connections and MCP definitions store **secret references**, either an environme
 
 The active store uses schema v2. Before converting a v1 workspace, it preserves the original bytes as `workspace.json.v1.<sha256>.bak`; migration retains IDs and bindings and leaves unresolved engine choices editable. A fresh workspace has no assumed provider, model, installation, or sampling temperature. Browser preview writes `agent-matrix:preview:v2` and retains the old `agent-matrix:preview:v1` value when migrating.
 
+Imported Skill files live under `userData/assets/skills/<digest>/`. The importer rejects symlinks, ambiguous/nonportable paths, changed sources, and oversized directories. It preserves frontmatter without interpreting it. Skill discovery and name compatibility still require an engine adapter. See [Skill capture boundaries](docs/skill-capture.md) for limits and retention behavior.
+
 Unreadable or incompatible workspace files produce an error and are preserved. There is no silent reset. Exit the app and make a backup before editing its workspace file manually.
 
 The main process enables context isolation and renderer sandboxing, and disables Node integration. Preload exposes workspace loading/saving, app information, and credential metadata/set/delete operations. No plaintext credential read operation is exposed. IPC validates the sender. Production uses a restrictive CSP; development permits inline scripts for React Fast Refresh only. See [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) and [electron-vite development](https://electron-vite.org/guide/dev).
 
 ## Next stages
 
-1. Complete the remaining shared foundation for **OpenCode, Pi, and DeepSeek Harness**: capture Skill directories, probe configured installations, import native configuration read-only, generate immutable managed run inputs, and connect the session contract to typed IPC. Shared libraries, bilingual configuration editors, resolution diagnostics, credential references, and v2 migration are active.
+1. Complete the remaining shared foundation for **OpenCode, Pi, and DeepSeek Harness**: probe configured installations, import native configuration read-only, generate immutable managed run inputs, and connect the session contract to typed IPC. Shared libraries, Skill directory capture, bilingual configuration editors, resolution diagnostics, credential references, and v2 migration are active.
 2. Deliver **OpenCode through ACP** as the first complete desktop workflow: configuration, streaming, tools, supported permissions, cancellation, history, immutable run inputs, and configuration application status. Shared prompt/Skill/MCP mappings are part of its acceptance gate.
 3. Deliver **Pi through RPC**, then **DeepSeek Harness through ACP**, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
 4. After the initial three-engine milestone, expand to Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands, then later scheduling and collaboration. See the [implementation plan](docs/cli-agent-plan.md) and [nine-engine research](docs/cli-agent-research.md).

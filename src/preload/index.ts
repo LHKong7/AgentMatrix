@@ -8,6 +8,7 @@ const api: AgentMatrixApi = {
   getCredentialStatus: () => ipcRenderer.invoke(channels.credentialStatus),
   setCredential: (input) => ipcRenderer.invoke(channels.credentialSet, input),
   deleteCredential: (input) => ipcRenderer.invoke(channels.credentialDelete, input),
+  importSkillDirectory: () => ipcRenderer.invoke(channels.skillImport),
 }
 
 contextBridge.exposeInMainWorld('agentMatrix', api)

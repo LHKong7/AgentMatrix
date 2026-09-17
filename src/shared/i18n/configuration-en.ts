@@ -111,6 +111,24 @@ export const configurationEn = {
     'Bundles reference shared assets. They are separate from executable native plugins.',
   'error.assetDirectoryEdit':
     'Directory revisions cannot be edited as Markdown. Import a new revision.',
+  'config.importSkill': 'Import Skill directory',
+  'config.importingSkill': 'Importing Skill…',
+  'config.importSkillHint':
+    'Capture SKILL.md and all files in a selected directory. Scripts are stored without execution; symlinks are not supported. Save to attach this revision.',
+  'config.skillFiles': '{count} captured files · {bytes} bytes',
+  'config.skillFileList': 'Captured files',
+  'config.executableFile': 'executable',
+  'error.skillDesktopOnly': 'Directory import is available in the desktop app.',
+  'error.skillImportBusy': 'Another Skill import is still in progress.',
+  'error.skillEntry': 'The selected directory must contain a nonempty UTF-8 SKILL.md file.',
+  'error.skillUnsafePath':
+    'The directory contains an unsafe, ambiguous, or unsupported path. Use regular files and folders without symlinks or case-conflicting names.',
+  'error.skillLimit':
+    'The Skill exceeds import limits: 1,000 files, 20 MB per file, 100 MB total, or 32 nested directories.',
+  'error.skillChanged':
+    'The source changed during import. Retry when its files are no longer being edited.',
+  'error.skillCaptureInvalid':
+    'A captured Skill is missing or has changed. Restore its original files or import a new revision; saved snapshots are never overwritten.',
   'resolution.agent-missing': 'The agent profile is missing.',
   'resolution.agent-disabled': 'This agent profile is disabled.',
   'resolution.engine-required': 'Select an engine installation.',

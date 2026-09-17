@@ -1262,3 +1262,16 @@ input[type='checkbox'] {
   flex-wrap: wrap;
   gap: 8px;
 }
+.asset-digest {
+  display: block;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  margin: 10px 0;
+}
+.asset-file-list {
+  max-height: 220px;
+  overflow: auto;
+  padding-left: 20px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
