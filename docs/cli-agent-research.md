@@ -1,219 +1,224 @@
-# 首批 CLI Agent 接入调研与配置架构建议
+# Initial CLI agent research and configuration architecture
 
-调研日期：**2026-09-17**。面向 AgentMatrix（Electron + React + TypeScript）。
+Research date: **2026-09-17**. English edition: **2026-09-18**. Target application: AgentMatrix, built with Electron, React, and TypeScript.
 
-范围：Claude Code、Codex CLI、OpenCode、Pi、Gemini CLI、OpenHands、Cline、Goose、DeepSeek Harness。依据官方文档、官方仓库 README 和必要的配置源码核查；**未安装、启动或调用这九个产品进行兼容性测试**。仓库默认分支的能力可能尚未进入已发布版本，实际接入必须绑定安装版本并探测能力。文中的“建议”是 AgentMatrix 的设计方案，不代表当前项目已经实现。
+Scope: Claude Code, Codex CLI, OpenCode, Pi, Gemini CLI, OpenHands, Cline, Goose, and DeepSeek Harness. Findings were checked against official documentation, repository READMEs, and relevant configuration source code. **These nine products were not installed, launched, or called for compatibility testing.** Default-branch capabilities may not be available in released versions; integration must identify the installed version and probe its capabilities. Recommendations describe proposed AgentMatrix behavior, not implemented runtime features.
 
-## 1. 核心结论
+**Delivery scope updated 2026-09-18:** the first integrations are **OpenCode → Pi → DeepSeek Harness**, following the user's product priorities. The other six remain researched candidates for later delivery. The design and delivery sections below reflect the revised [implementation plan](cli-agent-plan.md); the upstream findings and pinned source baseline are unchanged.
 
-**采用“共享配置资源库 + Agent 配置档 + 每种引擎的适配器”架构。** 用户独立维护提示词、模型连接、凭证、MCP、Skills 和能力组合；每个 Agent 选择一个运行引擎，再绑定这些资源并配置该引擎的专属选项。
+## 1. Main conclusions
 
-九个项目都能在其产品或 SDK 体系内定制系统指令、模型服务地址和认证，但入口、协议及作用范围不同。不能将它们理解为九个拥有相同 `systemPrompt / baseUrl / apiKey` 参数的命令行程序。
+**Use a shared configuration library, agent profiles, and an adapter for each engine.** Users maintain prompts, model connections, credentials, MCP servers, Skills, and capability bundles independently. Each agent selects a runtime engine, binds shared assets, and adds engine-specific settings.
 
-需要从第一版数据模型里区分五件事：
+All nine product or SDK ecosystems allow customization of system instructions, model endpoints, and authentication. Their entry points, protocols, and scopes differ. They are not nine interchangeable commands with identical `systemPrompt`, `baseUrl`, and `apiKey` arguments.
 
-1. **引擎与模型服务不同。** Claude Code、Codex、Pi 是引擎；Anthropic、OpenAI、企业网关、Ollama 是模型服务。一个引擎可以连接多种服务，一个服务也可以供多个引擎使用。
-2. **追加指令与替换系统提示词不同。** 项目规则、Skill、首轮任务、压缩提示词也应分别建模。它们不能通过拼接到第一条用户消息来等价实现。
-3. **同一个 Base URL 不代表同一个协议。** 至少区分 Anthropic Messages、OpenAI Responses、OpenAI Chat Completions、Gemini 和 Vertex。协议、认证方式及模型工具调用能力都匹配后才能绑定。
-4. **MCP 和 Skills 更适合跨引擎复用；可执行插件通常只能在自己的生态运行。** Pi 没有原生 MCP，必须通过扩展；不同项目的插件 manifest、生命周期和权限并不兼容。
-5. **保存配置与让运行中的会话生效不同。** 有的配置只在启动时加载，有的下个请求生效，有的恢复会话仍沿用旧提示词。UI 应显示“已保存 / 待新会话生效 / 已应用”。
+The initial data model should distinguish five concepts:
 
-其中有两项应单独标记：用户给出的 OpenHands 主仓库目前是 **Agent Canvas**，其独立 V1 CLI 已声明不再积极维护；DeepSeek Harness 明确处于开发预览阶段，接口变化快。前者建议以 SDK / Agent Server 为长期接入对象，保留旧 CLI 兼容入口；后者采用实验性、固定版本的适配器。[OpenHands 主仓库][oh-main]、[CLI 状态][oh-cli]、[DeepSeek Harness][dsh-main]
+1. **Engine versus model service.** Claude Code, Codex, and Pi are engines. Anthropic, OpenAI, an enterprise gateway, and Ollama are model services. One engine can connect to several services, and one service can serve several engines.
+2. **Appending instructions versus replacing the system prompt.** Project rules, Skills, initial tasks, and compaction prompts are separate concepts. Prepending everything to the first user message is not an equivalent implementation.
+3. **Endpoint versus protocol.** Distinguish at least Anthropic Messages, OpenAI Responses, OpenAI Chat Completions, Gemini, and Vertex. Protocol, authentication, and model tool-calling capabilities must match before a connection can be bound.
+4. **Portable assets versus native plugins.** MCP definitions and Skills are comparatively reusable. Executable plugins generally belong to their own ecosystem. Pi requires an extension for MCP; plugin manifests, lifecycles, and permissions are not interchangeable.
+5. **Saving configuration versus applying it to a running session.** Some settings load at startup, others on the next request, and resumed sessions may retain earlier prompts. The UI should distinguish saved, awaiting a new session, and applied states.
 
-## 2. 总体能力对照
+Two integrations need distinct treatment. The supplied OpenHands main repository now hosts **Agent Canvas**, while its standalone V1 CLI states that it is no longer actively maintained. DeepSeek Harness is explicitly a developer preview with rapid breaking changes. Prefer OpenHands SDK / Agent Server for long-term integration, keeping the legacy CLI as a compatibility option. Treat DeepSeek Harness as experimental and pin its adapter to a version. [OpenHands main repository][oh-main], [CLI status][oh-cli], [DeepSeek Harness][dsh-main]
 
-### 2.1 指令与模型连接
+## 2. Capability comparison
 
-“支持”仅表示存在官方入口；不表示任意模型、任意网关或所有已发布版本都兼容。详细限制见第 3 节。
+### 2.1 Instructions and model connections
 
-| 引擎             | 系统指令入口                                                                                | 自定义 endpoint / key 入口                                                         | 必须保留的差异                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Claude Code      | `--append-system-prompt[-file]` 追加；`--system-prompt[-file]` 替换；`CLAUDE.md` 为项目指令 | `ANTHROPIC_BASE_URL`；`ANTHROPIC_API_KEY` 或 `ANTHROPIC_AUTH_TOKEN`                | 网关要匹配 Anthropic 协议；账号认证与 API key 分开；恢复会话有提示词快照语义       |
-| Codex CLI        | `developer_instructions` 追加；`model_instructions_file` 替换基础指令；`AGENTS.md` 项目规则 | `model_providers.<id>.base_url / env_key / wire_api`                               | 当前参考配置的自定义 wire API 为 `responses`；不能直接拿 Chat Completions 网关替代 |
-| OpenCode         | `agent.<name>.prompt`，支持 `{file:...}`；规则通过 `instructions` 等入口                    | `provider.<id>.options.baseURL / apiKey`，搭配 provider SDK 包                     | SDK 包决定协议；内置 Agent、自定义 Agent、模型路由和权限分别配置                   |
-| Pi               | `SYSTEM.md` 或 `--system-prompt`；`APPEND_SYSTEM.md` 或 `--append-system-prompt`            | `models.json` 的 `providers.<id>.baseUrl / api / apiKey`                           | 多协议；替换核心提示词后仍可附加上下文和 Skills；环境变量插值语法有版本差异        |
-| Gemini CLI       | `GEMINI_SYSTEM_MD` 全量替换；`GEMINI.md` 提供项目上下文                                     | `GOOGLE_GEMINI_BASE_URL` + `GEMINI_API_KEY`；Vertex 有独立入口                     | endpoint 与认证模式绑定；不是通用 OpenAI-compatible 客户端                         |
-| OpenHands        | SDK `Agent.system_prompt` 或模板；`AgentContext.system_message_suffix` 追加                 | SDK `LLM(model, base_url, api_key)`；旧 CLI 的 `agent_settings.json`               | 旧 CLI 环境覆盖需 `--override-with-envs`；SDK 定制不能一概说成 CLI flag            |
-| Cline            | CLI `--system`；规则目录；SDK `systemPrompt`                                                | provider settings 的 `baseUrl / apiKey / protocol` 等                              | 当前 CLI / SDK 与旧 IDE 配置格式有演进；不能照搬旧扩展设置                         |
-| Goose            | `prompts/system.md` 模板覆盖；Recipe `instructions`、Hints 提供额外指令                     | provider 专属配置；OpenAI 示例为 `OPENAI_HOST / OPENAI_BASE_PATH / OPENAI_API_KEY` | host 与请求路径分离；API key 放普通 `config.yaml` 不会生效                         |
-| DeepSeek Harness | `dsh-system-prompt` persona 前后缀；插件注册 `complete: true` 完整提示词                    | `llm-pi-ai.providers` 的 `baseURL / api / apiKeyEnv`；DeepSeek 原生适配器另有配置  | Cordis 插件组合决定能力；全量替换需插件接口，不能假设有通用 `--system-prompt`      |
+Support means an official entry point exists, not that every model, gateway, or released version is compatible. Section 3 describes the restrictions.
 
-依据：[Claude CLI][cc-cli] / [环境变量][cc-env]；[Codex 配置][cx-config]；[OpenCode Agents][oc-agents] / [Providers][oc-providers]；[Pi][pi-cli] / [Models][pi-models]；[Gemini Prompt][gm-prompt] / [配置][gm-config]；[OpenHands Agent][oh-agent] / [LLM][oh-llm]；[Cline CLI][cl-cli] / [Provider Schema][cl-provider]；[Goose Prompt][gs-prompt] / [Providers][gs-providers]；[DSH Prompt][dsh-prompt] / [Providers][dsh-providers]。
+| Engine           | System instruction entry points                                                                                         | Custom endpoint / key entry points                                                            | Differences to preserve                                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Claude Code      | Append with `--append-system-prompt[-file]`; replace with `--system-prompt[-file]`; project instructions in `CLAUDE.md` | `ANTHROPIC_BASE_URL`; `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN`                           | Gateway must match Anthropic semantics; account login differs from API keys; resumed sessions have prompt snapshot behavior          |
+| Codex CLI        | Additional `developer_instructions`; replacement `model_instructions_file`; project rules in `AGENTS.md`                | `model_providers.<id>.base_url / env_key / wire_api`                                          | Current custom wire API reference specifies `responses`; a Chat Completions gateway is not a direct substitute                       |
+| OpenCode         | `agent.<name>.prompt`, including `{file:...}`; rules through `instructions` and related entry points                    | `provider.<id>.options.baseURL / apiKey`, paired with a provider SDK package                  | SDK package determines protocol; built-in/custom agents, model routing, and permissions are separate                                 |
+| Pi               | `SYSTEM.md` or `--system-prompt`; `APPEND_SYSTEM.md` or `--append-system-prompt`                                        | `models.json`: `providers.<id>.baseUrl / api / apiKey`                                        | Multiple protocols; context and Skills may still be added after replacing the core prompt; interpolation syntax is version-sensitive |
+| Gemini CLI       | Full override with `GEMINI_SYSTEM_MD`; project context through `GEMINI.md`                                              | `GOOGLE_GEMINI_BASE_URL` + `GEMINI_API_KEY`; separate Vertex route                            | Endpoint override depends on authentication mode; not a general OpenAI-compatible client                                             |
+| OpenHands        | SDK `Agent.system_prompt` or templates; append through `AgentContext.system_message_suffix`                             | SDK `LLM(model, base_url, api_key)`; legacy CLI `agent_settings.json`                         | Legacy CLI environment overrides require `--override-with-envs`; SDK customization is not necessarily a CLI flag                     |
+| Cline            | CLI `--system`, rule directories, SDK `systemPrompt`                                                                    | Provider settings including `baseUrl / apiKey / protocol`                                     | Current CLI / SDK schemas differ from older IDE configuration; do not copy obsolete fields                                           |
+| Goose            | Override `prompts/system.md`; additional Recipe `instructions` and Hints                                                | Provider-specific settings; OpenAI example: `OPENAI_HOST / OPENAI_BASE_PATH / OPENAI_API_KEY` | Host and request path are separate; API keys in ordinary `config.yaml` are ignored                                                   |
+| DeepSeek Harness | `dsh-system-prompt` persona prefix/suffix; plugin section with `complete: true` for a full prompt                       | `llm-pi-ai.providers`: `baseURL / api / apiKeyEnv`; separate native DeepSeek adapter          | Cordis composition determines capabilities; full replacement uses plugin APIs, not an assumed universal `--system-prompt` flag       |
 
-### 2.2 扩展与桌面运行接口
+Sources: [Claude CLI][cc-cli] / [environment][cc-env]; [Codex configuration][cx-config]; [OpenCode agents][oc-agents] / [providers][oc-providers]; [Pi CLI][pi-cli] / [models][pi-models]; [Gemini prompt][gm-prompt] / [configuration][gm-config]; [OpenHands Agent][oh-agent] / [LLM][oh-llm]; [Cline CLI][cl-cli] / [provider schema][cl-provider]; [Goose prompts][gs-prompt] / [providers][gs-providers]; [DSH prompts][dsh-prompt] / [providers][dsh-providers].
 
-| 引擎             | MCP / Skills                                 | 原生扩展形式                                     | 建议的桌面集成入口                                                           |
-| ---------------- | -------------------------------------------- | ------------------------------------------------ | ---------------------------------------------------------------------------- |
-| Claude Code      | 原生 MCP；Skills                             | Claude 插件、Hooks、子 Agent 等                  | Agent SDK；或 `claude -p` 的双向 `stream-json`                               |
-| Codex CLI        | 原生 MCP；Skills                             | Codex 插件、Skills、角色配置等                   | **`codex app-server`**：双向事件、审批、认证、会话；`exec --json` 用于批处理 |
-| OpenCode         | 原生 MCP；Skills                             | JS/TS / npm 插件，自定义工具和 Agent             | `opencode acp`；或自身 server / SDK                                          |
-| Pi               | **MCP 需扩展**；原生 Skills                  | TypeScript extensions；npm / git Pi packages     | **`pi --mode rpc`** 或 TypeScript SDK                                        |
-| Gemini CLI       | 原生 MCP；Skills                             | Gemini extensions、Hooks、子 Agent 等            | **`gemini --acp`**；headless JSON 用于批处理                                 |
-| OpenHands        | SDK / CLI 有 MCP；SDK 有 AgentSkills         | Python tools、Skills、插件、工作空间后端         | SDK / Agent Server；旧 CLI `openhands acp` 为兼容路径                        |
-| Cline            | 原生 MCP；Skills                             | 当前 CLI / SDK 插件、Hooks、工作流               | **`cline --acp`** 或 `@cline/sdk`；`--json` 为结构化输出                     |
-| Goose            | MCP 是主要扩展机制；Skills                   | 内置 / MCP extensions、Recipes、自定义 providers | **`goose acp`**；需要独立服务时 `goose serve`                                |
-| DeepSeek Harness | 官方 MCP、Skills 插件，依赖 profile 实际装载 | Cordis 插件树、profiles、bundles                 | **`dsh --profile sdk`**；ACP 仅用于已覆盖的自动化能力                        |
+### 2.2 Extensions and desktop integration interfaces
 
-依据：[Claude CLI][cc-cli]；[Codex App Server][cx-app] / [非交互模式][cx-exec] / [Skills][cx-skills]；[OpenCode ACP][oc-acp] / [配置][oc-config]；[Pi README][pi-cli] / [RPC][pi-rpc]；[Gemini ACP][gm-acp] / [Skills][gm-skills]；[OpenHands CLI][oh-cli] / [SDK][oh-sdk]；[Cline CLI][cl-cli] / [SDK][cl-sdk]；[Goose ACP][gs-acp] / [Skills][gs-skills]；[DSH CLI][dsh-cli] / [ACP 限制][dsh-acp]。
+| Engine           | MCP / Skills                                                    | Native extension mechanisms                          | Suggested desktop entry point                                                                            |
+| ---------------- | --------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Claude Code      | Native MCP and Skills                                           | Claude plugins, hooks, subagents, and related assets | Agent SDK, or bidirectional `stream-json` with `claude -p`                                               |
+| Codex CLI        | Native MCP and Skills                                           | Codex plugins, Skills, and role configuration        | **`codex app-server`** for events, approvals, authentication, and sessions; `exec --json` for batch work |
+| OpenCode         | Native MCP and Skills                                           | JS/TS / npm plugins, custom tools and agents         | `opencode acp`, or its server / SDK                                                                      |
+| Pi               | **MCP requires an extension**; native Skills                    | TypeScript extensions; npm / git Pi packages         | **`pi --mode rpc`** or TypeScript SDK                                                                    |
+| Gemini CLI       | Native MCP and Skills                                           | Gemini extensions, hooks, subagents                  | **`gemini --acp`**; headless JSON for batch work                                                         |
+| OpenHands        | MCP in SDK / CLI; AgentSkills in SDK                            | Python tools, Skills, plugins, workspace backends    | SDK / Agent Server; legacy `openhands acp` for compatibility                                             |
+| Cline            | Native MCP and Skills                                           | Current CLI / SDK plugins, hooks, workflows          | **`cline --acp`** or `@cline/sdk`; `--json` for structured output                                        |
+| Goose            | MCP is a primary extension mechanism; Skills                    | Built-in / MCP extensions, Recipes, custom providers | **`goose acp`**; `goose serve` for a separate service                                                    |
+| DeepSeek Harness | Official MCP / Skills plugins, depending on profile composition | Cordis plugin trees, profiles, bundles               | **`dsh --profile sdk`**; ACP only for its supported automation features                                  |
 
-**MCP、ACP、JSON 输出是三个层面：** MCP 连接工具与资源；ACP 连接宿主 UI 与 Agent；JSON 输出只是序列化形式，未必支持双向审批、取消或会话恢复。某引擎提供 MCP server，不等于它能充当 AgentMatrix 所需的 MCP client。
+Sources: [Claude CLI][cc-cli]; [Codex App Server][cx-app] / [non-interactive mode][cx-exec] / [Skills][cx-skills]; [OpenCode ACP][oc-acp] / [configuration][oc-config]; [Pi README][pi-cli] / [RPC][pi-rpc]; [Gemini ACP][gm-acp] / [Skills][gm-skills]; [OpenHands CLI][oh-cli] / [SDK][oh-sdk]; [Cline CLI][cl-cli] / [SDK][cl-sdk]; [Goose ACP][gs-acp] / [Skills][gs-skills]; [DSH CLI][dsh-cli] / [ACP limitations][dsh-acp].
 
-## 3. 各项目的接入细节
+**MCP, ACP, and JSON output serve different layers.** MCP connects tools and resources; ACP connects a host UI to an agent; JSON is a serialization format that does not itself guarantee bidirectional approvals, cancellation, or resumption. Exposing an MCP server does not establish that an engine also provides the MCP client behavior AgentMatrix needs.
+
+## 3. Integration details by project
 
 ### 3.1 Claude Code
 
-**配置与指令。** 常见配置包括用户级 `~/.claude/settings.json`、项目级 `.claude/settings.json`、本地项目级 `.claude/settings.local.json`；组织管理配置具有更高约束。`--settings` 是覆盖指定字段的合并入口，并不自动隔离其他配置来源。[Settings][cc-settings]
+**Configuration and instructions.** Common files include user `~/.claude/settings.json`, project `.claude/settings.json`, and local-project `.claude/settings.local.json`. Managed configuration adds higher-level constraints. `--settings` merges overrides for specified fields; it does not automatically isolate other sources. [Settings][cc-settings]
 
-系统提示词区分文本 / 文件的追加与替换入口。共享角色指令优先映射为追加；`CLAUDE.md` 保留为项目规范。当前文档还说明：恢复会话可能沿用首次请求记录的系统提示词，直到压缩或新建会话；较新版本的 `--system-prompt-snapshot off` 可改变此行为，因此“改文件后重启 CLI”不总等于“旧会话立刻换提示词”。[CLI 参考][cc-cli]
+System-prompt flags distinguish text/file input and append/replace behavior. Prefer append for shared role instructions and preserve `CLAUDE.md` as project conventions. Current documentation also explains that resumed sessions may retain the prompt recorded at the first request until compaction or a new conversation. Newer versions provide `--system-prompt-snapshot off`; changing a file and restarting the CLI does not always update an old session immediately. [CLI reference][cc-cli]
 
-**模型连接。** `ANTHROPIC_BASE_URL` 指向支持所需 Anthropic 请求语义的服务；key 使用 `X-Api-Key`，`ANTHROPIC_AUTH_TOKEN` 使用 Bearer。应将二者建模为不同认证方式。Bedrock、Google Cloud、Foundry 等路线也有各自认证，不宜压缩为一个 API key 输入框。[环境变量][cc-env]
+**Model connections.** `ANTHROPIC_BASE_URL` must target a service supporting the required Anthropic request semantics. API keys use `X-Api-Key`; `ANTHROPIC_AUTH_TOKEN` uses Bearer authentication. Model these separately. Bedrock, Google Cloud, and Foundry routes also have distinct authentication rather than one universal key field. [Environment variables][cc-env]
 
-**MCP 与执行。** 可通过 `--mcp-config` 提供运行配置；`--strict-mcp-config` 可限制普通 MCP 配置来源，但管理策略仍需按官方规则处理。`--input-format stream-json` / `--output-format stream-json` 是程序化接入入口；具体输出及交互选项由版本对应的 CLI / SDK 管理。[CLI 参考][cc-cli]
+**MCP and execution.** `--mcp-config` supplies run configuration. `--strict-mcp-config` restricts ordinary MCP sources, subject to managed-policy rules. `--input-format stream-json` and `--output-format stream-json` are programmatic entry points; use the installed CLI / SDK version's interaction options. [CLI reference][cc-cli]
 
-**AgentMatrix 专属项：** permission mode、allowed / disallowed tools、配置来源选择、模型别名、预算、子 Agent、Hooks、插件及提示词快照策略。审批与沙箱分别呈现，不从提示词推导执行权限。
+**Engine-specific options:** permission mode, allowed/disallowed tools, configuration sources, model aliases, budgets, subagents, hooks, plugins, and prompt snapshot policy. Present approvals separately from sandbox enforcement; prompts do not define execution permissions.
 
 ### 3.2 Codex CLI
 
-**配置与指令。** 核心配置为 `$CODEX_HOME/config.toml`，通常位于 `~/.codex/`。当前官方样例把命名 profile 放在 `$CODEX_HOME/<name>.config.toml`；与旧版本常见的内嵌 profile 格式有差异，适配器应按安装版本读写。`developer_instructions` 用于补充指令，`model_instructions_file` 替换基础指令，`compact_prompt` 是另一种用途，不能混用。[样例][cx-config]、[参考][cx-reference]
+**Configuration and instructions.** Core configuration is `$CODEX_HOME/config.toml`, usually under `~/.codex/`. The current official sample puts named profiles in `$CODEX_HOME/<name>.config.toml`, unlike the embedded profile format commonly used by older versions. Read and write according to the installed version. `developer_instructions` adds instructions, `model_instructions_file` replaces base instructions, and `compact_prompt` serves a different purpose. [Sample][cx-config], [reference][cx-reference]
 
-**模型连接。** 自定义 provider 使用独立 ID，配置 `base_url`、`env_key`、`wire_api` 和必要的请求头；当前参考样例注明 `wire_api = "responses"`。内置 OpenAI 的地址覆盖另有 `openai_base_url`。不要把只提供 `/chat/completions` 的服务标为 Codex 原生兼容；网关是否满足流式事件、工具调用和模型要求还需验证。[Provider 配置][cx-config]
+**Model connections.** Custom providers use separate IDs with `base_url`, `env_key`, `wire_api`, and any required headers. The current sample specifies `wire_api = "responses"`. The built-in OpenAI endpoint has a separate `openai_base_url` override. A gateway exposing only `/chat/completions` is not native Codex compatibility; streaming events, tool calls, and model requirements also need verification. [Provider configuration][cx-config]
 
-**桌面集成。** App Server 是官方面向自有产品深度集成的接口，可处理认证、历史、审批和流式事件。默认 stdio，客户端先 `initialize` / `initialized`，再管理 thread 和 turn；消息结构与常见 JSON-RPC 有细节差异，应使用该版本生成的 schema / 类型。`codex exec --json` 更适合任务型批处理。[App Server][cx-app]、[非交互模式][cx-exec]
+**Desktop integration.** App Server is the official interface for rich integrations, covering authentication, history, approvals, and streamed events. It defaults to stdio. Initialize with `initialize` / `initialized`, then manage threads and turns. Wire details differ from conventional JSON-RPC; use schemas/types generated by that version. `codex exec --json` is better suited to task-oriented batch execution. [App Server][cx-app], [non-interactive mode][cx-exec]
 
-**MCP / Skills。** MCP 放在 `[mcp_servers.<name>]`；支持本地进程、远程 HTTP 以及相应认证字段。Skills 是带 `SKILL.md` 的目录，项目和用户路径有专门发现规则；同名技能也未必按常见的“项目覆盖用户”处理。[MCP][cx-mcp]、[Skills][cx-skills]
+**MCP and Skills.** MCP definitions live under `[mcp_servers.<name>]` and cover local processes, remote HTTP, and authentication options. Skills are directories containing `SKILL.md`; repository and user discovery have explicit rules. Duplicate names do not necessarily follow a simple project-over-user precedence rule. [MCP][cx-mcp], [Skills][cx-skills]
 
-**AgentMatrix 专属项：** 审批策略、文件系统 / 网络权限、reasoning effort、模型能力、web search、角色和多 Agent 配置。不要对不接受 temperature 的模型强制输出当前项目默认的 `0.7`。
+**Engine-specific options:** approvals, filesystem/network permissions, reasoning effort, model capabilities, web search, roles, and multi-agent configuration. Do not unconditionally send the current application's `0.7` temperature default to models that do not accept it.
 
 ### 3.3 OpenCode
 
-**配置。** 使用 `opencode.json` / JSONC；用户级常见路径为 `~/.config/opencode/opencode.json`。配置按层合并。尤其要注意：`OPENCODE_CONFIG` 位于用户配置之后、项目配置之前，**指定该文件不等于最终覆盖项目配置**；`OPENCODE_CONFIG_CONTENT` 运行时覆盖也仍受管理配置约束。[配置及优先级][oc-config]
+**Configuration.** Uses `opencode.json` / JSONC, commonly `~/.config/opencode/opencode.json` at user scope. Sources merge in layers. In particular, `OPENCODE_CONFIG` loads after user configuration but before project configuration: **an explicit config file does not guarantee that it overrides project settings**. `OPENCODE_CONFIG_CONTENT` runtime overrides remain subject to managed configuration. [Configuration and precedence][oc-config]
 
-**指令与连接。** 自定义 Agent 的 `prompt` 可以引用文件；Agent 还有 model、temperature、mode、permission 等选项。模型为 `provider/model` 路由。自定义 provider 需要配套的 SDK 包，例如 `@ai-sdk/openai-compatible` 与 `@ai-sdk/openai` 对应的调用路径不同；地址字段是 `options.baseURL`，key 可通过 `{env:变量名}` 引用。[Agents][oc-agents]、[Providers][oc-providers]
+**Instructions and connections.** Custom agent prompts can reference files; agents also define model, temperature, mode, and permissions. Models use `provider/model` routing. Custom providers require the appropriate SDK package: `@ai-sdk/openai-compatible` and `@ai-sdk/openai` do not imply the same request path. Endpoints use `options.baseURL`; keys can reference `{env:VARIABLE}`. [Agents][oc-agents], [providers][oc-providers]
 
-**MCP。** 配置键为 `mcp`；本地类型用 `command` 数组把可执行文件和参数放在一起，环境字段叫 `environment`；远程使用 `url / headers / oauth` 等。必须由适配器转换，不能直接复制 AgentMatrix 的 `command: string, args: string[]` 对象。[MCP][oc-mcp]
+**MCP.** The key is `mcp`. Local entries combine the executable and arguments into a `command` array and use `environment` for variables. Remote entries use `url`, `headers`, `oauth`, and related fields. The adapter must convert AgentMatrix's separate string command and argument array. [MCP][oc-mcp]
 
-**AgentMatrix 专属项：** primary / subagent 角色、工具级 permission、provider npm 包、自定义模型元数据、small model、插件和组织配置来源。桌面可先统一接 ACP，需要更丰富事件时再引入其 server / SDK。[ACP][oc-acp]、[配置][oc-config]
+**Engine-specific options:** primary/subagent role, per-tool permission rules, provider npm packages, model metadata, small model, plugins, and organization sources. Start with ACP; adopt the native server / SDK when richer events are needed. [ACP][oc-acp], [configuration][oc-config]
 
 ### 3.4 Pi
 
-**对象确认。** 本次以用户给出的 `earendil-works/pi` 为准；coding-agent 包为 `@earendil-works/pi-coding-agent`，不要沿用历史仓库或包名推断当前能力。[仓库][pi-main]
+**Project identity.** This research uses the supplied `earendil-works/pi` repository. Its coding-agent package is `@earendil-works/pi-coding-agent`; do not infer current behavior from historical repository or package names. [Repository][pi-main]
 
-**配置与指令。** 全局目录通常为 `~/.pi/agent/`，可用 `PI_CODING_AGENT_DIR` 覆盖；包含 `settings.json`、`models.json`、认证等文件，项目配置在 `.pi/`。`SYSTEM.md` 替换、`APPEND_SYSTEM.md` 追加，CLI 也提供对应参数；`--system-prompt` 替换默认部分时，上下文文件和 Skills 仍可能被附加。[CLI][pi-cli]、[环境变量][pi-env]
+**Configuration and instructions.** Global configuration usually lives in `~/.pi/agent/`, overridable with `PI_CODING_AGENT_DIR`, and includes settings, model definitions, and authentication files. Project configuration lives in `.pi/`. `SYSTEM.md` replaces and `APPEND_SYSTEM.md` appends; CLI flags provide corresponding entry points. Context files and Skills may still be added when `--system-prompt` replaces the default prompt. [CLI][pi-cli], [environment][pi-env]
 
-**模型连接。** `models.json` 提供 `baseUrl / api / apiKey`。协议支持 OpenAI、Anthropic、Google 等，但每项仍需声明正确的 API 类型。当前文档的 key 引用使用 `$MY_API_KEY` 等插值语法，并支持命令取值；AgentMatrix 应默认使用凭证引用，不能在导入配置时自动执行 `!command`。无认证本地服务可能仍需要 Pi 的占位 key，应由适配器处理为非秘密兼容值。[Models][pi-models]
+**Model connections.** `models.json` provides `baseUrl`, `api`, and `apiKey`. Supported API families include OpenAI, Anthropic, and Google, but each route must select the correct API type. Current documentation uses `$MY_API_KEY` interpolation and also permits command-based secret resolution. Prefer credential references; importing configuration must not automatically execute `!command`. Keyless local services may need a Pi placeholder key, handled as a nonsecret compatibility value by the adapter. [Models][pi-models]
 
-**两项关键限制。** Pi 明确没有内建 MCP，也没有通用工具权限弹窗；MCP 和确认流程可由 extensions 补充。当前版本的“项目信任”控制项目资源加载，不能等同于文件系统 / 网络沙箱。[CLI 的扩展与设计说明][pi-cli]、[仓库安全边界][pi-main]
+**Two material limitations.** Pi explicitly lacks built-in MCP and general-purpose tool permission popups. Extensions can add MCP or approval flows. Project trust controls loading project resources; it is not a filesystem or network sandbox. [CLI extension/design notes][pi-cli], [repository security boundary][pi-main]
 
-**AgentMatrix 专属项：** extensions、Pi packages、工具集、项目信任、thinking level、上下文压缩等。首选 RPC 或 SDK；RPC 使用严格以 LF 分隔的 JSONL，不能随意按其他 Unicode 换行符切分。[RPC][pi-rpc]
+**Engine-specific options:** extensions, Pi packages, tool sets, project trust, thinking level, and compaction. Prefer RPC or SDK. RPC uses strict LF-delimited JSONL; do not split on other Unicode line separators. [RPC][pi-rpc]
 
 ### 3.5 Gemini CLI
 
-**配置与指令。** 用户 / 项目配置常见于 `~/.gemini/settings.json`、`.gemini/settings.json`。`GEMINI_CLI_HOME` 指向其用户数据根目录，CLI 会在其中创建 `.gemini` 子目录，不能误当成直接的 settings 目录。[配置][gm-config]
+**Configuration and instructions.** Common files are `~/.gemini/settings.json` and project `.gemini/settings.json`. `GEMINI_CLI_HOME` is a user-data root under which the CLI creates `.gemini`; it is not directly the settings directory. [Configuration][gm-config]
 
-`GEMINI_SYSTEM_MD=/绝对路径/system.md` 完整替换核心提示词；`true` / `1` 指向项目 `.gemini/system.md`。`GEMINI.md` 则承载项目和角色上下文。替换模板还支持工具、Skills 等变量，不能把默认模板中的变量无条件删除。[System Prompt][gm-prompt]
+`GEMINI_SYSTEM_MD=/absolute/path/system.md` fully replaces core instructions; `true` / `1` selects project `.gemini/system.md`. `GEMINI.md` carries project and role context. Override templates support variables for tools, Skills, and related content; avoid unconditionally removing required variables. [System prompt][gm-prompt]
 
-**模型连接。** API key 模式使用 `GEMINI_API_KEY` 和 `GOOGLE_GEMINI_BASE_URL`；Vertex 使用独立的 `GOOGLE_VERTEX_BASE_URL` 及其认证、project / location 配置。OAuth 登录路线也应单独建模。自定义地址能力不等于支持 OpenAI Chat Completions。[配置][gm-config]
+**Model connections.** API-key authentication uses `GEMINI_API_KEY` and `GOOGLE_GEMINI_BASE_URL`. Vertex uses `GOOGLE_VERTEX_BASE_URL` with separate authentication, project, and location settings. OAuth login is another route. Custom endpoints do not establish OpenAI Chat Completions support. [Configuration][gm-config]
 
-**扩展与运行。** 原生支持 MCP、Agent Skills 和 ACP。第一版优先 `gemini --acp`，单次自动化可使用 headless 模式；stdio / SSE / HTTP 等 MCP 字段按当前 schema 映射，不能只改名称就转换传输类型。[MCP][gm-mcp]、[Skills][gm-skills]、[ACP][gm-acp]、[Headless][gm-headless]
+**Extensions and execution.** Native MCP, Agent Skills, and ACP are available. Prefer `gemini --acp` for the desktop, with headless mode for one-shot automation. Map MCP stdio/SSE/HTTP fields according to the current schema; renaming a transport is not a protocol conversion. [MCP][gm-mcp], [Skills][gm-skills], [ACP][gm-acp], [headless mode][gm-headless]
 
-**AgentMatrix 专属项：** 认证路线、云项目与区域、approval mode、sandbox、policy、extensions、上下文发现和可用子 Agent。
+**Engine-specific options:** authentication route, cloud project/region, approval mode, sandbox, policy, extensions, context discovery, and available subagents.
 
 ### 3.6 OpenHands
 
-**必须拆开产品层。** `OpenHands/OpenHands` 现在主要是 Agent Canvas 控制界面；真正的 Agent 能力在 software-agent-sdk / Agent Server 等组件。独立 `OpenHands-CLI` README 已明确不再积极维护。因此一个笼统的 `openhands` 引擎 ID 不足以描述版本与运行方式。[主仓库][oh-main]、[CLI][oh-cli]
+**Separate product layers.** `OpenHands/OpenHands` now primarily hosts Agent Canvas. Agent capabilities reside in software-agent-sdk, Agent Server, and related components. The standalone `OpenHands-CLI` README says it is no longer actively maintained. A single undifferentiated `openhands` engine ID cannot describe version and execution mode adequately. [Main repository][oh-main], [CLI][oh-cli]
 
-建议区分 `openhands-sdk`（长期接入）和 `openhands-cli-legacy`（兼容），二者在界面上仍可归到 OpenHands 品牌下。
+Use `openhands-sdk` for the long-term integration and `openhands-cli-legacy` for compatibility; the UI can group both under the OpenHands brand.
 
-**System Prompt 与模型连接。** 当前 SDK 的 `Agent` 支持 `system_prompt` 内联替换，以及 `system_prompt_filename / system_prompt_kwargs` 模板方式；`AgentContext.system_message_suffix` 是追加入口。`LLM` 提供 `model / base_url / api_key`。这些是已核查的 SDK 字段，不应宣传为所有旧 CLI 均支持的命令行参数。[Agent][oh-agent]、[AgentContext][oh-context]、[LLM][oh-llm]
+**System prompt and model connection.** The current SDK `Agent` accepts inline `system_prompt` or templates through `system_prompt_filename` and `system_prompt_kwargs`. `AgentContext.system_message_suffix` appends instructions. `LLM` provides `model`, `base_url`, and `api_key`. These are verified SDK fields, not a claim that every old CLI exposes equivalent flags. [Agent][oh-agent], [AgentContext][oh-context], [LLM][oh-llm]
 
-**旧 CLI。** 使用 `~/.openhands/agent_settings.json`、`cli_config.json`、`mcp.json`。`LLM_API_KEY / LLM_MODEL / LLM_BASE_URL` 默认被忽略，需 `--override-with-envs`，且覆盖不持久化。`--headless -f file` 读取任务输入，并非设置系统提示词。它提供 ACP 和 headless JSON，可以作为过渡入口。[CLI][oh-cli]
+**Legacy CLI.** Uses `~/.openhands/agent_settings.json`, `cli_config.json`, and `mcp.json`. `LLM_API_KEY`, `LLM_MODEL`, and `LLM_BASE_URL` are ignored unless `--override-with-envs` is passed; those overrides are not persisted. `--headless -f file` reads task input, not a system prompt. ACP and headless JSON provide transitional integration options. [CLI][oh-cli]
 
-**扩展与专属项。** SDK 有 MCP tools、AgentSkills、插件及 marketplace 示例。工具、workspace 后端、Agent Server、condenser、critic 和 confirmation policy 应留作专属配置；远程或容器内运行时还要转换资源路径。[SDK][oh-sdk]、[Skills 示例][oh-skills]、[插件示例][oh-plugins]
+**Extensions and specific settings.** The SDK has MCP tools, AgentSkills, plugin, and marketplace examples. Keep tools, workspace backends, Agent Server, condenser, critic, and confirmation policy as engine-specific settings. Container and remote execution also require resource-path translation. [SDK][oh-sdk], [Skills example][oh-skills], [plugin example][oh-plugins]
 
 ### 3.7 Cline
 
-**对象确认。** 当前主仓库已有 `apps/cli` 和 `@cline/sdk`，不应把 Cline 仅当作 VS Code 扩展。CLI 支持 `--system` 覆盖默认提示词，`--provider / --model` 选择连接，`--acp` 程序化通信，`--json` 输出结构化消息。[CLI][cl-cli]、[CLI README][cl-readme]
+**Project identity.** The current repository includes `apps/cli` and `@cline/sdk`; Cline is not only a VS Code extension. CLI options include `--system`, `--provider`, `--model`, `--acp`, and structured output through `--json`. [CLI][cl-cli], [CLI README][cl-readme]
 
-**配置。** 当前文档的 provider、global settings、MCP 配置位于 `~/.cline/data/settings/`；项目资源位于 `.cline/`。CLI 的 `--config` 指向配置目录，`--data-dir` 用于隔离本地状态，两者语义不同。全局 / 项目规则、Skills、Hooks 和插件还各有搜索路径。[配置][cl-config]
+**Configuration.** Current documentation puts provider, global, and MCP settings under `~/.cline/data/settings/`, with project resources under `.cline/`. `--config` selects a configuration directory, while `--data-dir` isolates local state; these are different operations. Rules, Skills, hooks, and plugins also have their own global/project search paths. [Configuration][cl-config]
 
-**模型连接。** 当前源码的 `ProviderSettings` 包含 `provider / model / protocol / baseUrl / apiKey / auth / headers` 等；协议枚举包括 `openai-chat`、`openai-responses`、`anthropic`、`gemini` 等。`providers.json` 又有版本、providers 和 entry settings 外层，不能将一段裸 ProviderSettings 当整个文件写入。优先 SDK / 配置服务；不要依赖未核查的通用 `--base-url` flag，也不要沿用旧版 IDE 的平铺字段。[Provider Schema][cl-provider]、[存储 Schema][cl-storage]
+**Model connections.** Current `ProviderSettings` includes `provider`, `model`, `protocol`, `baseUrl`, `apiKey`, `auth`, and `headers`. Protocol values include `openai-chat`, `openai-responses`, `anthropic`, and `gemini`. The persisted `providers.json` has a version and provider-entry/settings wrapper; a bare ProviderSettings object is not the whole file. Prefer SDK/configuration services. Do not rely on an unverified general `--base-url` flag or obsolete flat IDE settings. [Provider schema][cl-provider], [storage schema][cl-storage]
 
-**审批差异。** 当前 CLI 参考写明普通运行的 `--auto-approve` 默认开启，ACP 模式默认关闭。AgentMatrix 启动时必须显式应用用户所选策略，不能依赖所有 CLI 默认都询问用户。[CLI][cl-cli]
+**Approval difference.** The current CLI reference says ordinary `--auto-approve` defaults to enabled, while ACP defaults to disabled. AgentMatrix must apply the selected policy explicitly rather than assuming every CLI asks first. [CLI][cl-cli]
 
-**AgentMatrix 专属项：** Plan / Act、thinking、retries、auto approval、命令权限、Hooks、工作流、插件、hub / session backend。Skills 的发现与同名优先级也要按 Cline 处理。[Skills][cl-skills]
+**Engine-specific options:** Plan/Act, thinking, retries, automatic approval, command permissions, hooks, workflows, plugins, and hub/session backend. Skill discovery and duplicate-name precedence also require Cline-specific handling. [Skills][cl-skills]
 
 ### 3.8 Goose
 
-**配置与指令。** macOS / Linux 常见配置为 `~/.config/goose/config.yaml`；当前 provider 存储结构是 `active_provider` + `providers`，旧的扁平字段属于兼容格式。`GOOSE_PROVIDER / GOOSE_MODEL` 仍可作为环境覆盖。`GOOSE_PATH_ROOT` 可隔离 config / data / state 根目录。[配置][gs-config]、[环境变量][gs-env]
+**Configuration and instructions.** On macOS/Linux, configuration commonly lives in `~/.config/goose/config.yaml`. The current provider structure uses `active_provider` and `providers`; older flat keys are compatibility input. `GOOSE_PROVIDER` / `GOOSE_MODEL` remain environment overrides. `GOOSE_PATH_ROOT` isolates configuration, data, and state roots. [Configuration][gs-config], [environment][gs-env]
 
-覆盖 `prompts/system.md` 可定制系统模板；模板使用 Jinja 风格变量，应保留必要工具 / 扩展描述。Recipe 的 `instructions` 与 `prompt` 分别表达运行指令和任务输入，不能都归到 System Prompt。模板修改通常在新会话生效。[Prompt Templates][gs-prompt]、[Recipes][gs-recipes]
+Customize `prompts/system.md` to override the system template. Templates use Jinja-style variables, including tool/extension context that may need to be preserved. Recipe `instructions` and `prompt` describe runtime instructions and task input respectively; they should not both be classified as system prompts. Template changes generally apply to new sessions. [Prompt templates][gs-prompt], [Recipes][gs-recipes]
 
-**模型连接。** 以 OpenAI-compatible 为例，`OPENAI_HOST` 是服务根地址，`OPENAI_BASE_PATH` 是附加路径，通常为 `v1/chat/completions`。key 从环境或 secret storage 获取，放进普通 `config.yaml` 会被忽略；其他 provider 使用各自的字段。[Providers][gs-providers]
+**Model connections.** For an OpenAI-compatible route, `OPENAI_HOST` is the service root and `OPENAI_BASE_PATH` is the appended path, usually `v1/chat/completions`. The key comes from the environment or secret storage; ordinary `config.yaml` keys are ignored. Other providers have their own options. [Providers][gs-providers]
 
-**MCP / Skills / 运行。** MCP extensions 当前支持 stdio 和 Streamable HTTP；配置文档明确不支持旧 SSE。Skills 推荐 `.agents/skills` 系列路径。桌面可启动 `goose acp`；`goose serve` 支持远程连接但需相应认证设置。[配置][gs-config]、[Skills][gs-skills]、[ACP][gs-acp]
+**MCP, Skills, and execution.** MCP extensions currently support stdio and Streamable HTTP; the configuration reference explicitly excludes legacy SSE. Skills prefer `.agents/skills` locations. Start `goose acp` for desktop integration; `goose serve` supports remote connections with the required authentication. [Configuration][gs-config], [Skills][gs-skills], [ACP][gs-acp]
 
-**AgentMatrix 专属项：** Recipes、extension 类型、工具过滤、`GOOSE_MODE`、上下文压缩、provider 和模型元数据。Goose 还可把另一个 CLI 作为 ACP provider；这属于嵌套 Agent 路线，应单独显示实际执行链，避免用户误以为只是更换模型 API。[Providers][gs-providers]
+**Engine-specific options:** Recipes, extension types, tool filters, `GOOSE_MODE`, compaction, and provider/model metadata. Goose can also wrap another CLI as an ACP provider. Show that execution chain separately so users can distinguish nested agents from an ordinary model API change. [Providers][gs-providers]
 
 ### 3.9 DeepSeek Harness
 
-**对象确认。** 它是 Cordis 插件化 harness，命令为 `dsh`，不是给任意 CLI 填一个 DeepSeek API 地址。官方标明开发预览；本次结论绑定文末源码快照。[仓库][dsh-main]
+**Project identity.** This is a Cordis-based agent harness with the `dsh` command, not simply a DeepSeek endpoint preset for another CLI. The official repository labels it developer preview. Findings here are tied to the source snapshots below. [Repository][dsh-main]
 
-**配置。** `$DSH_HOME` 默认对应 `~/.dsh`。可变模型设置在 `settings.yaml`，凭证服务使用独立 `.credentials.yaml`；profile 在 `profiles/<name>`，通过 `package.json` 的 `dsh.profile` 和 `cordis.patch.yml` 组合插件。`--patch`、profile 与 home patch 有自己的优先级；只有配置为 live reload 的 profile 才自动重载对应 patch。[Providers][dsh-providers]、[CLI][dsh-cli]
+**Configuration.** `$DSH_HOME` defaults to `~/.dsh`. Mutable model settings use `settings.yaml`; credentials use a separate `.credentials.yaml`. Profiles under `profiles/<name>` combine plugins through `package.json`'s `dsh.profile` and `cordis.patch.yml`. Profile patches, home patches, and `--patch` overlays have their own precedence. Automatic patch reloading applies only to profiles configured for live reload. [Providers][dsh-providers], [CLI][dsh-cli]
 
-**系统提示词。** `dsh-system-prompt` 提供 `personaPrefix / personaSuffix`、运行上下文和工具顺序。插件可注册 scoped section；一个有效 `complete: true` section 才表示完整提示词，多份 complete 会报错。因此共享追加指令与全量替换要走不同适配路径。[System Prompt][dsh-prompt]
+**System prompt.** `dsh-system-prompt` provides `personaPrefix`, `personaSuffix`, runtime context, and tool ordering. Plugins register scoped sections. One effective `complete: true` section provides a complete replacement; multiple complete sections fail. Shared appended instructions and complete replacement therefore need different adapter paths. [System prompt][dsh-prompt]
 
-**模型连接。** 通用模型层的自定义 provider 使用 `baseURL / api / apiKeyEnv`；当前用户界面列出 `openai-completions`、`openai-responses`、`anthropic-messages`。DeepSeek 原生适配器有独立 `deepseek-official` 路由、协议和 reasoning 选项；不能与通用 provider 混为同一套配置。当前通用 provider 设置页尚不支持 OAuth provider。[Providers][dsh-providers]、[原生适配器][dsh-llm]
+**Model connections.** General custom providers use `baseURL`, `api`, and `apiKeyEnv`; the current UI lists `openai-completions`, `openai-responses`, and `anthropic-messages`. The native DeepSeek adapter has a separate `deepseek-official` route, protocol, and reasoning controls. Do not collapse both routes into one schema. The general provider settings UI does not yet support OAuth providers. [Providers][dsh-providers], [native adapter][dsh-llm]
 
-**运行与限制。** `dsh --profile sdk` 提供 SDK JSON-RPC；`--profile headless` 为单次任务；`--profile acp` 支持自动化。但 ACP 文档明确不提供完整 DSH 卡片、计划、终端、elicitation 等交互能力，支持 resume 也不表示支持历史事件回放。完整桌面体验应评估 SDK 入口。[CLI][dsh-cli]、[ACP][dsh-acp]
+**Runtime limitations.** `dsh --profile sdk` exposes SDK JSON-RPC; `--profile headless` runs a single task; `--profile acp` supports automation. Its ACP reference explicitly omits full DSH cards, plans, terminal interaction, elicitation, and other presentation features. Resume support does not imply historical-event replay. Evaluate the SDK route for a complete desktop experience. [CLI][dsh-cli], [ACP][dsh-acp]
 
-**AgentMatrix 专属项：** profile / bundle / patch、Cordis 插件参数、permission preset、sandbox backend、persona、工具呈现和 provider reasoning。MCP / Skills 是官方组件，但精简 profile 可能未装载，需查询有效能力。[MCP][dsh-mcp]、[Skills][dsh-skills]、[配置目录][dsh-catalog]
+**Engine-specific options:** profiles, bundles, patches, Cordis parameters, permission presets, sandbox backends, persona, tool presentation, and provider reasoning. MCP and Skills are official components, but minimal profiles may omit them; inspect effective capabilities. [MCP][dsh-mcp], [Skills][dsh-skills], [configuration catalog][dsh-catalog]
 
-## 4. 哪些内容统一维护，哪些内容个性化配置
+## 4. Shared maintenance versus engine-specific configuration
 
-| 配置资产   | 统一维护什么                                                     | 个性化保留什么                                        | 不支持时的行为                                   |
-| ---------- | ---------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------ |
-| 模型连接   | 名称、服务 URL、协议、认证引用、非敏感 headers                   | provider ID、SDK 包、云区域、路由参数、路径拼接       | 阻止不兼容绑定；显示缺失协议 / 功能              |
-| 模型档案   | 模型 ID、连接引用、人工确认的能力与限制                          | reasoning 枚举、模型别名、缓存选项、provider 特有参数 | 不输出未知参数，不静默改模型                     |
-| Prompt     | Markdown 正文、版本、用途、适用范围                              | append / replace 的入口、模板变量、原生层级           | 缺少精确映射时明确提示，不能改为普通任务输入     |
-| 项目规则   | 可共享的项目约定、适用目录                                       | `CLAUDE.md / AGENTS.md / GEMINI.md` 等及层级规则      | 生成预览；已有用户文件不直接覆盖                 |
-| MCP Server | command + args、cwd、环境引用；URL、headers、认证与超时          | 原生键名、OAuth 流程、工具过滤、支持的 transport      | Pi 标注“需扩展”；SSE 不自动冒充 HTTP             |
-| Skill      | 完整目录、`SKILL.md`、frontmatter、脚本 / references、版本与来源 | 搜索路径、额外 frontmatter、激活和同名冲突规则        | 给出降级说明；纯文本导出不标为原生 Skill         |
-| 能力组合   | 一组 Prompt / MCP / Skills 引用                                  | 可选的、按引擎区分的原生插件依赖                      | 显示哪些资源可复用、哪些原生插件不可用           |
-| 执行策略   | 工作目录、环境、超时、并发限制、期望审批策略                     | 沙箱实现、文件 / 网络策略、命令过滤、自动审批语义     | 无法满足所选约束则阻止启动或要求更换配置         |
-| 会话       | 标题、引擎 ID、原生 session ID、状态、统一事件索引               | 原生 transcript、resume / fork / compact 语义         | 只能做“带摘要的新会话”时明确标识，不伪装原生迁移 |
+| Asset             | Maintain centrally                                                                   | Preserve per engine                                                             | Behavior when unsupported                                                         |
+| ----------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Model connection  | Name, URL, protocol, credential references, nonsecret headers                        | Provider ID, SDK package, cloud region, routing options, path assembly          | Reject incompatible bindings and identify the missing protocol or feature         |
+| Model profile     | Model ID, connection, confirmed capabilities and limits                              | Reasoning enums, aliases, caching, provider-specific parameters                 | Omit unsupported parameters; never silently change the model                      |
+| Prompt            | Markdown content, version, purpose, scope                                            | Append/replace entry points, variables, native instruction levels               | Explain missing mappings; never silently turn instructions into a task message    |
+| Project rules     | Reusable project conventions and applicable directories                              | `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and their hierarchy                      | Preview generated changes and preserve existing user files                        |
+| MCP server        | Command/args, cwd, environment references, URL, headers, auth, timeouts              | Native keys, OAuth, filtering, transport support                                | Mark Pi as extension-required; never rename SSE to HTTP without a bridge          |
+| Skill             | Complete directory, `SKILL.md`, frontmatter, scripts/references, version, provenance | Search paths, extra metadata, activation, name conflicts                        | Explain degradation; plain-text export is not native Skill support                |
+| Capability bundle | References to prompts, MCP servers, and Skills                                       | Optional dependencies on native plugins per engine                              | Show portable resources separately from unavailable native plugins                |
+| Execution policy  | Cwd, environment, timeout, concurrency, requested approval policy                    | Sandbox implementation, file/network rules, command filters, automatic approval | Block startup or require a different configuration when constraints cannot be met |
+| Session           | Title, engine ID, native session ID, status, unified event index                     | Native transcripts, resume/fork/compact semantics                               | Label summary-seeded new sessions honestly; do not claim native migration         |
 
-**统一配置的是用户意图和资源内容，不是强行统一原生文件格式。** 例如同一个“代码评审指令”可以被 Claude 作为 append prompt、Codex 作为 developer instructions、OpenHands 作为 context suffix 使用；都能复用正文，但其指令优先级和运行时上下文不保证相同。
+**Unify user intent and asset content, not native file formats.** One code-review instruction asset could become a Claude appended prompt, Codex developer instructions, or an OpenHands context suffix. Its text is reusable, but instruction precedence and surrounding runtime context are not guaranteed to be equivalent.
 
-## 5. 推荐的数据模型
+## 5. Recommended data model
 
-### 5.1 核心实体
+### 5.1 Core entities
 
-| 实体                       | 关键字段 / 职责                                                                                                |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `EngineInstallation`       | 引擎类型、可执行文件绝对路径、版本、启动前缀参数、运行平台、支持的协议、探测时间                               |
-| `ModelConnection`          | `protocol`、`baseUrl`、认证策略、`credentialRef`、普通 / secret headers、cloud options；同一连接只对应一种协议 |
-| `ModelProfile`             | `connectionId`、`modelId`、可选采样 / reasoning、上下文与模态能力、能力信息来源                                |
-| `Credential`               | 显示名、类型、系统凭证库引用；渲染层只能得到已配置状态和脱敏元信息                                             |
-| `PromptAsset`              | 内容或文件资产、用途（角色指令 / 项目规则 / 系统模板 / 压缩模板）、内容版本                                    |
-| `McpServerDefinition`      | 可区分的 stdio / Streamable HTTP / legacy SSE 结构；不同认证方式；工具过滤                                     |
-| `SkillAsset`               | 目录资产与 digest、frontmatter、来源、版本、附属文件、支持的引擎与转换限制                                     |
-| `CapabilityBundle`         | 跨引擎可复用的资源 ID 集合，对应当前项目“插件组合”的定位                                                       |
-| `NativePluginInstallation` | 特定引擎的插件 ID、来源、版本、安装位置和配置；与资源组合分开                                                  |
-| `AgentProfile`             | 名称、engineInstallationId、modelProfileId、Prompt / MCP / Skills / Bundle 绑定、专属 options                  |
-| `RunSnapshot`              | 启动时解析后的资源版本、引擎版本、有效配置摘要、原生 session ID、运行事件；不含明文凭证                        |
+| Entity                     | Key fields and responsibilities                                                                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EngineInstallation`       | Engine kind, absolute executable path, version, launch-prefix args, platform, supported interfaces, probe timestamp                                                     |
+| `ModelConnection`          | Protocol, base URL, authentication strategy, credential reference, ordinary/secret headers, cloud options; exactly one protocol per connection                          |
+| `ModelProfile`             | Connection ID, model ID, optional sampling/reasoning, context/modality capabilities, and evidence provenance                                                            |
+| `Credential`               | Display name, type, operating-system vault reference; renderer receives configured status and redacted metadata only                                                    |
+| `PromptAsset`              | Content or file asset, purpose such as role instructions / project rules / system template / compaction template, and revision                                          |
+| `McpServerDefinition`      | Discriminated stdio / Streamable HTTP / legacy SSE structures, authentication strategies, tool filters                                                                  |
+| `SkillAsset`               | Directory asset and digest, frontmatter, provenance, version, supporting files, engine compatibility, transformation limits                                             |
+| `CapabilityBundle`         | Shared resource-ID collection, corresponding to the application's current resource-bundle plugin concept                                                                |
+| `NativePluginInstallation` | Engine-specific plugin ID, source, version, installation path, and configuration; separate from bundles                                                                 |
+| `AgentProfile`             | Name, engine installation, model profile, prompt/MCP/Skill/bundle bindings, engine-specific options, and draft validation state                                         |
+| `Session` / `Turn`         | Conversation identity, native session mapping, turn/request IDs, lifecycle state, event cursor, and supported recovery behavior                                         |
+| `RunSnapshot`              | Immutable prelaunch asset versions, engine/adapter version, policy and configuration digests; subsequent observations are recorded separately; no plaintext credentials |
 
-认证策略至少应区分 `api-key`、`bearer`、`engine-login`、`cloud-identity`、`none`。自动刷新的订阅 / OAuth 凭证尽量由原生引擎维护，不能把用户登录令牌复制成“公共 API key”。同一个 credential 可被多个连接引用，但传递到哪个 host、以什么 header 发送，由连接显式决定。
+Authentication strategies should distinguish at least `api-key`, `bearer`, `engine-login`, `cloud-identity`, and `none`. Let native engines maintain renewable subscription/OAuth credentials where possible; do not copy account tokens into a shared API-key field. Multiple connections may reference a credential, but each connection explicitly determines the destination host and authentication header.
 
-字段 `temperature`、`topP`、`reasoning` 都应可缺省。不同引擎与模型的取值范围和组合限制不同，不能维护一个全局必填值并无条件下发。
+Make `temperature`, `topP`, and reasoning settings optional. Supported ranges and combinations differ by engine and model; a required global value must not be sent unconditionally.
 
-### 5.2 Agent 配置档示意
+Persistable drafts can lack an engine, protocol, credential, or prompt binding mode, particularly after migration. Launchable inputs require resolved references and compatible capabilities. One confirmed protocol per connection is a launch invariant, not a reason to reject an incomplete imported draft. Sessions, process attachments/runs, turns, and native interaction requests have distinct identities; restarting a process is not creating a new conversation by definition.
 
-下面是 **AgentMatrix 设计草案，不是任何 CLI 的原生配置，也不是当前项目 schema**：
+### 5.2 Example agent profile
+
+This is an **AgentMatrix design proposal**, not a native CLI file or the current application schema:
 
 ```json
 {
   "id": "reviewer-codex",
-  "name": "代码评审助手",
+  "name": "Code review assistant",
   "engineInstallationId": "codex-local",
   "modelProfileId": "company-review-model",
   "promptBindings": [
@@ -239,179 +244,189 @@
 }
 ```
 
-同一 `review-instructions` 可再绑定一个 Claude 或 Gemini 配置档。共享正文更新后，“跟随最新”的新运行使用新版本；“固定版本”的配置档保持不变。每次运行都记录最终 digest，确保能够解释那次任务实际用了哪份指令。
+A Claude or Gemini profile can bind the same `review-instructions`. Profiles following the latest revision use updates on new runs; pinned profiles retain their selected revision. Every run records the final digest so users can identify the actual instructions used.
 
-这里的 `append` 是统一的**行为意图**。适配器要记录 `nativePromptTarget`、原生层级和应用时机；比如 Gemini 的项目上下文不应在 UI 里被描述为与 Claude append flag 完全相同的底层语义。
+Here, `append` describes a common **behavioral intent**. The adapter records `nativePromptTarget`, instruction level, and application timing. For example, the UI must not claim Gemini project context has precisely the same underlying semantics as a Claude append flag.
 
-### 5.3 能力清单必须可查询
+### 5.3 Queryable capability descriptors
 
-按“引擎 + 版本 + 模式 + 当前 profile”计算 capability descriptor。至少包含：
+Calculate capabilities from engine, installed version, mode, and effective profile. Include:
 
-- Prompt：追加 / 替换 / 项目规则入口、作用层级、模板语法、何时生效。
-- Model：支持协议、认证路线、允许覆盖的 endpoint、可设置的参数。
-- MCP：native / extension / unsupported、transport、OAuth、工具过滤、能否热更新。
-- Skills / Plugins：发现目录、装载模式、扩展字段、是否执行代码。
-- Runtime：ACP / RPC / SDK、审批、取消、恢复、会话列表、分叉、事件回放。
-- Isolation：进程 / 容器 / 远端、文件系统与网络边界、是否能限制工具子进程。
+- **Prompts:** append/replace/project-rule entry points, instruction level, template syntax, and application timing.
+- **Models:** protocols, authentication routes, endpoint overrides, and supported parameters.
+- **MCP:** native/extension/unsupported, transport, OAuth, tool filtering, and live-update support.
+- **Skills/plugins:** discovery paths, loading mode, extension fields, and whether code executes.
+- **Runtime:** ACP/RPC/SDK, approvals, cancellation, resumption, session listing, forks, and event replay.
+- **Isolation:** process/container/remote execution, filesystem/network boundaries, and restrictions on tool child processes.
 
-状态不能只有一个布尔值。建议使用 `native / adapter / extension-required / unsupported / unverified`，并附 `constraints` 与证据来源；只有经过安装版本验证后，才能从“文档支持”升级为“已验证可用”。
+Represent three independent dimensions: support mechanism (`native / adapter / extension-required / unsupported / unknown`), verification (`untested / passed / failed`), and current availability with reasons. For example, a documented native feature can still be untested or blocked by missing credentials. Attach source evidence, engine version, mode, profile, and relevant model route; re-evaluate after changes. Documentary support becomes verified availability only after testing the installed version.
 
-## 6. Electron 接入架构
+## 6. Electron integration architecture
 
 ```mermaid
 flowchart LR
-  UI[React 配置与会话界面] --> IPC[类型化 Preload / IPC]
-  IPC --> Store[共享配置与资产库]
-  IPC --> Runtime[运行与会话服务]
-  Store --> Resolver[配置解析与能力校验]
-  Resolver --> Adapter[各引擎 Adapter]
+  UI[React configuration and sessions] --> IPC[Typed preload and IPC]
+  IPC --> Store[Shared configuration and asset library]
+  IPC --> Runtime[Run and session service]
+  Store --> Resolver[Resolve config and validate capabilities]
+  Resolver --> Adapter[Engine adapters]
   Runtime --> Adapter
-  Vault[系统凭证库] --> Adapter
-  Adapter --> Native[原生配置 / 环境 / SDK 参数]
-  Native --> Engine[CLI 子进程或 Agent Server]
-  Engine --> Events[事件与审批归一化]
+  Vault[Operating-system credential vault] --> Adapter
+  Adapter --> Native[Native config environment or SDK parameters]
+  Native --> Engine[CLI subprocess or Agent Server]
+  Engine --> Events[Normalize events and approvals]
   Events --> IPC
 ```
 
-保留当前工程的主进程 / preload 边界。主进程或 utility process 管理凭证、文件、子进程；渲染进程不拿任意 shell 或文件写入权限。
+Preserve the existing main-process/preload boundary. The main process or a utility process manages secrets, files, and subprocesses. The renderer does not receive arbitrary shell or filesystem write access.
 
-适配器至少负责以下流程：
+Each adapter owns these stages:
 
-| 阶段                        | 输出                                                                 |
-| --------------------------- | -------------------------------------------------------------------- |
-| `probe`                     | 安装路径、版本、模式和实际 capability                                |
-| `inspect`                   | 读取现有配置的脱敏结果及来源，不隐式修改                             |
-| `validate`                  | 不兼容协议、缺失资源、未知字段、权限不可满足等诊断                   |
-| `plan`                      | 将写入哪些受管理文件、原生字段如何映射、启动命令预览、哪些内容被覆盖 |
-| `materialize`               | 生成该引擎可读取的配置 / Prompt / Skills，保存 manifest 和内容摘要   |
-| `launch`                    | 以参数数组启动子进程，注入该运行所需的环境；或建立 SDK / 服务连接    |
-| `observe`                   | 转换消息增量、工具状态、审批、错误、用量、完成事件；保留原始事件类型 |
-| `cancel / resume / dispose` | 使用原生协议取消与恢复，释放进程和临时资源，处理异常退出             |
+| Stage                       | Output                                                                                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `probe`                     | Installation path, version, modes, and actual capabilities                                                           |
+| `inspect`                   | Read existing configuration with redaction and source information; no implicit changes                               |
+| `validate`                  | Diagnostics for protocol mismatches, missing assets, unknown fields, and unmet permissions                           |
+| `plan`                      | Managed files to write, native field mappings, launch preview, and overridden values                                 |
+| `materialize`               | Capture asset revisions and atomically publish immutable per-run config, prompts, Skills, and manifest before launch |
+| `launch`                    | Spawn with an argument array and run-specific environment, or establish SDK/service connectivity                     |
+| `send / respond`            | Submit additional turns and respond to the exact native approval or interaction request, subject to capabilities     |
+| `observe`                   | Normalize message deltas, tools, approvals, failures, usage, and completion while retaining native event types       |
+| `cancel / resume / dispose` | Use native protocols, release processes and temporary resources, and handle abnormal exits                           |
 
-归一化事件保留 `rawEvent` 或版本化原始日志的引用；各引擎缺失的 cost、tokens、tool status 显示为未知，不能补零。审批响应只完成对应原生请求；不支持可靠双向审批的批处理模式不能冒充完整交互会话。
+Keep raw events or references to versioned raw logs. Missing cost, token, or tool-status data remains unknown, not zero. Approval responses resolve only the matching native request. A batch mode without reliable bidirectional approvals must not masquerade as a fully interactive session.
 
-优先复用 ACP 的客户端基础设施，但每个引擎仍有配置和能力适配。Codex 用 App Server，Pi 用原生 RPC，OpenHands 用 SDK / Agent Server，DSH 根据体验要求选择 SDK 或受限 ACP。PTY 仅作为保留原生终端体验的兜底；解析 ANSI 输出不应成为工具调用和审批状态的主要来源。
+The preload contract needs both commands and subscriptions: start, send, respond, cancel, resume, close, query state, and subscribe/unsubscribe with an event cursor. The session UI must survive renderer reload without resubmitting a turn or duplicating replayed messages. Redact native evidence before exposing or persisting it. A shared ACP client must handle agent-to-client requests and advertise only implemented file/terminal services, not merely normalize notifications.
 
-## 7. 动态维护与配置分发
+Reuse ACP client infrastructure where applicable, but keep engine-specific configuration and capability adapters. Use Codex App Server, Pi RPC, OpenHands SDK/Agent Server, and DSH SDK or limited ACP according to required behavior. PTY is a fallback for native terminal experiences; ANSI parsing should not be the primary source for tool and approval state.
 
-### 7.1 维护三种视图
+## 7. Dynamic maintenance and configuration distribution
 
-- **共享资产**：Prompt、模型连接、MCP、Skill 的原始内容和版本。
-- **Agent 绑定**：引用哪些资产、覆盖哪些参数、采用哪些专属选项。
-- **有效配置**：此次运行真正加载的资源、原生配置来源、冲突项和生效版本。
+### 7.1 Three configuration views
 
-界面建议：左侧共享资源库；中间 Agent 列表；右侧为“通用配置 / 引擎专属配置 / 有效配置预览 / 诊断”。专属字段由带版本的 schema 驱动，不把高级 JSON 文本框作为唯一入口。
+- **Shared assets:** original prompt, model connection, MCP, and Skill content with versions.
+- **Agent bindings:** referenced assets, parameter overrides, and engine-specific options.
+- **Effective configuration:** resolved inputs plus separately recorded observations of loaded assets, native sources, conflicts, and applied versions. A generated file is not proof of loading; unavailable readback remains unknown.
 
-### 7.2 两种配置管理方式
+Suggested layout: a shared resource library, an agent list, and tabs for general configuration, engine-specific configuration, effective preview, and diagnostics. Versioned schemas drive specialized fields; an advanced JSON editor should not be the only interface.
 
-**托管配置档。** AgentMatrix 为每个引擎 / profile 生成自己的资源目录，优先使用官方支持的 config home、config file 或 SDK 参数。不改写系统 `HOME` 来假装隔离，因为这会影响认证、Git、SSH、包管理器和工具子进程。指定配置目录也不保证不会继续加载项目 / 管理配置，适配器必须说明实际来源。
+### 7.2 Two management modes
 
-**接管现有配置。** 先只读导入，保留未知字段和来源；编辑时显示 diff、保存备份、使用原生格式支持的结构化写入。文件变化要做 hash / revision 冲突检测，不能盲目双向覆盖。项目规则文件属于用户内容，默认生成单独片段或通过原生入口引用。
+**Managed profiles.** Keep editable definitions per engine/profile, then capture immutable configuration and asset inputs separately for each run before launch. Prefer official config-home, config-file, or SDK entry points. Do not change system `HOME` to simulate isolation: that affects authentication, Git, SSH, package managers, and tools. A custom config directory also does not guarantee that project or managed sources stop loading; the adapter must report actual sources, precedence, conflicts, and evidence of application.
 
-托管文件建议位于 `userData/engines/<installationId>/profiles/<profileId>/`，运行快照位于 `userData/runs/<runId>/`。具体布局是 AgentMatrix 内部约定，由 adapter 映射为引擎期望的路径。
+**Existing configuration management.** The initial milestone imports read-only, preserving unknown fields and provenance; native-file write-back and two-way synchronization are deferred. Future editing should show a diff, create a backup, and use structured writes supported by the native format. Detect external changes with hashes/revisions rather than blindly synchronizing both ways. Project rule files belong to users; generate separate fragments or reference them through native entry points by default.
 
-### 7.3 更新的生效规则
+Suggested managed paths are `userData/engines/<installationId>/profiles/<profileId>/` for profile definitions and `userData/runs/<runId>/` for captured inputs and manifests. Keep writable native session state separate. Two runs must not share mutable generated configuration. Retain captured revisions needed by resumable sessions; do not silently regenerate their inputs from the latest library version. External native sources remain separately tracked and may prevent complete reproducibility. These are internal AgentMatrix conventions that adapters map to native paths.
 
-| 更新                     | AgentMatrix 默认处理                                               |
-| ------------------------ | ------------------------------------------------------------------ |
-| 共享 Prompt / Skill 修改 | 保存新版本，显示受影响 Agent；新运行应用，旧会话按引擎能力处理     |
-| endpoint / model 修改    | 校验协议、模型与认证绑定；新运行采用新连接；支持会话切换时显式应用 |
-| key 轮换                 | 更新凭证引用所指内容；根据引擎是否缓存认证决定刷新或重启           |
-| MCP 增删或参数变化       | 新会话默认生效；仅在原生支持时断开 / 重连，显示连接失败            |
-| 原生插件升级             | 固定来源 / 版本，检查 schema 与依赖；不当作普通 Markdown 修改      |
-| 外部编辑原生配置         | 重新读取并展示冲突，让用户选择导入或保留托管版本                   |
+### 7.3 When changes take effect
 
-不要为了“实时”而强制在任务中途重启 CLI。默认将会影响执行的变更排队到下一轮或新会话；具备明确更新协议的引擎再开放实时应用。Claude 的提示词快照、Goose 的新会话模板、DSH 的按请求 / profile 重载说明，都表明各引擎的生效时机不同。[Claude CLI][cc-cli]、[Goose Templates][gs-prompt]、[DSH Providers][dsh-providers] / [CLI][dsh-cli]
+| Change                                     | AgentMatrix default behavior                                                                                               |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Shared prompt or Skill edit                | Save a revision and show affected agents; apply to new runs and handle old sessions according to native capabilities       |
+| Endpoint or model edit                     | Validate protocol/model/auth compatibility; use the connection for new runs or explicitly apply a supported session switch |
+| Key rotation                               | Update referenced credential content; refresh or restart depending on engine authentication caching                        |
+| MCP addition, removal, or parameter change | Apply to new sessions by default; reconnect live only if natively supported, and report failures                           |
+| Native plugin upgrade                      | Pin source/version and check schema/dependencies; do not treat executable updates as ordinary Markdown edits               |
+| External native-config edit                | Reload and present conflicts; let the user import changes or retain the managed version                                    |
 
-### 7.4 凭证与执行边界
+Do not restart a CLI mid-task merely to provide immediate configuration updates. Queue execution-affecting changes for the next turn or session unless the engine provides an explicit update protocol. Claude prompt snapshots, Goose new-session templates, and DSH request/profile reload behavior demonstrate these differences. [Claude CLI][cc-cli], [Goose templates][gs-prompt], [DSH providers][dsh-providers] / [CLI][dsh-cli]
 
-凭证通过系统凭证库保存，普通 workspace JSON 只存引用。编辑界面允许写入 / 替换 key，但保存后只返回脱敏状态；运行日志、命令预览、导出包均脱敏。用进程环境或 SDK 认证入口注入，不把明文 key 拼到 CLI 参数或 shell 命令里；确需原生落盘时，应按适配器声明处理受限文件和清理策略。
+The initial implementation defaults to new-session application. Show saved, pending-new-session, applied, and failed/unknown states with affected profiles. Supported live changes require explicit application and acknowledgment. Resume checks the prior snapshot and native state, engine version, secret availability, and external-source drift; it must not silently claim new prompt content was applied to an old conversation.
 
-仅给子进程注入所需环境，不能把全部 provider key 全量共享给每个 Agent。需要注意：若 CLI 会把自身环境继承给其 shell tools，仅仅从主进程改为子进程注入并不能实现工具级密钥隔离；有此需求时另用受控网关或原生隔离机制。
+### 7.4 Credentials and execution boundaries
 
-权限页面分别表达“工具是否允许”“是否需要人类审批”“文件 / 网络是否由沙箱限制”。自定义 Prompt 不能代替这些机制，Pi 的 project trust 和其他 CLI 的 Plan mode 也不能普遍解释成操作系统只读沙箱。
+Store credentials in the operating-system vault; ordinary workspace JSON contains references only. The editor can accept replacement keys but returns redacted status after saving. Redact logs, command previews, and exports. Prefer process environment or SDK authentication rather than putting plaintext keys into command arguments or shell strings. If native files are unavoidable, the adapter must define restrictive file permissions and cleanup.
 
-## 8. 对当前 AgentMatrix 初始化代码的影响
+Inject only the environment required by a run, rather than sharing every provider key with every agent. If a CLI passes its environment to shell tools, moving secrets from the main process to a child process does not itself isolate keys from those tools. A controlled gateway or native isolation mechanism is needed when that stronger boundary is required.
 
-本次只新增调研和设计文档，下面均为下一步建议。当前工程的真实边界见 [架构约定](architecture.md) 和 [README](../README.md)。
+Present tool authorization, human approval, and enforced file/network sandbox boundaries separately. Custom prompts cannot replace these controls. Pi project trust and other engines' Plan modes do not universally mean an operating-system read-only sandbox.
 
-| 当前结构                                           | 问题                                                         | 建议                                                         |
-| -------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `Agent.provider` 为三个模型提供方枚举              | 无法表达“Claude Code / Codex / Pi”等 CLI，也不能区分连接实例 | 新增 engine installation 与 model connection，Agent 分别引用 |
-| `model / baseUrl / temperature` 直接放在 Agent     | 多 Agent 重复维护；temperature 必填会误下发                  | 抽出 `ModelProfile`，参数可缺省、按能力验证                  |
-| `systemPrompt: string`                             | 无版本和共享引用，无法区分追加、替换、项目规则               | 抽出 PromptAsset + PromptBinding，保留正文迁移               |
-| `McpServer` 仅两种 transport，HTTP 只有 bearer env | 缺 OAuth、headers、cwd、超时及原生兼容诊断                   | 扩展 discriminated union，标注 legacy SSE 能力；按需增加字段 |
-| `Skill.instructions` + `sourcePath`                | 尚未读取目录，丢失 frontmatter 和脚本 / references           | 引入完整目录资产，保留简单 Markdown 为轻量类型               |
-| `Plugin` 是 MCP / Skills 组合                      | 与各 CLI 的可执行插件同名，容易误解                          | 作为 CapabilityBundle；另加 NativePluginInstallation         |
-| 无 CLI runtime                                     | 不能执行、取消、恢复或处理审批                               | 新增 engine adapter 与 session service；使用原生 agent loop  |
-| 仅环境变量名引用                                   | 尚无统一模型凭证库                                           | 新增 Credential 服务，主进程解析引用                         |
+## 8. Implications for the initialized AgentMatrix project
 
-建议新增的模块边界：
+The original research introduced design documentation only; the runtime changes below remain proposals. The UI has since gained English/Chinese support, which does not implement CLI runtime integration. See [Architecture](architecture.md) and the [README](../README.md) for current behavior.
+
+| Existing structure                                                    | Limitation                                                           | Recommendation                                                                   |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `Agent.provider` has three model-provider values                      | Does not represent CLI engines or multiple connection instances      | Separate engine installations and model connections; reference both from agents  |
+| Agent owns `model / baseUrl / temperature`                            | Duplicated maintenance and unconditional temperature                 | Extract `ModelProfile`; optional parameters validated against capabilities       |
+| `systemPrompt: string`                                                | No shared reference, revision, or append/replace/rule semantics      | Introduce PromptAsset/PromptBinding with migration of existing text              |
+| MCP supports two transports and one HTTP bearer environment reference | Missing OAuth, headers, cwd, timeouts, and compatibility diagnostics | Extend discriminated unions; mark legacy SSE separately and add fields as needed |
+| Skill instruction text and `sourcePath` only                          | No directory reading or supporting scripts/references                | Add directory assets while preserving plain Markdown as a lightweight form       |
+| Plugin is an MCP/Skill resource bundle                                | Ambiguous with executable native plugins                             | Rename to CapabilityBundle and add NativePluginInstallation                      |
+| No CLI runtime                                                        | Cannot execute, cancel, resume, or process approvals                 | Add engine adapters and a session service using native agent loops               |
+| Environment-name references only                                      | No central model credential vault                                    | Add a main-process credential service                                            |
+
+Suggested module boundaries:
 
 ```text
-src/shared/engines/           引擎、连接、资源绑定、能力和事件类型
-src/main/credentials/        凭证库和脱敏
-src/main/assets/             Prompt / Skill 目录、版本、导入导出
-src/main/engines/adapters/   九类引擎配置转换与运行接口
-src/main/engines/config/     配置计划、分发、diff、冲突检测
-src/main/sessions/           会话与审批、取消、日志和快照
+src/shared/engines/           Engines, connections, bindings, capabilities, events
+src/main/credentials/        Credential storage and redaction
+src/main/assets/             Prompt/Skill directories, versions, import/export
+src/main/engines/adapters/   Native configuration and runtime integrations
+src/main/engines/config/     Plans, distribution, diffs, conflict detection
+src/main/sessions/           Sessions, approvals, cancellation, logs, snapshots
 ```
 
-迁移时提升 `schemaVersion`，保持旧 workspace 备份。已有 `systemPrompt` 可迁移为资产，但旧数据没有表达引擎及 append / replace 意图，因此应标记为“待选择引擎 / 绑定方式”，不能擅自把旧“通用助手”改成某个 CLI。旧 `provider / baseUrl / model` 转换成待确认协议的连接和模型档案；原有插件资源引用继续保留。
+Bump `schemaVersion` for the proposed persisted-model migration and preserve a backup. Existing system-prompt text can become an asset, but old data does not specify an engine or append/replace intent. Mark the binding as awaiting engine/mode selection instead of assigning the general assistant to a CLI automatically. Convert old provider/baseUrl/model fields into connections and profiles awaiting protocol confirmation. Preserve resource-bundle references.
 
-这也调整了原初始化文档中的后续方向：在本轮明确的多 CLI 目标下，先建立 **CLI engine adapter → session service → UI**；若以后加入 AgentMatrix 自研 Agent，再单独建设直接调用模型的 provider loop，避免把第三方 CLI 又套入一套重复的 agent loop。
+This revises the initial scaffolding roadmap: for a multi-CLI product, build **CLI engine adapter → session service → UI** first. If AgentMatrix later implements its own agent, add a separate direct-model provider loop rather than wrapping third-party CLIs in a duplicate agent loop. The more detailed sequencing is in the [implementation plan](cli-agent-plan.md).
 
-## 9. 分阶段落地与验收
+## 9. Delivery phases and acceptance
 
-### 9.1 推荐顺序
+### 9.1 Suggested order
 
-| 阶段            | 范围                                                                   | 交付结果                                                                 |
-| --------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| A：统一配置基础 | 九类引擎登记、共享资源、凭证引用、capability、专属 schema              | 可创建配置档、查看兼容性、预览导出；不把未连接状态显示为运行成功         |
-| B：首批运行闭环 | Claude Code、Codex、OpenCode                                           | 覆盖 stream-json / App Server / ACP 三类入口，跑通消息、审批、取消、恢复 |
-| C：扩充接口复用 | Gemini、Cline、Goose，再接 Pi RPC                                      | 复用 ACP 客户端并验证差异；Pi MCP 作为明确的可选扩展能力                 |
-| D：专门适配     | OpenHands SDK / Agent Server；DeepSeek Harness SDK，必要时旧 CLI / ACP | OpenHands 处理 Python / 服务生命周期；DSH 固定版本并标记实验状态         |
+| Phase                     | Scope                                                                                                     | Deliverable                                                                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0: verification           | Probe OpenCode, Pi, and DSH installations and selected provider routes; test Pi RPC and DSH SDK early     | Versioned evidence and explicit capability limitations before shared interfaces are finalized                                                            |
+| A: shared configuration   | Draft/launchable schemas, assets, credentials, migration, three-engine forms, and session commands/events | Preserve old data, inspect compatibility, and prepare immutable run inputs; other engines are planned catalog entries                                    |
+| B: first complete runtime | OpenCode through ACP                                                                                      | Complete the desktop workflow, permissions, cancellation, persistence, and effective-config reporting; review abstractions against Pi/DSH probes         |
+| C: second engine          | Pi RPC                                                                                                    | Reuse the application/session contracts with a separate transport; treat MCP and universal approval enforcement as unavailable without validated support |
+| D: third engine           | Version-pinned DeepSeek Harness SDK, or an explicitly scoped alternative after probing                    | Verify profile composition, prompt/provider mappings, interactions, and native persistence; complete the three-engine milestone                          |
+| E: later integrations     | Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands                                               | Probe each installed version and implement separate adapters; investigate OpenHands runtime dependencies when scheduled                                  |
 
-这是按接口复用与维护风险提出的工程顺序，不是对模型效果或产品优劣的排名。九个引擎都可以先在配置层支持；完整运行能力应逐个通过验收后开启。
+This sequence follows the user's selected initial products and is not a ranking of model quality. OpenCode, Pi, and DSH require distinct ACP/RPC/SDK adapters; common provider code does not imply a shared session protocol. The first abstraction gate includes minimal Pi and DSH probes, and each engine has its own acceptance gate. Existing native configuration is initially imported read-only; native plugins are recognized/bound as installed assets, with a pinned DSH composition. General plugin installation and automatic upgrades are deferred.
 
-### 9.2 每个适配器的验收清单
+### 9.2 Acceptance checklist for every adapter
 
-1. 安装检测识别真实版本；没有可执行文件、未知版本、旧 schema 时有明确诊断。
-2. 相同共享 Prompt 绑定两个引擎，各自生成正确原生字段；验证追加 / 替换 / 项目规则区别。
-3. API endpoint、key header 和协议正确；将 Chat Completions-only 网关绑定到 Responses 路线时能提前阻止或明确报错。
-4. MCP stdio 参数不经过 shell 二次解释；HTTP / OAuth 路线和不支持 transport 有明确结果；Pi 无扩展时不假装已连接。
-5. Skills 保留目录与引用文件，验证发现、启停、同名冲突和按需加载；原生插件只装到相应引擎。
-6. 普通日志和配置导出不含 key；多个运行之间的环境、资源和配置不串用。
-7. 处理文本流、工具事件、审批拒绝、取消、进程异常和恢复；不依赖 CLI 默认自动审批值。
-8. 共享资源修改后能准确显示旧会话与新会话版本；已有项目规则和用户配置不被覆盖。
-9. 用固定 fixture / fake CLI 验证映射和生命周期，再对明确版本做真实 CLI 冒烟；需要模型调用的验证单独记录服务、模型和执行日期。
+1. Detect the actual installed version and diagnose missing executables, unknown versions, and old schemas.
+2. Bind one shared prompt to two engines and verify their native fields, including append/replace/project-rule distinctions.
+3. Validate endpoint, authentication header, and protocol. Reject or explicitly diagnose a Chat Completions-only gateway on a Responses route.
+4. Pass stdio MCP arguments without shell reinterpretation; verify HTTP/OAuth behavior and unsupported transports. Pi without its extension must not appear connected.
+5. Preserve Skill directories and referenced files; verify discovery, enable/disable, naming conflicts, and lazy loading. Bind native plugins only to matching engines and verified versions; arbitrary installation is outside the initial milestone.
+6. Keep keys out of ordinary logs and exports, and prevent environment/resource/configuration leakage between runs.
+7. Handle text streams, tool events, rejected approvals, cancellation, crashes, and resumption without relying on native automatic-approval defaults.
+8. Show asset versions correctly for old and new sessions after updates. Preserve existing user configuration and project rules.
+9. Test mappings and lifecycle with fixed fixtures/fake CLIs, then smoke-test explicit installed versions. Record service, model, and date separately for checks that make real model calls.
+10. Preserve legacy resource/bundle references during migration; allow incomplete drafts to save but block launch until requirements are resolved.
+11. Capture inputs before spawn; test two runs from one profile and asset edits during execution. Distinguish planned values from observed native values and diagnose source conflicts.
+12. Verify bilingual session controls, renderer reconnection, exact interaction correlation, and cancellation races. Unsupported native controls must be labeled unavailable rather than simulated.
 
-### 9.3 本次未解决、接入前需验证的事项
+### 9.3 Unresolved items before implementation
 
-- 各机器实际安装版本与默认分支能力之间的差距，尤其 Codex profile、Cline schema、DSH profiles 的演进。
-- 具体网关的 Responses / Messages 流式事件、工具调用、图像和模型 ID 是否真的兼容；“能列出模型”不是充分证明。
-- 选择哪个 Pi MCP 扩展，以及扩展自己的协议覆盖、权限和维护状况。本次未把任何第三方扩展当作已验证依赖。
-- OpenHands SDK / Agent Server 对本应用所需事件、审批和工作空间生命周期的完整覆盖；旧 CLI 仅保留兼容定位。
-- DSH SDK 的具体版本契约；其 ACP 已知缺失的 UI 能力不能由通用 ACP 客户端凭空补出。
-- Windows / macOS / Linux 的路径、进程树终止、系统凭证库、沙箱与原生插件依赖，需要分别验证。
+- Installed-release differences from default-branch documentation, initially OpenCode configuration precedence, Pi RPC/trust behavior, and DSH profile evolution. Codex profiles and Cline schemas remain later integration checks.
+- Actual gateway compatibility with Responses/Messages streaming, tools, images, and model IDs. Successful model listing is insufficient.
+- Selection and validation of a Pi MCP extension, including its protocol coverage, permissions, and maintenance. No third-party extension is treated as a verified dependency here.
+- Complete OpenHands SDK/Agent Server coverage of required events, approvals, and workspace lifecycles is deferred with its integration. Keep the old CLI in a compatibility role.
+- The exact DSH SDK version contract is now an initial probe requirement. A generic ACP client cannot invent presentation features absent from the server; resume must not be confused with history replay.
+- Separate Windows/macOS/Linux verification of paths, process-tree termination, credential storage, sandboxes, and native plugin dependencies.
 
-## 10. 来源与版本记录
+## 10. Sources and version records
 
-本文优先采用官方配置参考和当前源码；入口链接为用户提供的九个项目。Claude / Codex 使用在线官方文档，GitHub 项目使用下面的固定提交快照。**提交日期或默认分支状态不等于稳定发布版支持承诺。** 各段中的链接指向支撑对应结论的具体页面或源码。
+The research prioritizes official configuration references and current source code. The entry points are the nine projects supplied for the investigation. Claude and Codex use online official documentation; GitHub projects use the pinned commits below. **A default branch or commit is not a promise of stable-release support.** Links throughout the document point to the specific evidence for each claim. The English edition preserves the original research baseline rather than claiming a new compatibility investigation.
 
-| 官方来源                                                                                      | 调研基线                                                                                                                   |
-| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| [Claude Code Quickstart](https://code.claude.com/docs/zh-CN/quickstart) 与官方配置 / CLI 文档 | 在线文档，访问于 2026-09-17                                                                                                |
-| [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) 与官方配置 / App Server 文档            | 在线文档，访问于 2026-09-17                                                                                                |
-| [anomalyco/opencode](https://github.com/anomalyco/opencode)                                   | `dev` / [`88c6c7abc7f3`](https://github.com/anomalyco/opencode/tree/88c6c7abc7f320b6aabed2634ac0b2d6e6ecea67)              |
-| [earendil-works/pi](https://github.com/earendil-works/pi)                                     | `main` / [`509ee2bd0ba9`](https://github.com/earendil-works/pi/tree/509ee2bd0ba9fc3d31fb96fe8f5a6ef73b51833c)              |
-| [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)                       | `main` / [`6a466a7e2fe2`](https://github.com/google-gemini/gemini-cli/tree/6a466a7e2fe2b1255752c1e74f69b31f0216084d)       |
-| [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands)                                 | `main` / [`f2b0aacda17f`](https://github.com/OpenHands/OpenHands/tree/f2b0aacda17fc60ea2ea45cfdd2323c12b034b7d)            |
-| [OpenHands/OpenHands-CLI](https://github.com/OpenHands/OpenHands-CLI)                         | `main` / [`954f2ba646e8`](https://github.com/OpenHands/OpenHands-CLI/tree/954f2ba646e8d749261a8f2b2b7e3031fa39be9f)        |
-| [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)               | `main` / [`3103fff8d33d`](https://github.com/OpenHands/software-agent-sdk/tree/3103fff8d33d9d52abd4eea18ff9a50d31de0468)   |
-| [cline/cline](https://github.com/cline/cline)                                                 | `main` / [`d6d456645128`](https://github.com/cline/cline/tree/d6d45664512852a56e59d3e8538c72a3adc94ae1)                    |
-| [aaif-goose/goose](https://github.com/aaif-goose/goose)                                       | `main` / [`db9f67c06307`](https://github.com/aaif-goose/goose/tree/db9f67c063075f7efb52ac80723a23dc70964c94)               |
-| [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)               | `master` / [`0d1f50007f9b`](https://github.com/deepseek-ai/deepseek-harness/tree/0d1f50007f9bca3f52b06e1c3074fa14d5fb0720) |
+| Official source                                                                                                      | Research baseline                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| [Claude Code Quickstart](https://code.claude.com/docs/zh-CN/quickstart) and official CLI/configuration documentation | Online documentation, accessed 2026-09-17                                                                                  |
+| [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and official configuration/App Server documentation            | Online documentation, accessed 2026-09-17                                                                                  |
+| [anomalyco/opencode](https://github.com/anomalyco/opencode)                                                          | `dev` / [`88c6c7abc7f3`](https://github.com/anomalyco/opencode/tree/88c6c7abc7f320b6aabed2634ac0b2d6e6ecea67)              |
+| [earendil-works/pi](https://github.com/earendil-works/pi)                                                            | `main` / [`509ee2bd0ba9`](https://github.com/earendil-works/pi/tree/509ee2bd0ba9fc3d31fb96fe8f5a6ef73b51833c)              |
+| [google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)                                              | `main` / [`6a466a7e2fe2`](https://github.com/google-gemini/gemini-cli/tree/6a466a7e2fe2b1255752c1e74f69b31f0216084d)       |
+| [OpenHands/OpenHands](https://github.com/OpenHands/OpenHands)                                                        | `main` / [`f2b0aacda17f`](https://github.com/OpenHands/OpenHands/tree/f2b0aacda17fc60ea2ea45cfdd2323c12b034b7d)            |
+| [OpenHands/OpenHands-CLI](https://github.com/OpenHands/OpenHands-CLI)                                                | `main` / [`954f2ba646e8`](https://github.com/OpenHands/OpenHands-CLI/tree/954f2ba646e8d749261a8f2b2b7e3031fa39be9f)        |
+| [OpenHands/software-agent-sdk](https://github.com/OpenHands/software-agent-sdk)                                      | `main` / [`3103fff8d33d`](https://github.com/OpenHands/software-agent-sdk/tree/3103fff8d33d9d52abd4eea18ff9a50d31de0468)   |
+| [cline/cline](https://github.com/cline/cline)                                                                        | `main` / [`d6d456645128`](https://github.com/cline/cline/tree/d6d45664512852a56e59d3e8538c72a3adc94ae1)                    |
+| [aaif-goose/goose](https://github.com/aaif-goose/goose)                                                              | `main` / [`db9f67c06307`](https://github.com/aaif-goose/goose/tree/db9f67c063075f7efb52ac80723a23dc70964c94)               |
+| [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)                                      | `master` / [`0d1f50007f9b`](https://github.com/deepseek-ai/deepseek-harness/tree/0d1f50007f9bca3f52b06e1c3074fa14d5fb0720) |
 
 [cc-cli]: https://code.claude.com/docs/en/cli-reference
 [cc-env]: https://code.claude.com/docs/en/env-vars

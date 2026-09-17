@@ -1,166 +1,218 @@
-# CLI Agent 接入落地计划
+# CLI agent integration implementation plan
 
-编制日期：**2026-09-17**。
+Prepared: **2026-09-17**. English edition and scope revision: **2026-09-18**.
 
-本文把 [CLI Agent 接入调研](cli-agent-research.md) 的设计建议拆成带优先级和依赖关系的工作项。**这是工程计划，不是实现记录；下列工作项当前一项都未开始。** 当前工程的真实边界见 [架构约定](architecture.md) 与 [README](../README.md)。
+**The first delivery targets are OpenCode, Pi, and DeepSeek Harness, in that order.** OpenCode establishes the ACP integration and complete desktop workflow; Pi tests the same application contracts through RPC; DeepSeek Harness adds a version-pinned SDK integration. Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands remain later integrations.
 
-调研文档已声明：九个引擎**未经安装、启动或调用验证**，其字段映射全部来自官方文档与源码快照。因此本计划把"真机探测"前置为阶段 0，而不是把纸面映射直接当作 adapter 的设计输入。
+This document turns the [CLI agent research](cli-agent-research.md) into implementation tasks. **None of these engine-integration tasks has started.** Existing English/Chinese UI support does not implement the proposed runtime. See [Architecture](architecture.md) and the [README](../README.md) for current behavior.
 
-## 1. 现状与目标的距离
+The research is documentary evidence: the nine engines were not installed, launched, or called for compatibility testing. The ordering below is a product decision, not a new compatibility claim. Phase 0 must test specific installed releases before adapters claim support.
 
-当前工程约 1.8k 行（含测试），是一个纯配置 CRUD：`Workspace` 由 agents / mcpServers / skills / plugins 组成，preload 仅暴露 `loadWorkspace / saveWorkspace / getAppInfo` 三个 invoke 通道（[`src/shared/api.ts:10`](../src/shared/api.ts)），没有子进程、网络、凭证或事件流代码。
+## 1. Delivery scope
 
-调研文档要求的是一个多引擎运行时宿主。差距不是补字段，而是**重写数据层 + 新建运行时**。因此本计划包含一次破坏性 schema 变更（`schemaVersion` 1 → 2）和一条独立的 IPC 事件通道改造。
+The application currently provides configuration CRUD and three invoke methods: `loadWorkspace`, `saveWorkspace`, and `getAppInfo` ([API contract](../src/shared/api.ts)). There is no agent subprocess, credential vault, session command API, or event stream. Integration requires schema v2, a configuration resolver, and a session runtime with a desktop UI.
 
-## 2. 约定
+| Engine                 | Initial runtime route                                                | Required integration focus                                                                                                           | Explicit boundary                                                                                                                         |
+| ---------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenCode               | ACP through the installed `opencode acp`                             | Provider SDK/protocol mapping, prompt and Skill discovery, MCP conversion, native configuration precedence, interactive permissions  | Do not treat an explicit configuration file as complete isolation from project or managed settings                                        |
+| Pi                     | `pi --mode rpc`                                                      | LF-delimited RPC, model definitions, prompt semantics, Skill directories, project trust, session operations                          | MCP requires a separately validated extension; ordinary tool-approval popups are not a native guarantee                                   |
+| DeepSeek Harness (DSH) | Prefer `dsh --profile sdk`; confirm the installed SDK contract in V4 | Profile/plugin composition, provider routes, persona versus complete prompt replacement, native interaction and session capabilities | Pin the engine and protocol contract; keep experimental labeling. ACP is an explicitly limited alternative, never a silent SDK substitute |
 
-**优先级。**
+Research sections 3.3, 3.4, and 3.9 contain the source mappings. Reusing Pi-related provider code inside DSH does not make their runtime protocols or configuration formats interchangeable.
 
-| 级别 | 含义                                             |
-| ---- | ------------------------------------------------ |
-| P0   | 关键路径；不完成则后续阶段无法开始               |
-| P1   | 本阶段交付必需；可在阶段内与 P0 并行推进         |
-| P2   | 可延后到后续阶段，但公开发布前必须补齐或明确降级 |
+The first delivery includes shared prompts, model connections and credential references, MCP definitions, Skill assets, resource bundles, engine-specific forms, and session controls. Unsupported bindings remain editable drafts with diagnostics but cannot be launched as if supported. A Pi profile without an MCP extension can still run without MCP bindings if its execution policy is compatible.
 
-**编号。** `V` 前置验证、`A`–`D` 对应调研文档 §9.1 的四个阶段、`X` 贯穿项。
+**Configuration ownership:** import existing native configuration read-only, retain provenance and unknown fields, and generate AgentMatrix-owned run files. Native configuration write-back and bidirectional synchronization are deferred. Existing user/project rules are preserved; unavoidable external sources are reported rather than described as isolated.
 
-**完成定义。** 每个工作项的"交付与验收"列即其完成定义。涉及引擎行为的工作项，只有在**绑定了具体安装版本**的真机验证通过后，才能把能力状态从 `unverified` 升级为已验证；仅通过 fixture 的视为未验证。
+**Native plugin scope:** distinguish resource bundles from executable plugins. Initially recognize and bind explicitly selected installed plugins, with version/source checks. Building the pinned DSH runtime composition is part of its adapter. A general plugin marketplace, arbitrary package installation, and automatic upgrades are deferred. No Pi MCP extension is selected implicitly.
 
-## 3. 依赖关系总览
+## 2. Conventions and acceptance gates
+
+| Priority | Meaning                                                                       |
+| -------- | ----------------------------------------------------------------------------- |
+| P0       | Required before a dependent integration or release gate can pass              |
+| P1       | Required for its delivery milestone; implementation may run alongside P0 work |
+| P2       | Deferred expansion or an explicitly optional capability                       |
+
+IDs refer to this revised sequence: `V` for probes, `A` for shared foundations, `B` for OpenCode, `C` for Pi, `D` for DSH, `E` for later engines, and `X` for checks spanning phases. A2 remains folded into A1.
+
+**Definition of done:** task acceptance, contract fixtures, and a real-installation smoke check must pass for the engine/version/mode being claimed. Model-call evidence records the service, protocol, model, and date. Unsupported or untested capabilities remain visible; missing usage/cost is unknown, not zero. New forms, diagnostics, and session controls must support English and Simplified Chinese.
+
+**Delivery gates:** B0 accepts the data/UI foundation; B7 accepts OpenCode and the shared abstractions; C4 accepts Pi; D4 accepts DSH and completes the initial three-engine milestone. Failed checks block the relevant gate. A gate cannot inherit another engine's verification result.
+
+## 3. Dependency overview
 
 ```mermaid
 flowchart TD
-  V1[V1 首批引擎真机探测] --> A1[A1 schema v2 核心实体]
-  V2[V2 网关协议验证] --> A1
-  V3[V3 三平台基础设施探测] --> A7[A7 凭证服务]
-  A1 --> A3[A3 Prompt 资产与绑定]
-  A1 --> A4[A4 MCP 定义扩展]
-  A1 --> A5[A5 Skill 目录资产]
-  A1 --> A6[A6 Bundle 与原生插件分离]
-  A1 --> A8[A8 能力描述符]
-  A1 --> A9[A9 schema 迁移]
-  A3 --> A9
-  A8 --> A11[A11 界面三视图]
-  A10[A10 IPC 事件通道] --> B1[B1 Adapter 接口]
-  A8 --> B1
-  A3 --> B2[B2 托管配置档与 materialize]
-  B1 --> B2
-  B2 --> B3[B3 Claude Code 配置适配]
-  A7 --> B4[B4 运行与事件归一化]
+  V1[V1 Probe OpenCode Pi DSH] --> A1[A1 Draft and launchable schemas]
+  V1 --> V2[V2 Verify selected provider routes]
+  V2 --> A1
+  V1 --> V4[V4 DSH SDK feasibility]
+  V1 --> V5[V5 Pi RPC feasibility]
+  V3[V3 Platform infrastructure] --> A7[A7 Credentials]
+  A1 --> Assets[A3-A6 Shared assets and bundles]
+  A1 --> A8[A8 Capability dimensions]
+  Assets --> A9[A9 Migration]
+  Assets --> A12[A12 Configuration resolution]
+  A8 --> A12
+  A9 --> A11[A11 Configuration UI]
+  A8 --> A11
+  A7 --> B0{B0 Foundation gate}
+  A9 --> B0
+  A11 --> B0
+  A12 --> B0
+  A10[A10 Session commands and events] --> B0
+  A8 --> B1[B1 Adapter contract]
+  A10 --> B1
+  A12 --> B1
+  B1 --> B2[B2 Immutable run materialization]
+  B2 --> B3[B3 OpenCode configuration]
+  B1 --> B8[B8 ACP client]
+  B0 --> B4[B4 OpenCode session runtime]
   B3 --> B4
-  B4 --> B5[B5 审批 取消 恢复]
-  B4 --> B6[B6 运行快照与有效配置]
-  B5 --> B7{{B7 抽象复核关口}}
-  B7 --> C1[C1 ACP 客户端基础设施]
-  B7 --> C2[C2 Codex App Server]
-  B7 --> C5[C5 Pi RPC]
-  C1 --> C3[C3 OpenCode ACP]
-  C3 --> C4[C4 Gemini Cline Goose]
-  V4[V4 OpenHands DSH 形态决策] --> D1[D1 OpenHands SDK]
-  C1 --> D1
-  V4 --> D2[D2 DeepSeek Harness]
+  B8 --> B4
+  B4 --> B5[B5 Native session controls]
+  B4 --> B6[B6 Effective config and updates]
+  B5 --> B9[B9 Session UI]
+  B5 --> B7{B7 OpenCode and abstraction gate}
+  B6 --> B7
+  B9 --> B7
+  V4 --> B7
+  V5 --> B7
+  B7 --> C1[C1 Pi configuration]
+  C1 --> C2[C2 Pi RPC]
+  C2 --> C3[C3 Pi behavior and UI]
+  C3 --> C4{C4 Pi gate}
+  B7 --> D1[D1 DSH composition]
+  V4 --> D1
+  D1 --> D2[D2 DSH SDK]
+  D2 --> D3[D3 DSH behavior and UI]
+  D3 --> D4{D4 Initial three-engine gate}
+  C4 --> D4
 ```
 
-**关键路径：** `V1 → A1 → A8 → B1 → B2 → B3 → B4 → B5 → B7`。其余工作项要么可并行，要么挂在关键路径之后。
+The diagram summarizes the main dependencies; the task tables also specify test and validation prerequisites. Credentials and IPC contracts can begin alongside schema work. V4 and V5 run early so B7 does not freeze an abstraction tested only with OpenCode. DSH adapter work may proceed alongside Pi after B7, while delivery acceptance remains OpenCode → Pi → DSH.
 
-**阶段 A 内有三条可并行的线，收敛于 B1 / B4：**
+## 4. Phase 0: verify the three selected engines
 
-1. **数据模型线**：A1 → A3 / A4 / A5 / A6 → A9
-2. **管道线**：A10（IPC 事件通道）——不依赖 schema 重构，可立即开工
-3. **凭证线**：V3 → A7 → X3
+| ID  | Work item                                                      | Priority | Depends on | Deliverable and acceptance                                                                                                                                                                                                                                                                                                                                                      |
+| --- | -------------------------------------------------------------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| V1  | Probe installed OpenCode, Pi, and DSH releases                 | P0       | —          | `docs/engine-probe-<date>.md`: absolute executable paths, versions, required runtimes, configuration/discovery paths, prompt entry points, and protocol handshakes. Record each mapping as confirmed, different, or unavailable                                                                                                                                                 |
+| V2  | Verify selected custom endpoint, protocol, and key routes      | P0       | V1         | For each initial engine, verify at least one intended route with a streamed response and tool round trip. Distinguish Chat Completions, Responses, and Anthropic Messages where selected; preserve DSH's separate native DeepSeek route. Model listing alone is insufficient                                                                                                    |
+| V3  | Probe platform infrastructure                                  | P0       | —          | Test the development host first: executable discovery, GUI process environment, paths, process-tree termination, credential backend, and sandbox boundaries. Record separate results before enabling Windows/macOS/Linux support; no inference from another platform                                                                                                            |
+| V4  | Verify DSH SDK feasibility and select its integration contract | P0       | V1         | Test the shipped SDK launcher, framing/handshake, turn submission, events, interaction responses, cancellation, and persistence. Record whether resume includes history replay. Pin matching versions and identify missing operations. Any ACP alternative has an explicit reduced feature contract; unresolved DSH feasibility blocks its adapter, not OpenCode/Pi development |
+| V5  | Exercise a minimal Pi RPC interaction                          | P0       | V1         | Submit a prompt, correlate responses and streaming events, cancel a turn, and probe session restoration. Check LF framing and project trust in noninteractive mode. Distinguish extension UI requests from enforceable approval for all tools; document MCP absence without an extension                                                                                        |
 
-把 A10 和 A7 排在数据模型之后是常见的排期错误：它们是 B4 的硬前置，而且与 A1 无耦合，应当同期启动。
+V4 and V5 are small executable probes, not full adapters. B7 requires their evidence and a documented decision for each limitation, not unsupported features to be invented. Full DSH integration remains a required initial deliverable; an unavailable route is reported as a blocker, not silently removed from scope.
 
-## 4. 阶段 0：接入前验证（V）
+A probe task produces a recorded result, including failures or unavailable routes. That evidence can inform shared schemas without blocking unrelated engines. It does not satisfy runtime acceptance: each engine's delivery gate still requires passing checks for its required features and at least one actual custom endpoint/key route.
 
-调研文档 §9.3 列出六项未解决事项。本阶段的目的是**在写任何 adapter 之前把纸面映射降级或确认**，成本远低于事后返工。
+## 5. Phase A: shared configuration and session contracts
 
-| ID  | 工作项                                                                                                                       | 优先级 | 依赖 | 交付与验收                                                                              |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | ------ | ---- | --------------------------------------------------------------------------------------- |
-| V1  | 安装首批三个引擎（Claude Code、Codex、OpenCode），记录真实版本、配置文件实际路径、系统提示词入口是否存在、程序化接口能否握手 | P0     | —    | `docs/engine-probe-<日期>.md`；逐条标注调研文档的映射为"确认 / 有出入 / 不存在"         |
-| V2  | 用一个真实网关验证协议兼容性：流式事件、工具调用、模型 ID                                                                    | P0     | —    | 结论写入 V1 产出；明确 Responses 与 Chat Completions 的边界。"能列出模型"不作为通过依据 |
-| V3  | 三平台探测：配置路径、进程树终止、系统凭证库可用性、沙箱能力                                                                 | P1     | —    | 每个平台一份结论；不能用单平台结果推断其余平台                                          |
-| V4  | OpenHands 与 DSH 的运行形态调研：Python 运行时依赖、Agent Server 生命周期、DSH SDK 版本契约                                  | P2     | —    | 输出给决策 Q3 的事实依据；阻塞 D 阶段，不阻塞 A / B / C                                 |
+| ID  | Work item                                                             | Priority | Depends on         | Deliverable and acceptance                                                                                                                                                                                                                                                                                                                                                                           |
+| --- | --------------------------------------------------------------------- | -------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A1  | Schema v2: installations, connections, model profiles, agent profiles | P0       | V1, V2             | `src/shared/engines/`; distinguish persistable drafts from validated launchable inputs. Drafts may lack an engine, protocol, credentials, or prompt binding mode and retain migration provenance. Launch validation requires resolved references and one confirmed protocol per connection. Sampling/reasoning parameters are optional; remove unconditional `0.7`                                   |
+| A3  | Versioned prompts and bindings                                        | P0       | A1                 | Assets support latest/pinned references; bindings record append/replace/project-rule intent, native target, and application timing. Define deterministic ordering and reject incompatible multiple replacement prompts instead of concatenating silently                                                                                                                                             |
+| A4  | MCP definitions and authentication references                         | P1       | A1                 | Discriminated stdio / Streamable HTTP / legacy SSE structures, cwd, timeouts, ordinary/secret headers, and auth strategies. Map only supported native flows; identify whether the engine or AgentMatrix owns authentication. Schema support alone is not a working OAuth connection                                                                                                                  |
+| A5  | Skill directory assets                                                | P1       | A1                 | Import `SKILL.md`, frontmatter, scripts, and references with versions/digests; preserve plain Markdown as a lightweight type. Define file-access and symlink boundaries, duplicate-name handling, and complete asset capture before launch                                                                                                                                                           |
+| A6  | Resource bundles and native plugin references                         | P0       | A1                 | Rename `Plugin` to `CapabilityBundle`, preserving IDs and bindings. Keep `NativePluginInstallation` separate with engine, source, version, and availability. No executable installation implied by a resource binding                                                                                                                                                                                |
+| A7  | Main-process credential service                                       | P0       | V3                 | OS-backed storage and typed set/replace/delete/status operations. Ordinary configuration stores references; reads return redacted metadata. Define unavailable-backend behavior without silently storing unprotected secrets; verify replacement and restart behavior                                                                                                                                |
+| A8  | Capability descriptors with independent dimensions                    | P0       | A1, V1             | Separate mechanism (`native / adapter / extension-required / unsupported / unknown`), verification (`untested / passed / failed`), and current availability with reasons. Attach documentary/runtime evidence, engine version, mode, profile, and relevant model route; changed installations invalidate stale verification                                                                          |
+| A9  | Schema 1 → 2 migration                                                | P0       | A1, A3, A4, A5, A6 | Version-dispatched loading, preserved original backup, atomic publication, and recovery after interruption. Preserve prompt content, resource IDs, and converted bundle references. Do not choose an engine/protocol/binding mode implicitly; retain unresolved records as drafts. Test repeated loading, referential integrity, old temperature preservation as a draft value, and failed migration |
+| A10 | Bidirectional session API and state model                             | P0       | —                  | Define session creation/start, message submission, native interaction response, cancellation, resume, close, state queries, and event subscription with cursor/unsubscribe. Distinguish session, run/process attachment, turn, and request IDs. Validate IPC payloads and senders; keep stable localizable errors and expose no arbitrary shell/filesystem access                                    |
+| A11 | Shared library and engine-specific configuration UI                   | P1       | A7, A8, A9, A12    | Initial forms cover the three selected engines, draft diagnostics, shared bindings, secret status, and resolved previews. Other engines may appear as planned catalog entries without active adapters. Include both languages; raw JSON is supplementary                                                                                                                                             |
+| A12 | Resolution, provenance, and configuration application contract        | P0       | A3, A4, A5, A6, A8 | Define deterministic binding/override rules and name conflicts. Distinguish desired, resolved/planned, and observed values with per-field source/evidence. Define saved / pending-new-session / applied / failed-or-unknown states, impact reporting, and resume compatibility checks                                                                                                                |
 
-V1 与 V2 的结论直接决定 A1 的引擎枚举与协议枚举取值，因此二者是关键路径起点。
+**Session identity:** a conversation may outlive a process; a turn is one submitted interaction, not a process lifetime. Start with at most one active turn per session and diagnose concurrent submissions. Native IDs remain namespaced by installation/session. Pending requests settle once; late responses after cancellation or disconnect cannot authorize a different request. Renderer reloads reattach to state and events without resubmitting work. App crashes mark unfinished runs interrupted and offer only verified native recovery.
 
-## 5. 阶段 A：配置与能力基础
+**Configuration application:** a save updates shared assets, not a running process. New sessions resolve new revisions. Resume validates the previous snapshot, native persistence, executable version, credentials, and external-source changes. If continuity cannot be established, diagnose it or offer a distinct new session; never describe a new session as native resume. Supported live changes require an explicit operation, acknowledgment, and a new effective revision.
 
-对应调研文档 §5、§8。目标：可以创建配置档、查看兼容性、预览导出；**不把未连接状态显示为运行成功**。
+## 6. Phase B: complete OpenCode through ACP
 
-| ID  | 工作项                                                                                                    | 优先级 | 依赖           | 交付与验收                                                                                                                                                                                                         |
-| --- | --------------------------------------------------------------------------------------------------------- | ------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A1  | schema v2 核心实体：拆出 `EngineInstallation` / `ModelConnection` / `ModelProfile` / `AgentProfile`       | P0     | V1, V2         | `src/shared/engines/`；一个连接只对应一种协议；采样与 reasoning 参数全部可缺省，移除当前必填的 `temperature` 与默认 `0.7`（[`workspace.ts:22`](../src/shared/workspace.ts)、[`:124`](../src/shared/workspace.ts)） |
-| A3  | `PromptAsset` + `PromptBinding`：内容版本化，绑定表达 append / replace / 项目规则，以及跟随最新或固定版本 | P0     | A1             | 替换现有 `systemPrompt: string`（[`workspace.ts:21`](../src/shared/workspace.ts)）；绑定记录 `nativePromptTarget` 与生效时机                                                                                       |
-| A4  | `McpServerDefinition` 扩展：OAuth、headers、cwd、超时；legacy SSE 单独标记                                | P1     | A1             | 保持可区分联合；不把 SSE 静默当作 Streamable HTTP                                                                                                                                                                  |
-| A5  | `SkillAsset` 目录资产：`SKILL.md`、frontmatter、脚本与 references、digest                                 | P1     | A1             | 首次引入用户目录读取，需同时确定主进程文件访问边界；保留纯 Markdown 作为轻量类型                                                                                                                                   |
-| A6  | `Plugin` 更名为 `CapabilityBundle`，另立 `NativePluginInstallation`                                       | P2     | A1             | 消除与各 CLI 可执行插件的同名歧义；现有资源组合行为不变                                                                                                                                                            |
-| A7  | `Credential` 服务与系统凭证库                                                                             | P0     | V3             | `src/main/credentials/`；workspace 只存引用，渲染层只拿到已配置状态与脱敏元信息                                                                                                                                    |
-| A8  | 能力描述符：按"引擎 + 版本 + 模式 + profile"计算，五态而非布尔                                            | P0     | A1, V1         | 状态取值 `native / adapter / extension-required / unsupported / unverified`，附 `constraints` 与证据来源；驱动绑定校验（如 Chat Completions-only 网关绑定 Responses 路线时提前阻止）                               |
-| A9  | `schemaVersion` 1 → 2 迁移与备份                                                                          | P0     | A1, A3, A4, A5 | 旧 `systemPrompt` 迁为资产但标记"待选择引擎 / 绑定方式"，不擅自归属某个 CLI；旧 `provider / baseUrl / model` 转为待确认协议的连接；保留旧 workspace 备份                                                           |
-| A10 | IPC 从三个 invoke 通道扩展出事件订阅机制                                                                  | P0     | —              | `src/shared/api.ts`、`src/preload/index.ts`、`src/main/index.ts`；保持 `contextIsolation` 与 sender 校验，不暴露 `ipcRenderer` 或任意 fs / shell                                                                   |
-| A11 | 界面三视图重排：共享资源库 / Agent 列表 / 通用+专属+有效配置预览+诊断                                     | P1     | A1, A8         | 专属字段由带版本 schema 驱动，高级 JSON 文本框不作为唯一入口                                                                                                                                                       |
+| ID  | Work item                                       | Priority | Depends on                         | Deliverable and acceptance                                                                                                                                                                                                                                                                                                                                    |
+| --- | ----------------------------------------------- | -------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B0  | Foundation gate                                 | P0       | A7, A9, A10, A11, A12              | Existing workspaces migrate; unresolved drafts remain editable but cannot launch. The initial three-engine configuration model, credential API, resolution contract, and session API agree                                                                                                                                                                    |
+| B1  | Configuration and runtime adapter contracts     | P0       | A1, A8, A10, A12                   | `src/main/engines/adapters/`; configuration operations cover probe/inspect/validate/plan/materialize; runtime covers connect/start, send, respond to interactions, observe, cancel, resume, close, and dispose. Optional operations have explicit capability failures. Validate the shape against V4/V5 before B7                                             |
+| B2  | Immutable inputs and run materialization        | P0       | B1, A3, A5, A12                    | Resolve and capture asset revisions before spawn. Write config/prompts/Skills under `userData/runs/<runId>/` using a staged manifest and atomic publication. Mutable profile directories store definitions, never shared live input files. Separate writable native state from frozen inputs; define reuse, retention, and cleanup for resume                 |
+| B3  | OpenCode configuration adapter                  | P0       | B2, V1                             | Map providers and their SDK/protocol, model routing, prompts, Skills, and MCP definitions to the installed schema. Convert stdio command/args and environment fields. Inspect native sources and precedence, preserve user rules/unknown fields, and diagnose collisions or policy overrides                                                                  |
+| B8  | ACP client infrastructure                       | P0       | B1, V1                             | Negotiate protocol and capabilities; handle requests, responses, notifications, and timeouts. Implement permission replies. Declare file/terminal client capabilities only when their main-process services and lifecycle cleanup exist; otherwise omit them and verify the engine's behavior. Preserve native stop reasons and optional session capabilities |
+| B4  | OpenCode session runtime and events             | P0       | B0, B3, B8                         | `src/main/sessions/`; start only from a validated run snapshot, supervise process trees, and inject minimal credentials via supported env/SDK/native channels rather than arguments. Normalize bounded event streams, preserve redacted native evidence, persist session metadata, and support renderer reconnection                                          |
+| B5  | Native interaction and lifecycle controls       | P0       | B4                                 | Resolve only matching approval/interaction requests; honor the chosen supported policy. Verify cancellation during streaming/tools/approval, timeouts, crashes, and supported native resume. Failed or late replies cannot leave a session waiting forever or resume work accidentally                                                                        |
+| B6  | Effective configuration and update reporting    | P0       | B4, A12                            | Extend the prelaunch snapshot with observed source/value evidence, native session ID, and application outcomes. Unsupported readback stays unknown. Editing an asset shows affected profiles and pending sessions; successful file generation is not proof that the engine loaded it                                                                          |
+| B9  | Complete desktop session UI                     | P1       | B4, B5                             | Start from an agent profile; select cwd; send multiple turns; show streamed messages, tools, permissions, failures, cancellation, and history/resume controls. Reload/reconnect without duplicate messages or stale approval controls. Verify English and Chinese                                                                                             |
+| B7  | OpenCode acceptance and abstraction review gate | P0       | B5, B6, B9, V4, V5, X1, X2, X3, X4 | Pass a real OpenCode UI flow and the tests in section 10. Review A1/A8/A10/B1 against actual Pi RPC and DSH SDK probe results. Implement required contract changes before complete second/third adapters; record DSH-specific blockers without conflating them with OpenCode readiness                                                                        |
 
-A1 与 A2 合并为一项：采样参数可缺省是 A1 的验收条件之一，不单列工作项，但它是调研文档 §3.2 明确点名的问题，迁移与编辑器都要覆盖。
+**Snapshot boundary:** record resolved asset versions, executable/version, adapter contract version, requested policy, cwd, sanitized launch metadata, and digests before execution. Add observations later without rewriting the original plan. Never persist plaintext credentials; record secret references/rotation metadata only. Native transcripts and session state may be mutable and need separate lifecycle storage. External project/global/managed files are not frozen merely because generated files are: capture provenance, recheck changes, and label limits to reproducibility.
 
-## 6. 阶段 B：首个引擎闭环（Claude Code）
+**Required configuration checks:** changing a shared asset must not overwrite a previous run's captured inputs; two sessions from one profile must not share mutable generated configuration; native overrides must be visible; a resumed conversation must not silently claim a newly edited prompt was applied. Retain asset revisions needed by resumable sessions even if the library item is later deleted.
 
-对应调研文档 §6。目标：用一个真实引擎**证伪**阶段 A 的抽象，而不是同时铺开九个。
+## 7. Phase C: Pi as the second engine
 
-| ID  | 工作项                                                                                                                  | 优先级 | 依赖        | 交付与验收                                                                                                                                              |
-| --- | ----------------------------------------------------------------------------------------------------------------------- | ------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | `EngineAdapter` 接口：probe / inspect / validate / plan / materialize / launch / observe / cancel-resume-dispose 八阶段 | P0     | A1, A8, A10 | `src/main/engines/adapters/`；接口按 Claude Code 的真实行为定义，暂不为未验证引擎预留抽象                                                               |
-| B2  | 托管配置档与 materialize                                                                                                | P0     | B1, A3      | `src/main/engines/config/`；落盘到 `userData/engines/<installationId>/profiles/<profileId>/`；不改写系统 `HOME` 制造隔离假象；`plan` 需说明实际配置来源 |
-| B3  | Claude Code 配置适配：probe / inspect / validate / plan / materialize                                                   | P0     | B2, V1      | 追加与替换提示词分别映射；`CLAUDE.md` 作为项目规则不被覆盖；认证区分 `X-Api-Key` 与 Bearer                                                              |
-| B4  | 子进程运行与事件归一化                                                                                                  | P0     | B3, A7, A10 | `src/main/sessions/`；保留 `rawEvent` 引用；缺失的 cost / tokens / tool status 显示为未知，不补零；凭证经环境注入，不拼进命令行参数                     |
-| B5  | 审批、取消、恢复                                                                                                        | P1     | B4          | 审批响应只完成对应原生请求；显式应用用户所选策略，不依赖 CLI 默认值                                                                                     |
-| B6  | `RunSnapshot` 与有效配置视图                                                                                            | P1     | B4          | 记录本次运行的资源版本、引擎版本、原生 session ID 与配置摘要，不含明文凭证                                                                              |
-| B7  | **抽象复核关口**                                                                                                        | P0     | B5, B6      | 用 B3–B6 的真实行为回头修正 A1 / A8 / B1；产出接口变更清单并落地后，才允许开始 C 阶段                                                                   |
+| ID  | Work item                                   | Priority | Depends on             | Deliverable and acceptance                                                                                                                                                                                                                                                                           |
+| --- | ------------------------------------------- | -------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | Pi configuration adapter                    | P0       | B7, V5                 | Map model providers/API families, key references, prompt replacement/append, context files, and Skill discovery. Use the installed configuration-home contract; represent project trust explicitly without overwriting unrelated user trust decisions                                                |
+| C2  | Pi RPC transport and sessions               | P0       | C1, B4, V5             | Split frames strictly on LF, correlate RPC responses and events, submit additional turns, cancel, and map verified native session operations. Keep Pi-specific events available instead of inventing ACP equivalents                                                                                 |
+| C3  | Pi policy, extensions, and desktop behavior | P1       | C2, B9                 | Use shared session UI with engine-specific diagnostics. Show MCP as unavailable until a selected compatible extension is verified. Do not equate project trust or extension UI with universal per-tool approvals or an OS sandbox. Block profiles requiring controls the installation cannot enforce |
+| C4  | Pi acceptance gate                          | P0       | C3, B6, X1, X2, X3, X4 | Complete real UI, custom endpoint/key, shared prompt/Skill, cancellation, persistence, and update tests on a pinned installed version. Record unsupported capabilities explicitly; a no-MCP configuration is a valid baseline, while MCP bindings require separate extension acceptance              |
 
-B7 是决策关口而非编码任务，但必须占据一格。跳过它意味着后八个 adapter 会按未验证的纸面文档设计接口，返工成本随引擎数量线性放大。
+Pi MCP extension discovery and installation are optional follow-up work. They do not block a valid core Pi integration and cannot be used to claim that Pi supports MCP or approval enforcement before verification.
 
-## 7. 阶段 C：接口复用扩展
+## 8. Phase D: DeepSeek Harness as the third engine
 
-| ID  | 工作项                       | 优先级 | 依赖   | 交付与验收                                                                      |
-| --- | ---------------------------- | ------ | ------ | ------------------------------------------------------------------------------- |
-| C1  | ACP 客户端基础设施           | P1     | B7     | 归一化事件复用 B4 的模型；每个引擎仍保留独立的配置与能力适配                    |
-| C2  | Codex App Server adapter     | P1     | B7     | 使用该安装版本生成的 schema / 类型，不假设通用 JSON-RPC 结构                    |
-| C3  | OpenCode ACP adapter         | P1     | C1     | MCP 由适配器转换，不直接复制现有 `command` / `args` 结构；验证配置层级优先级    |
-| C4  | Gemini、Cline、Goose adapter | P1     | C1, C3 | 复用 ACP 客户端并逐个记录差异；Cline 的 `--auto-approve` 默认值差异必须显式处理 |
-| C5  | Pi RPC adapter               | P2     | B7     | RPC 按 LF 严格分隔；MCP 标注为 `extension-required`，无扩展时不显示为已连接     |
+| ID  | Work item                                       | Priority | Depends on                 | Deliverable and acceptance                                                                                                                                                                                                                                                                                                                          |
+| --- | ----------------------------------------------- | -------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Versioned DSH profile and configuration adapter | P0       | B7, V4, B2                 | Pin the engine, SDK contract, and required plugin/bundle composition. Materialize a supported managed profile with verified patch precedence and reload behavior. Map persona prefix/suffix separately from complete prompt replacement; reject conflicting complete sections. Keep general provider routes separate from the native DeepSeek route |
+| D2  | DSH SDK runtime                                 | P0       | D1, V4, B4                 | Implement the verified SDK transport and lifecycle, messages, tools, interaction replies, cancellation, native persistence, and advertised history behavior. Inspect effective MCP/Skill components; the product name alone does not establish that a profile mounts them                                                                           |
+| D3  | DSH-specific configuration and interaction UI   | P1       | D2, B9                     | Expose supported profile, patch, provider, prompt, and execution options. Render supported native interaction payloads without silently auto-answering them. Show experimental version support; unsupported features are diagnosed. Do not infer event replay from resume support                                                                   |
+| D4  | DSH and initial three-engine acceptance gate    | P0       | D3, C4, B6, X1, X2, X3, X4 | Pass DSH checks and the cross-engine scenario below. Record the exact supported engine/protocol versions, routes, platform coverage, and limitations. Required unimplemented DSH behavior remains a blocker rather than a completed milestone                                                                                                       |
 
-C3 先于 C4：OpenCode 用来验证 ACP 抽象是否真的可复用，验证通过再一次接三个。
+If V4 finds the SDK unsuitable, record an explicit adapter decision before D1/D2. A reduced ACP integration must list unavailable interactions and cannot be described as SDK parity. Initial core acceptance still requires an actual DSH runtime, custom connection and prompt configuration, visible events, cancellation, and truthful persistence behavior.
 
-## 8. 阶段 D：专门适配
+**Cross-engine scenario:** bind one shared prompt and one Skill asset to OpenCode, Pi, and DSH using verified native mappings. Use a common model connection only where all selected routes are proven compatible; otherwise use distinct connections without protocol translation. Run a task in each engine, edit the shared assets, and show correct versions in old and new sessions. Verify MCP separately for OpenCode and the selected DSH composition; Pi without an extension must clearly reject MCP bindings.
 
-| ID  | 工作项                       | 优先级 | 依赖   | 交付与验收                                                                 |
-| --- | ---------------------------- | ------ | ------ | -------------------------------------------------------------------------- |
-| D1  | OpenHands SDK / Agent Server | P2     | V4, C1 | 区分 `openhands-sdk` 与 `openhands-cli-legacy`；处理 Python 与服务生命周期 |
-| D2  | DeepSeek Harness             | P2     | V4     | 固定版本，界面标记实验状态；ACP 已知缺失的交互能力不由通用客户端假造       |
+## 9. Later integrations
 
-## 9. 贯穿项
+These engines remain in the research scope but are not prerequisites for the initial three-engine milestone. Their existing documentary mappings are not release claims.
 
-| ID  | 工作项                               | 优先级 | 依赖   | 交付与验收                                                            |
-| --- | ------------------------------------ | ------ | ------ | --------------------------------------------------------------------- |
-| X1  | fake CLI fixture 与 adapter 契约测试 | P0     | B1     | 每个 adapter 的准入条件；覆盖映射与生命周期，再对明确版本做真机冒烟   |
-| X2  | 调研文档 §9.2 九条验收清单模板化     | P1     | B1     | 每个 adapter 逐条留痕；需要模型调用的验证单独记录服务、模型与执行日期 |
-| X3  | 凭证脱敏审计                         | P0     | A7     | 普通日志、命令预览、配置导出均不含 key；多个运行之间环境与资源不串用  |
-| X4  | 三平台真机冒烟                       | P1     | V3, B4 | 路径、进程树终止、凭证库、沙箱分平台验证，不跨平台推断                |
+| ID  | Engine(s)                | Priority | Entry condition and intended approach                                                                     |
+| --- | ------------------------ | -------- | --------------------------------------------------------------------------------------------------------- |
+| E1  | Claude Code              | P2       | After D4 and its own installation probe, add verified SDK/stream-json configuration and session support   |
+| E2  | Codex                    | P2       | After D4 and its own installation probe, use the installed App Server schema/contract                     |
+| E3  | Gemini CLI, Cline, Goose | P2       | After D4, probe each release and reuse ACP infrastructure with separate configuration/policy adapters     |
+| E4  | OpenHands                | P2       | After D4, resolve SDK/Agent Server versus legacy CLI scope, Python dependencies, and runtime distribution |
 
-## 10. 待决策事项
+## 10. Checks spanning phases
 
-以下四项需要在对应阶段开工前确认；每一项都会改变工作量估计。
+| ID  | Work item                               | Priority | Depends on | Deliverable and acceptance                                                                                                                                                                                                                                                                 |
+| --- | --------------------------------------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| X1  | Fake engines and adapter contract tests | P0       | B1         | Fixtures for mappings, malformed/partial frames, interleaved events, pending requests, cancellation races, process exits, and resume/replay differences. Extend with each adapter; passing another engine's fixtures does not verify this one                                              |
+| X2  | Per-engine acceptance record            | P0       | B1         | Turn research section 9.2 into a checklist including UI, configuration provenance, immutable inputs, native capabilities, and secret handling. Identify the executable/version, platform, service/model, and date for real checks                                                          |
+| X3  | Credentials and data-boundary audit     | P0       | A7, B2, B4 | Keys stay out of logs, event journals, previews, exports, and snapshots. Verify per-run environment/resource isolation and cleanup. Imported configuration is not executed merely to resolve a secret; native state limitations are documented                                             |
+| X4  | Desktop and platform smoke checks       | P1       | V3, B4     | For every enabled engine/platform, test discovery, paths, shutdown, credential storage, and claimed execution boundaries, plus bilingual controls and window reload. Development-host results gate local milestones; each advertised distribution platform requires its own passing result |
 
-| 编号 | 决策                                             | 阻塞   | 建议                                                                               |
-| ---- | ------------------------------------------------ | ------ | ---------------------------------------------------------------------------------- |
-| Q1   | 首批是九个全做，还是先三个？                     | A1, B7 | 按调研文档 §9.1：九个都在配置层支持，运行能力只先做 Claude Code / Codex / OpenCode |
-| Q2   | 是否执行阶段 0 的真机探测？                      | 全部   | 执行。当前所有映射都是纸面结论，直接写 adapter 的返工风险集中在最贵的 B / C 阶段   |
-| Q3   | OpenHands 是否引入 Python 运行时依赖？           | D1     | 先只保留旧 CLI 的 ACP 兼容入口，把打包与分发影响留到 D 阶段单独评估                |
-| Q4   | 凭证库选型：Electron `safeStorage` 还是 keytar？ | A7     | 先用内置 `safeStorage`，由 V3 的三平台探测结论确认可用性后再定是否引入原生依赖     |
+X1–X4 are repeated acceptance requirements at B7, C4, and D4 for the relevant adapters, not one-off checks that become permanently complete after OpenCode. A missing credential or unavailable platform is recorded as untested, never as a passing integration.
 
-## 11. 不在本计划范围内
+Required regression scenarios include schema migration with bundle bindings, unresolved drafts blocked at launch, two runs from one profile, shared-asset edits during execution, native configuration conflicts, credential replacement, cancellation while awaiting approval, renderer reload, app interruption, and history reattachment without duplicate events. Unsupported native operations must produce a clear capability diagnostic.
 
-- AgentMatrix 自研 Agent 的 provider loop 与自建 agent 循环。调研文档 §8 的结论是先建 CLI adapter，避免把第三方 CLI 再套一层重复循环。
-- 任务调度与多 Agent 协作（README「下一阶段」第 4 条的后半部分）。
-- 品牌图标、签名、公证与分发验证。
-- 任何第三方 Pi MCP 扩展的选型。调研文档未把任何第三方扩展当作已验证依赖，本计划同样不预设。
+## 11. Decisions and boundaries
+
+| Topic                          | Decision or remaining gate                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial products               | **Resolved by the user:** OpenCode, Pi, DeepSeek Harness. The other six are later work                                                                        |
+| Runtime order                  | OpenCode ACP first; Pi RPC second; DSH SDK third. Probe Pi/DSH early and allow independent work after B7                                                      |
+| Native configuration ownership | First delivery uses read-only import and managed output. Native-file write-back and two-way synchronization are deferred                                      |
+| Native plugins                 | Recognize/bind selected installed plugins and build the pinned DSH adapter composition. No general marketplace or automatic upgrades in the initial milestone |
+| Pi MCP and approvals           | Extension-dependent behavior remains unavailable until separately selected and verified; a compatible core Pi profile does not require MCP                    |
+| DSH SDK contract               | V4 must resolve launcher, protocol version, interaction support, and persistence. Any ACP alternative is a documented scope decision                          |
+| Credential backend             | Evaluate Electron `safeStorage` in V3; choose storage and unavailable-backend behavior from measured platform results                                         |
+| Platform coverage              | Validate the development host first; enable other platform claims only after V3/X4 evidence                                                                   |
+
+## 12. Outside the initial milestone
+
+- A custom AgentMatrix model/agent loop, task scheduling, or multi-agent collaboration.
+- Complete adapters or engine-specific forms for the other six engines.
+- Cross-engine session migration or fabricated tool approvals/sandbox guarantees.
+- Arbitrary native plugin installation, automatic engine upgrades, and native configuration write-back.
+- Brand assets, signing/notarization, and release distribution work. Platform/runtime tests here do not replace distribution verification.
+
+This plan delivers a usable desktop configuration and session workflow for the three selected products while keeping their native configuration, permission, and persistence differences explicit.
