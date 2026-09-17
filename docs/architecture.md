@@ -3,29 +3,34 @@
 ## Data flow
 
 ```text
-React UI → typed preload API → sender-checked IPC → WorkspaceStore → workspace.json
-                    ↑                                  ↑
-           src/shared/api.ts                  src/shared/workspace.ts
+React UI → typed preload API → sender-checked IPC → EngineWorkspaceStore → workspace.json
+                    ↑                                    ↑
+           src/shared/api.ts                  src/shared/engines/workspace.ts
 ```
 
 The renderer displays and edits drafts, committing page state only after a successful save. The main process validates and persists data. The UI has no direct filesystem or process execution access. Browser preview implements the same API using separate localStorage.
 
 ## Configuration model
 
-`Workspace` contains `schemaVersion`, `revision`, `agents`, `mcpServers`, `skills`, and `plugins`.
+`EngineWorkspace` contains `schemaVersion: 2`, `revision`, and nine collections: `agents`, `installations`, `connections`, `models`, `prompts`, `mcpServers`, `skills`, `bundles`, and `nativePlugins`.
 
-- `Agent` stores the role, model configuration, and resource ID references.
-- `McpServer` is a discriminated union of stdio and Streamable HTTP configurations, preventing invalid combinations of transport fields.
-- `Skill` stores instruction text. `sourcePath` records provenance only; file reading and watching are not implemented.
-- `Plugin` stores a version and resource references. It is a reusable capability bundle, not an executable script.
-- `resolveResources` combines direct bindings with enabled plugin resources, removes duplicates, and excludes disabled resources.
-- `removeResource` cleans both agent and plugin references to prevent dangling bindings.
+- `AgentProfile` binds an engine installation and model profile to shared assets, requested execution policy, and engine-specific options. Null bindings permit incomplete drafts; shared resolution reports missing inputs.
+- Connections separate protocol, endpoint, and authentication references from model IDs and optional parameters. The UI never substitutes a default sampling temperature.
+- Prompt and Skill assets retain immutable revisions. Bindings follow the latest revision or pin a saved version; prompt application mode is explicit. Skill source paths record provenance; directory capture is not connected yet.
+- MCP definitions distinguish stdio, Streamable HTTP, and SSE, with typed authentication and environment references. These forms do not connect to servers.
+- Resource bundles contain prompt, Skill, and MCP bindings. Native plugin metadata belongs to a specific engine installation and does not authorize installation or execution.
+- `resolveAgentProfile` combines enabled bundles with direct bindings, resolves versions, deduplicates resources, and reports conflicts. Direct bindings take precedence. Its output always requires adapter validation; the UI labels previews as planned configuration.
+- `removeConfiguration` cleans references while preserving dependent agents and models as editable drafts. `revisePrompt` and `reviseMarkdownSkill` append content changes without replacing saved history.
 
 When adding fields, update the shared schema, defaults, editors, and relevant tests together. Changes to the persisted structure require a `schemaVersion` increment and an explicit migration. Never overwrite an unreadable configuration.
 
 ## Storage consistency
 
-The single-instance desktop app serializes reads and writes through one `WorkspaceStore`. Saving reloads the current file and checks its revision, validates the full configuration, writes a temporary file in the same directory, and renames it over the destination. Failed saves do not commit UI state and preserve the draft for retry. Corrupt files and files from unsupported schema versions are preserved and reported.
+The single-instance desktop app serializes reads and writes through one `EngineWorkspaceStore`. Saving reloads the current file, checks its revision and immutable asset history, validates the full configuration, writes a temporary file in the same directory, and renames it over the destination. Failed saves do not commit UI state and preserve the draft for retry. Invalid UTF-8, corrupt files, and unsupported schema versions are preserved and reported.
+
+On first loading schema v1, the store creates an exact-byte, digest-addressed backup before atomically publishing v2. Migration preserves resource identities and leaves unresolved choices as drafts. Fresh v2 workspaces use native v2 defaults without going through legacy conversion. The legacy `WorkspaceStore` is retained for migration tests and is not a second active writer.
+
+Browser preview uses `BrowserWorkspaceStore` with the same schema, revision checks, and append-only history rules. It migrates the old localStorage value to a separate v2 key while retaining the original string. Invalid v2 data never falls back to a fresh workspace or a legacy copy. Browser storage is separate from desktop files and has no credential vault.
 
 This mechanism is not a cross-process database transaction and does not lock out external editors. Edit the file manually only while the application is closed. Multi-window editing and live external-file watching are not implemented.
 
@@ -45,7 +50,7 @@ To add or change UI text, update both catalogs and use a key rather than a liter
 
 Future runtime code belongs in a module or utility process managed by the main process. It will own streaming model requests, MCP connections, tool execution, cancellation, and logs. Return events through explicit IPC APIs; do not expose `ipcRenderer` or arbitrary filesystem/shell access to the UI.
 
-The main-process `CredentialVault` stores ciphertext in `userData/credentials/vault.json` using Electron’s asynchronous `safeStorage` encryption. It serializes mutations, checks per-credential revisions, atomically replaces private files, and preserves corrupt storage. The preload exposes only metadata, replacement, and deletion; decrypted values are available only to the main-process runtime. Missing secure backends, including Linux `basic_text`, cannot save credentials. Browser preview never stores credentials. Schema v2 configurations will hold IDs or environment references; those bindings are not active in the current schema v1 UI. Plugin installation requires separate manifest validation, provenance, and permission design. The current resource-bundle model does not authorize execution of third-party code.
+The main-process `CredentialVault` stores ciphertext in `userData/credentials/vault.json` using Electron’s asynchronous `safeStorage` encryption. It serializes mutations, checks per-credential revisions, atomically replaces private files, and preserves corrupt storage. The preload exposes only metadata, replacement, and deletion; decrypted values are available only to the main-process runtime. Missing secure backends, including Linux `basic_text`, cannot save credentials. Browser preview never stores credentials. Active v2 editors bind credential IDs or environment references; consuming them for a CLI run remains runtime work. Plugin installation requires separate manifest validation, provenance, and permission design. The current resource-bundle model does not authorize execution of third-party code.
 
 For the initial CLI integrations, use engine adapter → session service → typed events → chat UI, reusing each CLI's native agent loop. Shared configuration, engine-specific options, and migration proposals are covered in the [CLI agent research](cli-agent-research.md); work items, priorities, and dependencies are in the [implementation plan](cli-agent-plan.md). If AgentMatrix later adds its own agent, build a separate direct-model provider adapter and MCP tool loop.
 

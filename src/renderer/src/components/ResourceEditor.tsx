@@ -1,23 +1,40 @@
-import { useI18n } from '../i18n'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
+import { formatError } from '../../../shared/errors'
+import type { CredentialMetadata } from '../../../shared/credentials'
 import {
-  formatError,
-  mcpServerSchema,
-  pluginSchema,
-  skillSchema,
-  type Resource,
-  type ResourceKind,
-  type Workspace,
-} from '../../../shared/workspace'
+  libraryEntryLabels,
+  reviseMarkdownSkill,
+  revisePrompt,
+  type LibraryCollection,
+  type LibraryEntry,
+} from '../../../shared/engines/editing'
+import {
+  initialEngineKinds,
+  modelProtocolSchema,
+  type EngineInstallation,
+  type ModelConnection,
+} from '../../../shared/engines/schema'
+import type { EngineWorkspace, McpDefinition, PromptAsset } from '../../../shared/engines/workspace'
+import { api } from '../lib/api'
+import { useI18n } from '../i18n'
 import { Modal } from './Modal'
 import { ResourcePicker } from './ResourcePicker'
+import { AssetBindings } from './AssetBindings'
+import {
+  ArgumentField,
+  JsonField,
+  NumberField,
+  SecretField,
+  SelectField,
+  TextField,
+} from './ConfigurationFields'
 
-export const resourceLabels = {
-  mcpServers: 'resources.mcpServers',
-  skills: 'resources.skills',
-  plugins: 'resources.plugins',
-} as const
+function contentOf(resource: LibraryEntry): string {
+  if (!('versions' in resource)) return ''
+  const revision = resource.versions.find((item) => item.version === resource.currentVersion)
+  return revision && 'content' in revision ? revision.content : ''
+}
 
 export function ResourceEditor({
   resource,
@@ -27,220 +44,607 @@ export function ResourceEditor({
   onSave,
   onClose,
 }: {
-  resource: Resource
-  kind: ResourceKind
-  workspace: Workspace
+  resource: LibraryEntry
+  kind: LibraryCollection
+  workspace: EngineWorkspace
   busy: boolean
-  onSave: (resource: Resource) => Promise<void>
+  onSave: (resource: LibraryEntry) => Promise<void>
   onClose: () => void
 }) {
   const { t, locale } = useI18n()
   const [draft, setDraft] = useState(resource)
-  const initialArgs = 'args' in resource ? resource.args.join('\n') : ''
-  const initialEnv = JSON.stringify('envRefs' in resource ? resource.envRefs : {}, null, 2)
-  const [args, setArgs] = useState(initialArgs)
-  const [env, setEnv] = useState(initialEnv)
+  const [content, setContent] = useState(contentOf(resource))
+  const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const [credentials, setCredentials] = useState<CredentialMetadata[]>([])
+  const isNew = !workspace[kind].some((item) => item.id === resource.id)
+  useEffect(() => {
+    let mounted = true
+    void api
+      .getCredentialStatus()
+      .then((status) => {
+        if (mounted) setCredentials(status.credentials)
+      })
+      .catch((failure) => {
+        if (mounted) setError(failure)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
   const close = () => {
-    const dirty =
-      JSON.stringify(draft) !== JSON.stringify(resource) ||
-      args !== initialArgs ||
-      env !== initialEnv
-    if (!dirty || window.confirm(t('common.unsaved'))) onClose()
+    if (
+      (!dirty &&
+        JSON.stringify(draft) === JSON.stringify(resource) &&
+        content === contentOf(resource)) ||
+      window.confirm(t('common.unsaved'))
+    )
+      onClose()
   }
   async function submit(event: FormEvent) {
     event.preventDefault()
     setError(null)
     try {
       let candidate = draft
-      if ('transport' in draft && draft.transport === 'stdio') {
-        candidate = {
-          ...draft,
-          args: args.split('\n').filter((arg) => arg.length > 0),
-          envRefs: JSON.parse(env),
-        }
-      }
-      const schema = { mcpServers: mcpServerSchema, skills: skillSchema, plugins: pluginSchema }[
-        kind
-      ]
-      await onSave(schema.parse(candidate))
+      if ('purpose' in draft)
+        candidate = isNew
+          ? { ...draft, versions: [{ version: 1, content }] }
+          : revisePrompt(draft, content)
+      if (
+        'sourcePath' in draft &&
+        draft.versions.find((item) => item.version === draft.currentVersion)?.kind === 'markdown'
+      )
+        candidate = isNew
+          ? { ...draft, versions: [{ version: 1, kind: 'markdown', content }] }
+          : reviseMarkdownSkill(draft, content)
+      await onSave(candidate)
     } catch (failure) {
       setError(failure)
     }
   }
+  const changeInstallation = (value: EngineInstallation, patch: Partial<EngineInstallation>) =>
+    setDraft({ ...value, ...patch, version: null, modes: [], probedAt: null })
 
   return (
     <Modal
-      title={t(resource.name ? 'resources.edit' : 'resources.add', {
-        resource: t(resourceLabels[kind]),
+      title={t(isNew ? 'resources.add' : 'resources.edit', {
+        resource: t(libraryEntryLabels[kind]),
       })}
-      subtitle={t('resourceEditor.subtitle')}
+      subtitle={t('config.libraryHint')}
       onClose={close}
       busy={busy}
     >
-      <form onSubmit={submit}>
+      <form onSubmit={submit} onChange={() => setDirty(true)}>
         <fieldset disabled={busy}>
           <div className="modal-body">
-            <label className="field">
-              {t('common.name')}
-              <input
-                autoFocus
-                value={draft.name}
-                onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-                maxLength={80}
-              />
-            </label>
-            <label className="field">
-              {t('common.description')}
-              <input
+            <TextField
+              label={t('common.name')}
+              value={draft.name}
+              maxLength={80}
+              onChange={(name) => setDraft({ ...draft, name })}
+            />
+            {'description' in draft && (
+              <TextField
+                label={t('common.description')}
                 value={draft.description}
-                onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                rows={2}
                 maxLength={500}
+                onChange={(description) => setDraft({ ...draft, description })}
               />
-            </label>
+            )}
+            {'executable' in draft && (
+              <>
+                <SelectField
+                  label={t('config.engineKind')}
+                  value={draft.kind}
+                  onChange={(kind) =>
+                    changeInstallation(draft, { kind: kind as EngineInstallation['kind'] })
+                  }
+                >
+                  {!initialEngineKinds.some((kind) => kind === draft.kind) && (
+                    <option value={draft.kind}>{draft.kind}</option>
+                  )}
+                  <option value="opencode">OpenCode</option>
+                  <option value="pi">Pi</option>
+                  <option value="deepseek-harness">DeepSeek Harness</option>
+                </SelectField>
+                <TextField
+                  label={t('config.executable')}
+                  value={draft.executable}
+                  onChange={(executable) => changeInstallation(draft, { executable })}
+                />
+                <ArgumentField
+                  label={t('config.prefixArgs')}
+                  value={draft.prefixArgs}
+                  onChange={(prefixArgs) => changeInstallation(draft, { prefixArgs })}
+                />
+                <SelectField
+                  label={t('config.platform')}
+                  value={draft.platform}
+                  onChange={(platform) =>
+                    changeInstallation(draft, {
+                      platform: platform as EngineInstallation['platform'],
+                    })
+                  }
+                >
+                  <option value="darwin">macOS</option>
+                  <option value="win32">Windows</option>
+                  <option value="linux">Linux</option>
+                </SelectField>
+                <p className="hint">
+                  {draft.version ?? t('config.unprobed')} · {t('config.probeHint')}
+                </p>
+              </>
+            )}
+            {'protocol' in draft && (
+              <>
+                <SelectField
+                  label={t('config.protocol')}
+                  value={draft.protocol ?? ''}
+                  onChange={(protocol) =>
+                    setDraft({
+                      ...draft,
+                      protocol: protocol ? modelProtocolSchema.parse(protocol) : null,
+                    })
+                  }
+                >
+                  <option value="">{t('config.choose')}</option>
+                  {modelProtocolSchema.options.map((protocol) => (
+                    <option key={protocol} value={protocol}>
+                      {protocol}
+                    </option>
+                  ))}
+                </SelectField>
+                <TextField
+                  label="API Base URL"
+                  value={draft.baseUrl}
+                  placeholder="https://api.example.com/v1"
+                  onChange={(baseUrl) => setDraft({ ...draft, baseUrl })}
+                />
+                <SelectField
+                  label={t('config.auth')}
+                  value={draft.auth.kind}
+                  onChange={(kind) => {
+                    const auth: ModelConnection['auth'] =
+                      kind === 'api-key'
+                        ? { kind, header: 'x-api-key', secret: null }
+                        : kind === 'bearer'
+                          ? { kind, secret: null }
+                          : kind === 'cloud-identity'
+                            ? { kind, provider: 'aws' }
+                            : { kind: kind as 'none' | 'unconfigured' | 'engine-login' }
+                    setDraft({ ...draft, auth })
+                  }}
+                >
+                  {(
+                    [
+                      'unconfigured',
+                      'none',
+                      'api-key',
+                      'bearer',
+                      'engine-login',
+                      'cloud-identity',
+                    ] as const
+                  ).map((kind) => (
+                    <option key={kind} value={kind}>
+                      {t(`config.auth.${kind}`)}
+                    </option>
+                  ))}
+                </SelectField>
+                {draft.auth.kind === 'api-key' && (
+                  <TextField
+                    label={t('config.header')}
+                    value={draft.auth.header}
+                    onChange={(header) => {
+                      if (draft.auth.kind === 'api-key')
+                        setDraft({ ...draft, auth: { ...draft.auth, header } })
+                    }}
+                  />
+                )}
+                {(draft.auth.kind === 'api-key' || draft.auth.kind === 'bearer') && (
+                  <SecretField
+                    value={draft.auth.secret}
+                    credentials={credentials}
+                    onChange={(secret) => {
+                      if (draft.auth.kind === 'api-key' || draft.auth.kind === 'bearer')
+                        setDraft({ ...draft, auth: { ...draft.auth, secret } })
+                    }}
+                  />
+                )}
+                {draft.auth.kind === 'cloud-identity' && (
+                  <>
+                    <SelectField
+                      label={t('config.cloudProvider')}
+                      value={draft.auth.provider}
+                      onChange={(provider) => {
+                        if (draft.auth.kind === 'cloud-identity')
+                          setDraft({
+                            ...draft,
+                            auth: {
+                              ...draft.auth,
+                              provider: provider as 'aws' | 'google' | 'azure',
+                            },
+                          })
+                      }}
+                    >
+                      {['aws', 'google', 'azure'].map((provider) => (
+                        <option key={provider}>{provider}</option>
+                      ))}
+                    </SelectField>
+                    <TextField
+                      label={t('config.cloudProfile')}
+                      value={draft.auth.profile ?? ''}
+                      onChange={(profile) => {
+                        if (draft.auth.kind === 'cloud-identity')
+                          setDraft({
+                            ...draft,
+                            auth: { ...draft.auth, profile: profile || undefined },
+                          })
+                      }}
+                    />
+                  </>
+                )}
+                <details>
+                  <summary>{t('config.advanced')}</summary>
+                  <JsonField
+                    label={t('config.headers')}
+                    value={draft.headers}
+                    onChange={(headers) => setDraft({ ...draft, headers })}
+                  />
+                  <JsonField
+                    label={t('config.secretHeaders')}
+                    value={draft.secretHeaders}
+                    onChange={(secretHeaders) => setDraft({ ...draft, secretHeaders })}
+                  />
+                </details>
+              </>
+            )}
+            {'modelId' in draft && (
+              <>
+                <SelectField
+                  label={t('config.connection')}
+                  value={draft.connectionId ?? ''}
+                  onChange={(connectionId) =>
+                    setDraft({ ...draft, connectionId: connectionId || null })
+                  }
+                >
+                  <option value="">{t('config.choose')}</option>
+                  {workspace.connections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <TextField
+                  label={t('agentEditor.model')}
+                  value={draft.modelId}
+                  onChange={(modelId) => setDraft({ ...draft, modelId })}
+                />
+                <div className="field-grid">
+                  <NumberField
+                    label="Temperature"
+                    value={draft.parameters.temperature}
+                    min={0}
+                    max={2}
+                    onChange={(temperature) =>
+                      setDraft({ ...draft, parameters: { ...draft.parameters, temperature } })
+                    }
+                  />
+                  <NumberField
+                    label="Top P"
+                    value={draft.parameters.topP}
+                    min={0}
+                    max={1}
+                    onChange={(topP) =>
+                      setDraft({ ...draft, parameters: { ...draft.parameters, topP } })
+                    }
+                  />
+                </div>
+                <TextField
+                  label={t('config.reasoning')}
+                  value={draft.parameters.reasoning ?? ''}
+                  onChange={(reasoning) =>
+                    setDraft({
+                      ...draft,
+                      parameters: { ...draft.parameters, reasoning: reasoning || undefined },
+                    })
+                  }
+                />
+                <p className="hint">{t('config.optionalParameters')}</p>
+              </>
+            )}
+            {'versions' in draft && (
+              <>
+                {'purpose' in draft && (
+                  <SelectField
+                    label={t('config.purpose')}
+                    value={draft.purpose}
+                    onChange={(purpose) =>
+                      setDraft({ ...draft, purpose: purpose as PromptAsset['purpose'] })
+                    }
+                  >
+                    {(
+                      [
+                        'unspecified',
+                        'role',
+                        'project-rule',
+                        'system-template',
+                        'compaction-template',
+                      ] as const
+                    ).map((purpose) => (
+                      <option key={purpose} value={purpose}>
+                        {t(`config.purpose.${purpose}`)}
+                      </option>
+                    ))}
+                  </SelectField>
+                )}
+                {'sourcePath' in draft && (
+                  <TextField
+                    label={t('resourceEditor.source')}
+                    value={draft.sourcePath}
+                    onChange={(sourcePath) => setDraft({ ...draft, sourcePath })}
+                  />
+                )}
+                <SelectField
+                  label={t('resourceEditor.version')}
+                  value={String(draft.currentVersion)}
+                  onChange={(value) => {
+                    const next = { ...draft, currentVersion: Number(value) }
+                    setDraft(next)
+                    setContent(contentOf(next))
+                  }}
+                >
+                  {draft.versions.map((revision) => (
+                    <option key={revision.version} value={revision.version}>
+                      {t('config.revision', { version: revision.version })}
+                    </option>
+                  ))}
+                </SelectField>
+                {draft.versions.find(
+                  (revision) =>
+                    revision.version === draft.currentVersion &&
+                    'kind' in revision &&
+                    revision.kind === 'directory',
+                ) ? (
+                  <p className="hint">{t('config.directoryReadOnly')}</p>
+                ) : (
+                  <TextField
+                    label={t(
+                      'purpose' in draft ? 'config.instructions' : 'resourceEditor.instructions',
+                    )}
+                    value={content}
+                    rows={12}
+                    maxLength={100000}
+                    onChange={setContent}
+                  />
+                )}
+                <p className="hint">{t('config.historyHint')}</p>
+              </>
+            )}
             {'transport' in draft && (
               <>
-                <label className="field">
-                  {t('resourceEditor.transport')}
-                  <select
-                    value={draft.transport}
-                    onChange={(event) => {
-                      const base = {
-                        id: draft.id,
-                        name: draft.name,
-                        description: draft.description,
-                        enabled: draft.enabled,
-                      }
-                      setDraft(
-                        event.target.value === 'stdio'
-                          ? { ...base, transport: 'stdio', command: '', args: [], envRefs: {} }
-                          : { ...base, transport: 'streamable-http', url: '', bearerTokenEnv: '' },
-                      )
-                    }}
-                  >
-                    <option value="stdio">{t('resourceEditor.stdio')}</option>
-                    <option value="streamable-http">{t('resourceEditor.http')}</option>
-                  </select>
-                </label>
+                <SelectField
+                  label={t('resourceEditor.transport')}
+                  value={draft.transport}
+                  onChange={(transport) => {
+                    const base = {
+                      id: draft.id,
+                      name: draft.name,
+                      description: draft.description,
+                      enabled: draft.enabled,
+                      timeoutMs: draft.timeoutMs,
+                    }
+                    setDraft(
+                      transport === 'stdio'
+                        ? {
+                            ...base,
+                            transport,
+                            command: '',
+                            args: [],
+                            cwd: '',
+                            environment: {},
+                            envRefs: {},
+                          }
+                        : {
+                            ...base,
+                            transport: transport as 'streamable-http' | 'legacy-sse',
+                            url: '',
+                            headers: {},
+                            secretHeaders: {},
+                            auth: { kind: 'none' },
+                          },
+                    )
+                  }}
+                >
+                  <option value="stdio">{t('resourceEditor.stdio')}</option>
+                  <option value="streamable-http">{t('resourceEditor.http')}</option>
+                  <option value="legacy-sse">{t('config.mcpSse')}</option>
+                </SelectField>
                 {draft.transport === 'stdio' ? (
                   <>
-                    <label className="field">
-                      {t('resourceEditor.command')}
-                      <input
-                        className="code-input"
-                        value={draft.command}
-                        placeholder={t('resourceEditor.commandPlaceholder')}
-                        onChange={(event) => setDraft({ ...draft, command: event.target.value })}
+                    <TextField
+                      label={t('resourceEditor.command')}
+                      value={draft.command}
+                      onChange={(command) => setDraft({ ...draft, command })}
+                    />
+                    <ArgumentField
+                      label={t('resourceEditor.args')}
+                      value={draft.args}
+                      onChange={(args) => setDraft({ ...draft, args })}
+                    />
+                    <TextField
+                      label={t('config.cwd')}
+                      value={draft.cwd}
+                      onChange={(cwd) => setDraft({ ...draft, cwd })}
+                    />
+                    <details>
+                      <summary>{t('config.advanced')}</summary>
+                      <JsonField
+                        label={t('config.envValues')}
+                        value={draft.environment}
+                        onChange={(environment) => setDraft({ ...draft, environment })}
                       />
-                    </label>
-                    <label className="field">
-                      {t('resourceEditor.args')}{' '}
-                      <span className="optional">{t('resourceEditor.argsHint')}</span>
-                      <textarea
-                        className="code-input"
-                        rows={3}
-                        value={args}
-                        placeholder={'-y\npackage-name'}
-                        onChange={(event) => setArgs(event.target.value)}
+                      <JsonField
+                        label={t('config.envRefs')}
+                        value={draft.envRefs}
+                        onChange={(envRefs) => setDraft({ ...draft, envRefs })}
                       />
-                    </label>
-                    <label className="field">
-                      {t('resourceEditor.env')}{' '}
-                      <span className="optional">{t('resourceEditor.envHint')}</span>
-                      <textarea
-                        className="code-input"
-                        rows={3}
-                        value={env}
-                        onChange={(event) => setEnv(event.target.value)}
-                      />
-                    </label>
-                    <p className="hint">
-                      {t('resourceEditor.envExample', { example: '{"API_TOKEN": "MY_API_TOKEN"}' })}
-                    </p>
+                      <p className="hint">{t('config.secret.hint')}</p>
+                    </details>
                   </>
                 ) : (
                   <>
-                    <label className="field">
-                      {t('resourceEditor.url')}
-                      <input
-                        value={draft.url}
-                        placeholder="https://example.com/mcp"
-                        onChange={(event) => setDraft({ ...draft, url: event.target.value })}
-                      />
-                    </label>
-                    <label className="field">
-                      {t('resourceEditor.token')}{' '}
-                      <span className="optional">{t('common.optional')}</span>
-                      <input
-                        value={draft.bearerTokenEnv}
-                        placeholder="MY_MCP_TOKEN"
-                        onChange={(event) =>
-                          setDraft({ ...draft, bearerTokenEnv: event.target.value })
+                    <TextField
+                      label={t('resourceEditor.url')}
+                      value={draft.url}
+                      onChange={(url) => setDraft({ ...draft, url })}
+                    />
+                    <SelectField
+                      label={t('config.auth')}
+                      value={draft.auth.kind}
+                      onChange={(kind) => {
+                        const auth: Exclude<McpDefinition, { transport: 'stdio' }>['auth'] =
+                          kind === 'bearer'
+                            ? { kind, secret: null }
+                            : kind === 'oauth'
+                              ? { kind, owner: 'engine', scopes: [] }
+                              : { kind: 'none' }
+                        setDraft({ ...draft, auth })
+                      }}
+                    >
+                      {(['none', 'bearer', 'oauth'] as const).map((kind) => (
+                        <option key={kind} value={kind}>
+                          {t(`config.auth.${kind}`)}
+                        </option>
+                      ))}
+                    </SelectField>
+                    {draft.auth.kind === 'bearer' && (
+                      <SecretField
+                        value={draft.auth.secret}
+                        credentials={credentials}
+                        onChange={(secret) =>
+                          setDraft({ ...draft, auth: { kind: 'bearer', secret } })
                         }
                       />
-                    </label>
+                    )}
+                    {draft.auth.kind === 'oauth' && (
+                      <TextField
+                        label={t('config.oauthScopes')}
+                        rows={3}
+                        value={draft.auth.scopes.join('\n')}
+                        onChange={(text) =>
+                          setDraft({
+                            ...draft,
+                            auth: {
+                              kind: 'oauth',
+                              owner: 'engine',
+                              scopes: text.split('\n').filter(Boolean),
+                            },
+                          })
+                        }
+                      />
+                    )}
+                    <details>
+                      <summary>{t('config.advanced')}</summary>
+                      <JsonField
+                        label={t('config.headers')}
+                        value={draft.headers}
+                        onChange={(headers) => setDraft({ ...draft, headers })}
+                      />
+                      <JsonField
+                        label={t('config.secretHeaders')}
+                        value={draft.secretHeaders}
+                        onChange={(secretHeaders) => setDraft({ ...draft, secretHeaders })}
+                      />
+                    </details>
                   </>
                 )}
-                <p className="hint">{t('resourceEditor.runtimeHint')}</p>
+                <NumberField
+                  label={t('config.timeout')}
+                  value={draft.timeoutMs}
+                  min={1000}
+                  max={300000}
+                  step={1}
+                  onChange={(timeoutMs) => setDraft({ ...draft, timeoutMs })}
+                />
               </>
             )}
-            {'instructions' in draft && (
+            {'promptBindings' in draft && (
               <>
-                <label className="field">
-                  {t('resourceEditor.source')}{' '}
-                  <span className="optional">{t('resourceEditor.sourceHint')}</span>
-                  <input
-                    value={draft.sourcePath}
-                    placeholder="/path/to/SKILL.md"
-                    onChange={(event) => setDraft({ ...draft, sourcePath: event.target.value })}
-                  />
-                </label>
-                <div className="field">
-                  <label htmlFor="skill-instructions">{t('resourceEditor.instructions')}</label>
-                  <textarea
-                    id="skill-instructions"
-                    className="code-input"
-                    rows={10}
-                    value={draft.instructions}
-                    placeholder={t('resourceEditor.instructionsPlaceholder')}
-                    onChange={(event) => setDraft({ ...draft, instructions: event.target.value })}
-                  />
-                </div>
-              </>
-            )}
-            {'version' in draft && (
-              <>
-                <label className="field">
-                  {t('resourceEditor.version')}
-                  <input
-                    value={draft.version}
-                    placeholder="1.0.0"
-                    onChange={(event) => setDraft({ ...draft, version: event.target.value })}
-                  />
-                </label>
-                <p className="hint">{t('resourceEditor.pluginHint')}</p>
+                <TextField
+                  label={t('resourceEditor.version')}
+                  value={draft.version}
+                  onChange={(version) => setDraft({ ...draft, version })}
+                />
+                <p className="hint">{t('config.bundleHint')}</p>
+                <AssetBindings
+                  title={t('config.prompts')}
+                  assets={workspace.prompts}
+                  bindings={draft.promptBindings}
+                  onChange={(promptBindings) => setDraft({ ...draft, promptBindings })}
+                  prompts
+                />
                 <ResourcePicker
                   title="MCP Servers"
                   items={workspace.mcpServers}
                   selected={draft.mcpServerIds}
                   onChange={(mcpServerIds) => setDraft({ ...draft, mcpServerIds })}
                 />
-                <ResourcePicker
+                <AssetBindings
                   title="Skills"
-                  items={workspace.skills}
-                  selected={draft.skillIds}
-                  onChange={(skillIds) => setDraft({ ...draft, skillIds })}
+                  assets={workspace.skills}
+                  bindings={draft.skillBindings}
+                  onChange={(skillBindings) => setDraft({ ...draft, skillBindings })}
                 />
               </>
             )}
-            <label className="check-field">
-              <input
-                type="checkbox"
-                checked={draft.enabled}
-                onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
-              />
-              {t('resourceEditor.enable')}
-            </label>
+            {'nativeId' in draft && (
+              <>
+                <SelectField
+                  label={t('config.engine')}
+                  value={draft.engineInstallationId}
+                  onChange={(engineInstallationId) => setDraft({ ...draft, engineInstallationId })}
+                >
+                  <option value="">{t('config.choose')}</option>
+                  {workspace.installations.map((engine) => (
+                    <option key={engine.id} value={engine.id}>
+                      {engine.name}
+                    </option>
+                  ))}
+                </SelectField>
+                <TextField
+                  label={t('config.nativeId')}
+                  value={draft.nativeId}
+                  onChange={(nativeId) => setDraft({ ...draft, nativeId })}
+                />
+                <TextField
+                  label={t('resourceEditor.version')}
+                  value={draft.version}
+                  onChange={(version) => setDraft({ ...draft, version })}
+                />
+                <TextField
+                  label={t('config.source')}
+                  value={draft.source}
+                  onChange={(source) => setDraft({ ...draft, source })}
+                />
+                <TextField
+                  label={t('config.path')}
+                  value={draft.path}
+                  onChange={(path) => setDraft({ ...draft, path })}
+                />
+                <p className="hint">{t('config.nativeHint')}</p>
+              </>
+            )}
+            {'enabled' in draft && (
+              <label className="check-field">
+                <input
+                  type="checkbox"
+                  checked={draft.enabled}
+                  onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
+                />
+                {t('resourceEditor.enable')}
+              </label>
+            )}
           </div>
           {error != null && (
             <p className="form-error" role="alert">
@@ -251,9 +655,9 @@ export function ResourceEditor({
             <button type="button" className="button secondary" onClick={close}>
               {t('common.cancel')}
             </button>
-            <button type="submit" className="button primary">
+            <button className="button primary" type="submit">
               <Save size={16} />
-              {busy ? t('common.saving') : t('common.saveConfig')}
+              {t(busy ? 'common.saving' : 'common.saveConfig')}
             </button>
           </div>
         </fieldset>

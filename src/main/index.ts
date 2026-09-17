@@ -4,7 +4,7 @@ import { app, BrowserWindow, ipcMain, session, type IpcMainInvokeEvent } from 'e
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { channels, type AppInfo } from '../shared/api'
-import { WorkspaceStore } from './workspace-store'
+import { EngineWorkspaceStore } from './engine-workspace-store'
 import { CredentialVault } from './credentials/vault'
 import { electronCipher } from './credentials/electron-cipher'
 
@@ -67,7 +67,7 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   void app.whenReady().then(() => {
-    const store = new WorkspaceStore(
+    const store = new EngineWorkspaceStore(
       join(app.getPath('userData'), 'workspace.json'),
       resolveLocale([app.getLocale()]),
     )

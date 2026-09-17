@@ -977,6 +977,64 @@ fieldset {
   grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
+.asset-binding {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+.asset-binding .selection-row {
+  border-bottom: 0;
+}
+.binding-fields {
+  padding: 0 12px 12px 34px;
+}
+.binding-fields .field {
+  margin-bottom: 12px;
+}
+.binding-order {
+  display: flex;
+  gap: 8px;
+}
+.secret-reference {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+.modal-body details {
+  margin: 12px 0 20px;
+}
+.modal-body summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.diagnostic-list {
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.diagnostic-list li {
+  margin: 12px 0;
+}
+.diagnostic-list code {
+  display: block;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.configuration-preview dl,
+.configuration-preview ul {
+  font-size: 12px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.configuration-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f5f8f4;
+  padding: 12px;
+  font-size: 12px;
+}
 .optional {
   font-size: 10px;
   color: #9ba593;

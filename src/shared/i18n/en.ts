@@ -1,4 +1,7 @@
+import { configurationEn } from './configuration-en'
+
 export const en = {
+  ...configurationEn,
   'nav.agents': 'My Agents',
   'nav.mcpServers': 'MCP Servers',
   'nav.skills': 'Skills',

@@ -1,7 +1,3 @@
-import { useI18n } from './i18n'
-import { LanguageSelect } from './components/LanguageSelect'
-import { CredentialPanel } from './components/CredentialPanel'
-import { appError } from '../../shared/errors'
 import { useEffect, useRef, useState } from 'react'
 import {
   ArrowRight,
@@ -9,8 +5,6 @@ import {
   Boxes,
   Check,
   ChevronRight,
-  CircleHelp,
-  Code2,
   Command,
   FileText,
   FolderOpen,
@@ -23,75 +17,60 @@ import {
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Trash2,
   type LucideIcon,
 } from 'lucide-react'
 import type { AppInfo } from '../../shared/api'
+import { appError, formatError } from '../../shared/errors'
 import {
-  createAgent,
-  createResource,
-  formatError,
-  removeResource,
-  resolveResources,
-  workspaceSchema,
-  type Agent,
-  type Resource,
-  type ResourceKind,
-  type Workspace,
-} from '../../shared/workspace'
+  collectionLabels,
+  libraryEntryLabels,
+  profileResourceCounts,
+  createLibraryEntry,
+  createProfile,
+  removeConfiguration,
+  upsertConfiguration,
+  type Collection,
+  type ConfigurationEntry,
+  type LibraryCollection,
+  type LibraryEntry,
+} from '../../shared/engines/editing'
+import { engineWorkspaceSchema, type EngineWorkspace } from '../../shared/engines/workspace'
+import type { AgentProfile } from '../../shared/engines/schema'
+import { useI18n } from './i18n'
 import { api } from './lib/api'
 import { AgentEditor } from './components/AgentEditor'
-import { ResourceEditor, resourceLabels } from './components/ResourceEditor'
+import { ResourceEditor } from './components/ResourceEditor'
+import { LanguageSelect } from './components/LanguageSelect'
+import { CredentialPanel } from './components/CredentialPanel'
 
-type Page = 'agents' | ResourceKind | 'settings'
 type Editor =
-  | { type: 'agent'; value: Agent; isNew: boolean }
-  | { type: 'resource'; kind: ResourceKind; value: Resource }
+  | { kind: 'agents'; value: AgentProfile; isNew: boolean }
+  | { kind: LibraryCollection; value: LibraryEntry }
+const icons: Record<Collection, LucideIcon> = {
+  agents: Bot,
+  installations: Command,
+  connections: SlidersHorizontal,
+  models: Layers3,
+  prompts: FileText,
+  mcpServers: Server,
+  skills: FileText,
+  bundles: Boxes,
+  nativePlugins: Puzzle,
+}
+const collections = Object.keys(collectionLabels) as Collection[]
 
 export function App() {
   const { t, locale, number } = useI18n()
-  const navigation: { page: Page; label: string; icon: LucideIcon }[] = [
-    { page: 'agents', label: t('nav.agents'), icon: Bot },
-    { page: 'mcpServers', label: 'MCP Servers', icon: Server },
-    { page: 'skills', label: 'Skills', icon: FileText },
-    { page: 'plugins', label: t('nav.plugins'), icon: Puzzle },
-  ]
-
-  const resourceCopy = {
-    mcpServers: {
-      title: t('mcp.title'),
-      description: t('mcp.description'),
-      icon: Server,
-      empty: t('mcp.empty'),
-      detail: t('mcp.detail'),
-    },
-    skills: {
-      title: t('skills.title'),
-      description: t('skills.description'),
-      icon: FileText,
-      empty: t('skills.empty'),
-      detail: t('skills.detail'),
-    },
-    plugins: {
-      title: t('plugins.title'),
-      description: t('plugins.description'),
-      icon: Puzzle,
-      empty: t('plugins.empty'),
-      detail: t('plugins.detail'),
-    },
-  }
-
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [workspace, setWorkspace] = useState<EngineWorkspace | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
-  const [page, setPage] = useState<Page>('agents')
+  const [page, setPage] = useState<Collection | 'settings'>('agents')
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<Editor | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState(false)
   const [saving, setSaving] = useState(false)
   const saveLock = useRef(false)
-
   async function load() {
     setError(null)
     try {
@@ -107,16 +86,15 @@ export function App() {
   }, [])
   useEffect(() => {
     if (!notice) return
-    const timeout = window.setTimeout(() => setNotice(false), 3000)
-    return () => window.clearTimeout(timeout)
+    const handle = window.setTimeout(() => setNotice(false), 3000)
+    return () => window.clearTimeout(handle)
   }, [notice])
-
-  async function save(next: Workspace) {
+  async function save(next: EngineWorkspace) {
     if (saveLock.current) throw appError('error.saving')
     saveLock.current = true
     setSaving(true)
     try {
-      const saved = await api.saveWorkspace(workspaceSchema.parse(next))
+      const saved = await api.saveWorkspace(engineWorkspaceSchema.parse(next))
       setWorkspace(saved)
       setError(null)
       setNotice(true)
@@ -125,47 +103,58 @@ export function App() {
       setSaving(false)
     }
   }
-  async function action(next: Workspace) {
+  async function action(next: EngineWorkspace) {
     try {
       await save(next)
     } catch (failure) {
       setError(failure)
     }
   }
-  function navigate(next: Page) {
+  function navigate(next: Collection | 'settings') {
     setPage(next)
     setQuery('')
   }
-  function newAgent() {
-    setEditor({ type: 'agent', value: createAgent(crypto.randomUUID(), locale), isNew: true })
-  }
-  function newResource(kind: ResourceKind) {
-    setEditor({ type: 'resource', kind, value: createResource(kind, crypto.randomUUID()) })
-  }
-  function deleteAgent(agent: Agent) {
-    if (workspace && window.confirm(t('agents.deleteConfirm', { name: agent.name }))) {
-      void action({
-        ...workspace,
-        agents: workspace.agents.filter((entry) => entry.id !== agent.id),
+  function add(kind: Collection) {
+    if (kind === 'agents')
+      setEditor({ kind, value: createProfile(crypto.randomUUID(), locale), isNew: true })
+    else
+      setEditor({
+        kind,
+        value: createLibraryEntry(kind, crypto.randomUUID(), info?.platform ?? 'browser'),
       })
-    }
   }
-  function deleteResource(kind: ResourceKind, resource: Resource) {
-    if (workspace && window.confirm(t('resources.deleteConfirm', { name: resource.name }))) {
-      void action(removeResource(workspace, kind, resource.id))
-    }
+  function remove(kind: Collection, value: ConfigurationEntry) {
+    if (
+      workspace &&
+      window.confirm(
+        t(kind === 'agents' ? 'agents.deleteConfirm' : 'config.deleteConfirm', {
+          name: value.name,
+        }),
+      )
+    )
+      void action(removeConfiguration(workspace, kind, value.id))
   }
-  const matches = (entry: { name: string; description: string }) =>
-    `${entry.name} ${entry.description}`.toLowerCase().includes(query.toLowerCase())
-  const currentLabel =
-    page === 'settings' ? t('nav.settings') : navigation.find((item) => item.page === page)?.label
+  const matches = (value: ConfigurationEntry) =>
+    `${value.name} ${'description' in value ? value.description : ''}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  const label = page === 'settings' ? t('nav.settings') : t(collectionLabels[page])
+  function summary(entry: LibraryEntry): string {
+    if ('executable' in entry) return `${entry.kind} · ${entry.version ?? t('config.unprobed')}`
+    if ('protocol' in entry) return `${entry.protocol ?? t('config.choose')} · ${entry.baseUrl}`
+    if ('modelId' in entry) return entry.modelId || t('agents.modelEmpty')
+    if ('versions' in entry) return t('config.revision', { version: entry.currentVersion })
+    if ('transport' in entry) return entry.transport === 'stdio' ? entry.command : entry.url
+    if ('nativeId' in entry) return `${entry.nativeId} · ${entry.version}`
+    return `v${entry.version} · ${entry.mcpServerIds.length} MCP · ${entry.skillBindings.length} Skills`
+  }
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-symbol">
-            <Boxes size={25} strokeWidth={1.8} />
+            <Boxes size={25} />
           </div>
           <span>
             Agent<span className="brand-light">Matrix</span>
@@ -182,26 +171,22 @@ export function App() {
         </div>
         <span className="nav-caption">{t('workspace.title')}</span>
         <nav aria-label={t('nav.main')}>
-          {navigation.map(({ page: target, label, icon: Icon }) => (
-            <button
-              key={target}
-              className={`nav-item ${page === target ? 'active' : ''}`}
-              onClick={() => navigate(target)}
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-              {workspace && <small>{workspace[target as ResourceKind | 'agents'].length}</small>}
-            </button>
-          ))}
+          {collections.map((kind) => {
+            const Icon = icons[kind]
+            return (
+              <button
+                key={kind}
+                className={`nav-item ${page === kind ? 'active' : ''}`}
+                onClick={() => navigate(kind)}
+                title={t(collectionLabels[kind])}
+              >
+                <Icon size={19} />
+                <span>{t(collectionLabels[kind])}</span>
+                {workspace && <small>{number(workspace[kind].length)}</small>}
+              </button>
+            )
+          })}
         </nav>
-        <div className="sidebar-note">
-          <Layers3 size={20} />
-          <strong>{t('sidebar.title')}</strong>
-          <p>{t('sidebar.description')}</p>
-          <button onClick={() => navigate('plugins')}>
-            {t('sidebar.plugins')} <ArrowRight size={14} />
-          </button>
-        </div>
         <div className="sidebar-bottom">
           <button
             className={`nav-item ${page === 'settings' ? 'active' : ''}`}
@@ -210,19 +195,19 @@ export function App() {
             <Settings2 size={19} />
             <span>{t('nav.settings')}</span>
           </button>
-          <div className="local-status">
-            <ShieldCheck size={15} />
-            <span>{info?.storage === 'browser' ? t('storage.browser') : t('storage.desktop')}</span>
-          </div>
+          <span className="local-status">
+            <ShieldCheck size={13} />
+            {t(info?.storage === 'browser' ? 'storage.browser' : 'storage.desktop')}
+          </span>
         </div>
       </aside>
       <div className="main-shell">
         <header className="topbar">
           <div className="breadcrumb">
             <FolderOpen size={16} />
-            <span>{t('workspace.title')}</span>
+            <span>AgentMatrix</span>
             <ChevronRight size={14} />
-            <strong>{currentLabel}</strong>
+            <strong>{label}</strong>
           </div>
           <div className="topbar-right">
             <LanguageSelect />
@@ -239,79 +224,75 @@ export function App() {
           )}
           {!workspace ? (
             <div className="loading">
-              {error ? <CircleHelp size={28} /> : <LoaderCircle className="spin" size={28} />}
-              <p>{error ? t('common.loadFailed') : t('common.loading')}</p>
+              <LoaderCircle className="spin" size={28} />
+              <p>{t(error ? 'common.loadFailed' : 'common.loading')}</p>
             </div>
           ) : (
             <>
+              <div className="page-heading">
+                <div>
+                  <div className="eyebrow">
+                    <span />
+                    {t(
+                      page === 'agents'
+                        ? 'agents.eyebrow'
+                        : page === 'settings'
+                          ? 'settings.eyebrow'
+                          : 'resources.eyebrow',
+                    )}
+                  </div>
+                  <h1>{label}</h1>
+                  <p>
+                    {t(
+                      page === 'agents'
+                        ? 'agents.description'
+                        : page === 'settings'
+                          ? 'settings.description'
+                          : 'config.libraryHint',
+                    )}
+                  </p>
+                </div>
+                {page !== 'settings' && (
+                  <button className="button primary" onClick={() => add(page)} disabled={saving}>
+                    <Plus size={18} />
+                    {page === 'agents'
+                      ? t('agents.create')
+                      : t('resources.add', { resource: t(libraryEntryLabels[page]) })}
+                  </button>
+                )}
+              </div>
+              {page !== 'settings' && (
+                <div className="list-toolbar">
+                  <h2>
+                    {label} <span>{number(workspace[page].length)}</span>
+                  </h2>
+                  <label className="search">
+                    <Search size={16} />
+                    <input
+                      aria-label={t('resources.search')}
+                      placeholder={t('resources.search')}
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                    />
+                  </label>
+                </div>
+              )}
               {page === 'agents' && (
                 <>
-                  <div className="page-heading">
-                    <div>
-                      <div className="eyebrow">
-                        <span />
-                        {t('agents.eyebrow')}
-                      </div>
-                      <h1>
-                        {t('agents.title')}
-                        <span className="accent">。</span>
-                      </h1>
-                      <p>{t('agents.description')}</p>
-                    </div>
-                    <button className="button primary" onClick={newAgent} disabled={saving}>
-                      <Plus size={18} />
-                      {t('agents.create')}
-                    </button>
-                  </div>
-                  <div className="stats-grid">
-                    <Stat
-                      label="Agents"
-                      value={workspace.agents.length}
-                      icon={Bot}
-                      detail={t('agents.enabledCount', {
-                        count: number(workspace.agents.filter((agent) => agent.enabled).length),
-                      })}
-                    />
-                    <Stat
-                      label="MCP Servers"
-                      value={workspace.mcpServers.length}
-                      icon={Server}
-                      detail={t('stats.mcp')}
-                    />
-                    <Stat
-                      label="Skills"
-                      value={workspace.skills.length}
-                      icon={FileText}
-                      detail={t('stats.skills')}
-                    />
-                    <Stat
-                      label={t('nav.plugins')}
-                      value={workspace.plugins.length}
-                      icon={Puzzle}
-                      detail={t('stats.plugins')}
-                    />
-                  </div>
-                  <div className="list-toolbar">
-                    <div>
-                      <h2>
-                        {t('nav.agents')} <span>{workspace.agents.length}</span>
-                      </h2>
-                      <p>{t('agents.listHint')}</p>
-                    </div>
-                    <SearchInput
-                      value={query}
-                      onChange={setQuery}
-                      placeholder={t('agents.search')}
-                    />
-                  </div>
                   <div className="card-grid">
                     {workspace.agents.filter(matches).map((agent, index) => {
-                      const resources = resolveResources(workspace, agent)
+                      const resources = profileResourceCounts(workspace, agent)
+                      const engine = workspace.installations.find(
+                        (item) => item.id === agent.engineInstallationId,
+                      )
+                      const model = workspace.models.find(
+                        (item) => item.id === agent.modelProfileId,
+                      )
                       return (
                         <article className="agent-card" key={agent.id}>
                           <div className="card-top">
                             <div className={`agent-icon tone-${index % 3}`}>
-                              <Bot size={26} strokeWidth={1.7} />
+                              <Bot size={26} />
                             </div>
                             <button
                               className={`status-pill ${agent.enabled ? 'enabled' : ''}`}
@@ -321,18 +302,16 @@ export function App() {
                               )}
                               disabled={saving}
                               onClick={() =>
-                                void action({
-                                  ...workspace,
-                                  agents: workspace.agents.map((entry) =>
-                                    entry.id === agent.id
-                                      ? { ...entry, enabled: !entry.enabled }
-                                      : entry,
-                                  ),
-                                })
+                                void action(
+                                  upsertConfiguration(workspace, 'agents', {
+                                    ...agent,
+                                    enabled: !agent.enabled,
+                                  }),
+                                )
                               }
                             >
                               <span />
-                              {agent.enabled ? t('common.enabled') : t('common.disabled')}
+                              {t(agent.enabled ? 'common.enabled' : 'common.disabled')}
                             </button>
                           </div>
                           <h3>{agent.name}</h3>
@@ -341,30 +320,28 @@ export function App() {
                           </p>
                           <div className="model-label">
                             <Command size={13} />
-                            <span>{agent.model || t('agents.modelEmpty')}</span>
+                            <span>{engine?.name ?? t('resolution.engine-required')}</span>
+                          </div>
+                          <div className="model-label">
+                            <Layers3 size={13} />
+                            <span>{model?.modelId || t('agents.modelEmpty')}</span>
                           </div>
                           <div className="capability-row">
+                            <span>{resources.prompts} Prompt</span>
+                            <span>{resources.skills} Skills</span>
+                            <span>{resources.mcp} MCP</span>
                             <span>
-                              <Server size={13} />
-                              {resources.mcpServers.length} MCP
-                            </span>
-                            <span>
-                              <FileText size={13} />
-                              {resources.skills.length} Skills
-                            </span>
-                            <span>
-                              <Puzzle size={13} />
-                              {t('agents.pluginCount', { count: number(resources.plugins.length) })}
+                              {resources.bundles} {t('config.bundles')}
                             </span>
                           </div>
                           <div className="card-footer">
                             <button
                               className="text-button"
                               aria-label={t('common.editNamed', { name: agent.name })}
-                              onClick={() =>
-                                setEditor({ type: 'agent', value: agent, isNew: false })
-                              }
                               disabled={saving}
+                              onClick={() =>
+                                setEditor({ kind: 'agents', value: agent, isNew: false })
+                              }
                             >
                               <SlidersHorizontal size={15} />
                               {t('agents.configure')}
@@ -373,8 +350,8 @@ export function App() {
                             <button
                               className="icon-button danger-hover"
                               aria-label={t('common.deleteNamed', { name: agent.name })}
-                              onClick={() => deleteAgent(agent)}
                               disabled={saving}
+                              onClick={() => remove('agents', agent)}
                             >
                               <Trash2 size={15} />
                             </button>
@@ -383,152 +360,80 @@ export function App() {
                       )
                     })}
                     {!query && (
-                      <button className="create-card" onClick={newAgent} disabled={saving}>
+                      <button
+                        className="create-card"
+                        onClick={() => add('agents')}
+                        disabled={saving}
+                      >
                         <span className="create-plus">
                           <Plus size={25} />
                         </span>
                         <strong>{t('agents.newIdea')}</strong>
                         <span>{t('agents.newHint')}</span>
                         <span className="create-link">
-                          {t('agents.create')} <ArrowRight size={15} />
+                          {t('agents.create')}
+                          <ArrowRight size={15} />
                         </span>
                       </button>
                     )}
                   </div>
-                  {query && !workspace.agents.some(matches) && (
-                    <p className="no-results">{t('agents.noResults')}</p>
-                  )}
-                  <div className="getting-started">
-                    <div className="guide-icon">
-                      <Sparkles size={22} />
-                    </div>
-                    <div>
-                      <strong>{t('agents.guideTitle')}</strong>
-                      <p>{t('agents.guideBody')}</p>
-                    </div>
-                    <button className="text-button" onClick={() => navigate('skills')}>
-                      {t('agents.manageSkills')} <ArrowRight size={16} />
-                    </button>
-                  </div>
                   <p className="runtime-note">{t('agents.runtimeNote')}</p>
                 </>
               )}
-              {page !== 'agents' &&
-                page !== 'settings' &&
-                (() => {
-                  const copy = resourceCopy[page]
-                  const Icon = copy.icon
-                  const entries = workspace[page].filter(matches)
-                  return (
-                    <>
-                      <div className="page-heading">
-                        <div>
-                          <div className="eyebrow">
-                            <span />
-                            {t('resources.eyebrow')}
-                          </div>
-                          <h1>{copy.title}</h1>
-                          <p>{copy.description}</p>
+              {page !== 'agents' && page !== 'settings' && (
+                <div className="resource-list">
+                  {workspace[page].filter(matches).map((entry) => {
+                    const Icon = icons[page]
+                    return (
+                      <article className="resource-card" key={entry.id}>
+                        <div className="resource-icon">
+                          <Icon size={23} />
+                        </div>
+                        <div className="resource-summary">
+                          <h3>
+                            {entry.name}
+                            {'enabled' in entry && (
+                              <span className={`tag ${entry.enabled ? 'green' : ''}`}>
+                                {t(entry.enabled ? 'common.enabled' : 'common.disabled')}
+                              </span>
+                            )}
+                          </h3>
+                          {'description' in entry && (
+                            <p>{entry.description || t('common.noDescription')}</p>
+                          )}
+                          <code>{summary(entry)}</code>
                         </div>
                         <button
-                          className="button primary"
-                          onClick={() => newResource(page)}
+                          className="button secondary"
+                          aria-label={t('common.editNamed', { name: entry.name })}
                           disabled={saving}
+                          onClick={() => setEditor({ kind: page, value: entry })}
                         >
-                          <Plus size={18} />
-                          {t('resources.add', { resource: t(resourceLabels[page]) })}
+                          {t('common.configure')}
                         </button>
-                      </div>
-                      <div className="list-toolbar">
-                        <h2>
-                          {currentLabel} <span>{workspace[page].length}</span>
-                        </h2>
-                        <SearchInput
-                          value={query}
-                          onChange={setQuery}
-                          placeholder={t('resources.search')}
-                        />
-                      </div>
-                      {entries.length ? (
-                        <div className="resource-list">
-                          {entries.map((resource) => (
-                            <article className="resource-card" key={resource.id}>
-                              <div className="resource-icon">
-                                <Icon size={23} />
-                              </div>
-                              <div className="resource-summary">
-                                <h3>
-                                  {resource.name}
-                                  <span className={`tag ${resource.enabled ? 'green' : ''}`}>
-                                    {resource.enabled ? t('common.enabled') : t('common.disabled')}
-                                  </span>
-                                </h3>
-                                <p>{resource.description || t('common.noDescription')}</p>
-                                <code>
-                                  {'transport' in resource
-                                    ? resource.transport === 'stdio'
-                                      ? resource.command
-                                      : resource.url
-                                    : 'version' in resource
-                                      ? t('resources.summary', {
-                                          version: resource.version,
-                                          mcp: number(resource.mcpServerIds.length),
-                                          skills: number(resource.skillIds.length),
-                                        })
-                                      : resource.sourcePath || t('resources.inline')}
-                                </code>
-                              </div>
-                              <button
-                                className="button secondary"
-                                aria-label={t('common.editNamed', { name: resource.name })}
-                                onClick={() =>
-                                  setEditor({ type: 'resource', kind: page, value: resource })
-                                }
-                                disabled={saving}
-                              >
-                                {t('common.configure')}
-                              </button>
-                              <button
-                                className="icon-button danger-hover"
-                                aria-label={t('common.deleteNamed', { name: resource.name })}
-                                onClick={() => deleteResource(page, resource)}
-                                disabled={saving}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="empty-state">
-                          <div className="empty-icon">
-                            <Icon size={34} strokeWidth={1.5} />
-                          </div>
-                          <h2>{query ? t('resources.noResults') : copy.empty}</h2>
-                          <p>{query ? t('resources.trySearch') : copy.detail}</p>
-                          {!query && (
-                            <button className="button secondary" onClick={() => newResource(page)}>
-                              <Plus size={16} />
-                              {t('resources.add', { resource: t(resourceLabels[page]) })}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
+                        <button
+                          className="icon-button danger-hover"
+                          aria-label={t('common.deleteNamed', { name: entry.name })}
+                          disabled={saving}
+                          onClick={() => remove(page, entry)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </article>
+                    )
+                  })}
+                  {!workspace[page].some(matches) && (
+                    <div className="empty-state">
+                      <h2>
+                        {query ? t('resources.noResults') : t('config.empty', { resource: label })}
+                      </h2>
+                      <p>{t('config.libraryHint')}</p>
+                    </div>
+                  )}
+                </div>
+              )}
               {page === 'settings' && (
                 <>
-                  <div className="page-heading">
-                    <div>
-                      <div className="eyebrow">
-                        <span />
-                        {t('settings.eyebrow')}
-                      </div>
-                      <h1>{t('settings.title')}</h1>
-                      <p>{t('settings.description')}</p>
-                    </div>
-                  </div>
                   <section className="settings-panel language-settings">
                     <h2>{t('settings.language')}</h2>
                     <LanguageSelect />
@@ -549,9 +454,7 @@ export function App() {
                         <dt>{t('settings.environment')}</dt>
                         <dd>
                           {info?.platform} ·{' '}
-                          {info?.storage === 'browser'
-                            ? t('settings.browser')
-                            : t('settings.desktop')}
+                          {t(info?.storage === 'browser' ? 'settings.browser' : 'settings.desktop')}
                         </dd>
                       </div>
                       <div>
@@ -576,36 +479,6 @@ export function App() {
                     </dl>
                     <p className="hint">{t('settings.storageHint')}</p>
                   </section>
-                  <section className="settings-panel">
-                    <h2>
-                      <Code2 size={20} />
-                      {t('settings.roadmap')}
-                    </h2>
-                    <div className="roadmap-row">
-                      <Check size={18} />
-                      <div>
-                        <strong>{t('settings.configTitle')}</strong>
-                        <p>{t('settings.configBody')}</p>
-                      </div>
-                      <span className="tag green">{t('settings.supported')}</span>
-                    </div>
-                    <div className="roadmap-row pending">
-                      <Layers3 size={18} />
-                      <div>
-                        <strong>{t('settings.runtimeTitle')}</strong>
-                        <p>{t('settings.runtimeBody')}</p>
-                      </div>
-                      <span className="tag">{t('settings.planned')}</span>
-                    </div>
-                    <div className="roadmap-row pending">
-                      <Puzzle size={18} />
-                      <div>
-                        <strong>{t('settings.pluginsTitle')}</strong>
-                        <p>{t('settings.pluginsBody')}</p>
-                      </div>
-                      <span className="tag">{t('settings.planned')}</span>
-                    </div>
-                  </section>
                 </>
               )}
             </>
@@ -618,7 +491,7 @@ export function App() {
           {t('common.saved')}
         </div>
       )}
-      {workspace && editor?.type === 'agent' && (
+      {workspace && editor?.kind === 'agents' && (
         <AgentEditor
           agent={editor.value}
           workspace={workspace}
@@ -626,78 +499,24 @@ export function App() {
           busy={saving}
           onClose={() => setEditor(null)}
           onSave={async (agent) => {
-            await save({
-              ...workspace,
-              agents: editor.isNew
-                ? [...workspace.agents, agent]
-                : workspace.agents.map((entry) => (entry.id === agent.id ? agent : entry)),
-            })
+            await save(upsertConfiguration(workspace, 'agents', agent))
             setEditor(null)
           }}
         />
       )}
-      {workspace && editor?.type === 'resource' && (
+      {workspace && editor && editor.kind !== 'agents' && (
         <ResourceEditor
           resource={editor.value}
           kind={editor.kind}
           workspace={workspace}
           busy={saving}
           onClose={() => setEditor(null)}
-          onSave={async (resource) => {
-            const entries = workspace[editor.kind]
-            const updated = entries.some((entry) => entry.id === resource.id)
-              ? entries.map((entry) => (entry.id === resource.id ? resource : entry))
-              : [...entries, resource]
-            await save({ ...workspace, [editor.kind]: updated })
+          onSave={async (entry) => {
+            await save(upsertConfiguration(workspace, editor.kind, entry))
             setEditor(null)
           }}
         />
       )}
     </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  icon: Icon,
-  detail,
-}: {
-  label: string
-  value: number
-  icon: LucideIcon
-  detail: string
-}) {
-  return (
-    <div className="stat-card">
-      <div className="stat-label">
-        <span>{label}</span>
-        <Icon size={18} />
-      </div>
-      <strong>{String(value).padStart(2, '0')}</strong>
-      <span className="stat-detail">{detail}</span>
-    </div>
-  )
-}
-
-function SearchInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-}) {
-  return (
-    <label className="search">
-      <Search size={16} />
-      <input
-        aria-label={placeholder}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
   )
 }

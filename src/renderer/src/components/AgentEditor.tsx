@@ -1,9 +1,26 @@
-import { useI18n } from '../i18n'
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
-import { agentSchema, formatError, type Agent, type Workspace } from '../../../shared/workspace'
+import { formatError } from '../../../shared/errors'
+import {
+  agentProfileSchema,
+  type AgentProfile,
+  type EngineKind,
+} from '../../../shared/engines/schema'
+import { upsertConfiguration } from '../../../shared/engines/editing'
+import { resolveAgentProfile } from '../../../shared/engines/resolution'
+import type { EngineWorkspace } from '../../../shared/engines/workspace'
+import { useI18n } from '../i18n'
 import { Modal } from './Modal'
+import { AssetBindings } from './AssetBindings'
 import { ResourcePicker } from './ResourcePicker'
+import { NumberField, SelectField, TextField } from './ConfigurationFields'
+
+function defaultOptions(kind: EngineKind | undefined): AgentProfile['engineOptions'] {
+  if (kind === 'opencode') return { kind, agent: 'build' }
+  if (kind === 'pi') return { kind }
+  if (kind === 'deepseek-harness') return { kind, profileTemplate: 'acp', patchReload: 'startup' }
+  return null
+}
 
 export function AgentEditor({
   agent,
@@ -13,18 +30,20 @@ export function AgentEditor({
   onSave,
   onClose,
 }: {
-  agent: Agent
-  workspace: Workspace
+  agent: AgentProfile
+  workspace: EngineWorkspace
   isNew: boolean
   busy: boolean
-  onSave: (agent: Agent) => Promise<void>
+  onSave: (agent: AgentProfile) => Promise<void>
   onClose: () => void
 }) {
-  const { t, locale, number } = useI18n()
+  const { t, locale } = useI18n()
   const [draft, setDraft] = useState(agent)
-  const [tab, setTab] = useState<'general' | 'prompt' | 'resources'>('general')
+  const [tab, setTab] = useState<'general' | 'bindings' | 'engine' | 'preview'>('general')
   const [error, setError] = useState<unknown>(null)
-  const patch = (changes: Partial<Agent>) => setDraft((current) => ({ ...current, ...changes }))
+  const options = useRef<Partial<Record<EngineKind, AgentProfile['engineOptions']>>>({})
+  const patch = (changes: Partial<AgentProfile>) =>
+    setDraft((current) => ({ ...current, ...changes }))
   const close = () => {
     if (JSON.stringify(draft) === JSON.stringify(agent) || window.confirm(t('common.unsaved')))
       onClose()
@@ -33,7 +52,7 @@ export function AgentEditor({
     event.preventDefault()
     setError(null)
     try {
-      await onSave(agentSchema.parse(draft))
+      await onSave(agentProfileSchema.parse(draft))
     } catch (failure) {
       setError(failure)
     }
@@ -41,7 +60,7 @@ export function AgentEditor({
 
   return (
     <Modal
-      title={isNew ? t('agents.create') : t('agents.edit')}
+      title={t(isNew ? 'agents.create' : 'agents.edit')}
       subtitle={t('agentEditor.subtitle')}
       onClose={close}
       busy={busy}
@@ -51,9 +70,10 @@ export function AgentEditor({
           <div className="tabs" role="tablist" aria-label={t('agentEditor.tabs')}>
             {(
               [
-                ['general', t('agentEditor.general')],
-                ['prompt', 'System Prompt'],
-                ['resources', t('agentEditor.resources')],
+                ['general', 'agentEditor.general'],
+                ['bindings', 'config.bindings'],
+                ['engine', 'config.engineSettings'],
+                ['preview', 'config.preview'],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -66,7 +86,7 @@ export function AgentEditor({
                 className={tab === key ? 'active' : ''}
                 onClick={() => setTab(key)}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -78,68 +98,85 @@ export function AgentEditor({
           >
             {tab === 'general' && (
               <>
-                <label className="field">
-                  {t('common.name')}
-                  <input
-                    autoFocus
-                    value={draft.name}
-                    maxLength={80}
-                    onChange={(event) => patch({ name: event.target.value })}
-                  />
-                </label>
-                <div className="field">
-                  <label htmlFor="agent-description">{t('common.description')}</label>
-                  <textarea
-                    id="agent-description"
-                    rows={2}
-                    value={draft.description}
-                    maxLength={500}
-                    placeholder={t('agentEditor.descriptionPlaceholder')}
-                    onChange={(event) => patch({ description: event.target.value })}
-                  />
-                </div>
-                <div className="field-grid">
-                  <label className="field">
-                    {t('agentEditor.provider')}
-                    <select
-                      value={draft.provider}
-                      onChange={(event) =>
-                        patch({ provider: event.target.value as Agent['provider'] })
-                      }
-                    >
-                      <option value="openai-compatible">OpenAI Compatible</option>
-                      <option value="anthropic">Anthropic</option>
-                      <option value="ollama">{t('agentEditor.localModel')}</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    {t('agentEditor.model')}
-                    <input
-                      value={draft.model}
-                      placeholder={t('agentEditor.modelPlaceholder')}
-                      onChange={(event) => patch({ model: event.target.value })}
-                    />
-                  </label>
-                </div>
-                <label className="field">
-                  API Base URL <span className="optional">{t('common.optional')}</span>
-                  <input
-                    value={draft.baseUrl}
-                    placeholder="https://api.example.com/v1"
-                    onChange={(event) => patch({ baseUrl: event.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  Temperature <span className="optional">{t('agentEditor.temperatureHint')}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="2"
-                    step="0.1"
-                    value={draft.temperature}
-                    onChange={(event) => patch({ temperature: event.target.valueAsNumber })}
-                  />
-                </label>
+                <TextField
+                  label={t('common.name')}
+                  value={draft.name}
+                  maxLength={80}
+                  onChange={(name) => patch({ name })}
+                />
+                <TextField
+                  label={t('common.description')}
+                  value={draft.description}
+                  rows={2}
+                  maxLength={500}
+                  onChange={(description) => patch({ description })}
+                />
+                <SelectField
+                  label={t('config.engine')}
+                  value={draft.engineInstallationId ?? ''}
+                  onChange={(id) => {
+                    if (draft.engineOptions)
+                      options.current[draft.engineOptions.kind] = draft.engineOptions
+                    const kind = workspace.installations.find(
+                      (installation) => installation.id === id,
+                    )?.kind
+                    patch({
+                      engineInstallationId: id || null,
+                      engineOptions: kind ? (options.current[kind] ?? defaultOptions(kind)) : null,
+                    })
+                  }}
+                >
+                  <option value="">{t('config.choose')}</option>
+                  {workspace.installations.map((installation) => (
+                    <option key={installation.id} value={installation.id}>
+                      {installation.name} · {installation.kind}
+                    </option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label={t('config.model')}
+                  value={draft.modelProfileId ?? ''}
+                  onChange={(modelProfileId) => patch({ modelProfileId: modelProfileId || null })}
+                >
+                  <option value="">{t('config.choose')}</option>
+                  {workspace.models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} · {model.modelId || t('agents.modelEmpty')}
+                    </option>
+                  ))}
+                </SelectField>
+                <TextField
+                  label={t('config.cwd')}
+                  value={draft.execution.cwd}
+                  onChange={(cwd) => patch({ execution: { ...draft.execution, cwd } })}
+                />
+                <SelectField
+                  label={t('config.approval')}
+                  value={draft.execution.approval}
+                  onChange={(approval) =>
+                    patch({
+                      execution: {
+                        ...draft.execution,
+                        approval: approval as AgentProfile['execution']['approval'],
+                      },
+                    })
+                  }
+                >
+                  {(['ask', 'deny', 'unrestricted'] as const).map((policy) => (
+                    <option key={policy} value={policy}>
+                      {t(`config.approval.${policy}`)}
+                    </option>
+                  ))}
+                </SelectField>
+                <p className="hint">{t('config.policyHint')}</p>
+                <NumberField
+                  label={t('config.timeout')}
+                  value={draft.execution.timeoutMs}
+                  min={1000}
+                  max={86400000}
+                  step={1}
+                  onChange={(timeoutMs) => patch({ execution: { ...draft.execution, timeoutMs } })}
+                />
                 <label className="check-field">
                   <input
                     type="checkbox"
@@ -148,53 +185,94 @@ export function AgentEditor({
                   />
                   {t('agentEditor.enable')}
                 </label>
-                <p className="hint">{t('agentEditor.runtimeHint')}</p>
               </>
             )}
-            {tab === 'prompt' && (
+            {tab === 'bindings' && (
               <>
-                <div className="field">
-                  <label htmlFor="agent-system-prompt">{t('agentEditor.instructions')}</label>
-                  <textarea
-                    id="agent-system-prompt"
-                    className="code-input prompt-input"
-                    rows={15}
-                    value={draft.systemPrompt}
-                    placeholder={t('agentEditor.promptPlaceholder')}
-                    onChange={(event) => patch({ systemPrompt: event.target.value })}
-                  />
-                </div>
-                <div className="field-footer">
-                  <span>{t('agentEditor.promptHint')}</span>
-                  <span>
-                    {t('agentEditor.characters', { count: number(draft.systemPrompt.length) })}
-                  </span>
-                </div>
-              </>
-            )}
-            {tab === 'resources' && (
-              <>
-                <p className="hint">{t('agentEditor.resourcesHint')}</p>
+                <AssetBindings
+                  title={t('config.prompts')}
+                  assets={workspace.prompts}
+                  bindings={draft.promptBindings}
+                  prompts
+                  onChange={(promptBindings) => patch({ promptBindings })}
+                />
                 <ResourcePicker
                   title="MCP Servers"
                   items={workspace.mcpServers}
                   selected={draft.mcpServerIds}
                   onChange={(mcpServerIds) => patch({ mcpServerIds })}
                 />
-                <ResourcePicker
+                <AssetBindings
                   title="Skills"
-                  items={workspace.skills}
-                  selected={draft.skillIds}
-                  onChange={(skillIds) => patch({ skillIds })}
+                  assets={workspace.skills}
+                  bindings={draft.skillBindings}
+                  onChange={(skillBindings) => patch({ skillBindings })}
                 />
                 <ResourcePicker
-                  title={t('nav.plugins')}
-                  items={workspace.plugins}
-                  selected={draft.pluginIds}
-                  onChange={(pluginIds) => patch({ pluginIds })}
+                  title={t('config.bundles')}
+                  items={workspace.bundles}
+                  selected={draft.bundleIds}
+                  onChange={(bundleIds) => patch({ bundleIds })}
+                />
+                <ResourcePicker
+                  title={t('config.nativePlugins')}
+                  items={workspace.nativePlugins.map((plugin) => ({
+                    ...plugin,
+                    enabled: true,
+                    description: `${plugin.nativeId} · ${workspace.installations.find((installation) => installation.id === plugin.engineInstallationId)?.name ?? ''}`,
+                  }))}
+                  selected={draft.nativePluginIds}
+                  onChange={(nativePluginIds) => patch({ nativePluginIds })}
                 />
               </>
             )}
+            {tab === 'engine' && (
+              <>
+                {!draft.engineOptions && <p className="hint">{t('resolution.engine-required')}</p>}
+                {draft.engineOptions?.kind === 'opencode' && (
+                  <TextField
+                    label={t('config.opencodeAgent')}
+                    value={draft.engineOptions.agent}
+                    onChange={(name) => patch({ engineOptions: { kind: 'opencode', agent: name } })}
+                  />
+                )}
+                {draft.engineOptions?.kind === 'pi' && (
+                  <TextField
+                    label={t('config.thinking')}
+                    value={draft.engineOptions.thinkingLevel ?? ''}
+                    onChange={(thinkingLevel) =>
+                      patch({
+                        engineOptions: { kind: 'pi', thinkingLevel: thinkingLevel || undefined },
+                      })
+                    }
+                  />
+                )}
+                {draft.engineOptions?.kind === 'deepseek-harness' && (
+                  <>
+                    <SelectField
+                      label={t('config.dshProfile')}
+                      value={draft.engineOptions.profileTemplate}
+                      onChange={(profileTemplate) =>
+                        patch({
+                          engineOptions: {
+                            kind: 'deepseek-harness',
+                            patchReload: 'startup',
+                            profileTemplate: profileTemplate as 'acp' | 'sdk' | 'sdk-minimal',
+                          },
+                        })
+                      }
+                    >
+                      <option value="acp">ACP</option>
+                      <option value="sdk">SDK</option>
+                      <option value="sdk-minimal">SDK minimal</option>
+                    </SelectField>
+                    <p className="hint">{t('config.dshHint')}</p>
+                  </>
+                )}
+              </>
+            )}
+            {tab === 'preview' && <ProfilePreview workspace={workspace} profile={draft} />}
+            <p className="hint">{t('config.savedForNewSessions')}</p>
           </div>
           {error != null && (
             <p className="form-error" role="alert">
@@ -207,11 +285,88 @@ export function AgentEditor({
             </button>
             <button className="button primary" type="submit">
               <Save size={16} />
-              {busy ? t('common.saving') : t('agentEditor.save')}
+              {t(busy ? 'common.saving' : 'agentEditor.save')}
             </button>
           </div>
         </fieldset>
       </form>
     </Modal>
   )
+}
+
+function ProfilePreview({
+  workspace,
+  profile,
+}: {
+  workspace: EngineWorkspace
+  profile: AgentProfile
+}) {
+  const { t, locale } = useI18n()
+  try {
+    const result = resolveAgentProfile(
+      upsertConfiguration(workspace, 'agents', profile),
+      profile.id,
+    )
+    return (
+      <div className="configuration-preview">
+        <p className="hint">{t('config.notRuntimeVerified')}</p>
+        {result.status === 'invalid' ? (
+          <ul className="diagnostic-list">
+            {result.issues.map((issue, index) => (
+              <li key={`${issue.code}:${index}`}>
+                <strong>{t(`resolution.${issue.code}`)}</strong>
+                <code>{issue.path}</code>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <>
+            <h3>{t('config.resolved')}</h3>
+            <dl>
+              <dt>{t('config.engine')}</dt>
+              <dd>
+                {result.configuration.installation.name} ·{' '}
+                {result.configuration.installation.version}
+              </dd>
+              <dt>{t('config.model')}</dt>
+              <dd>{result.configuration.model.modelId}</dd>
+              <dt>{t('config.protocol')}</dt>
+              <dd>{result.configuration.connection.protocol}</dd>
+              <dt>API Base URL</dt>
+              <dd>{result.configuration.connection.baseUrl}</dd>
+            </dl>
+            {result.configuration.prompts.map((prompt) => (
+              <details key={prompt.assetId}>
+                <summary>
+                  {workspace.prompts.find((asset) => asset.id === prompt.assetId)?.name} ·{' '}
+                  {t('config.revision', { version: prompt.version })} ·{' '}
+                  {t(`config.mode.${prompt.mode}`)}
+                </summary>
+                <pre>{prompt.content}</pre>
+                <code>{prompt.source}</code>
+              </details>
+            ))}
+            <ul>
+              {result.configuration.skills.map((skill) => (
+                <li key={skill.assetId}>
+                  {skill.name} · {t('config.revision', { version: skill.revision.version })}
+                </li>
+              ))}
+              {result.configuration.mcpServers.map((server) => (
+                <li key={server.id}>
+                  {server.name} · {server.transport}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
+    )
+  } catch (error) {
+    return (
+      <p role="alert" className="form-error">
+        {formatError(error, locale)}
+      </p>
+    )
+  }
 }

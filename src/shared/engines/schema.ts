@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const entityId = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/)
 export const environmentName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
 export const headerName = z.string().regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/)
-export const displayName = z.string().trim().min(1).max(80)
+export const displayName = z.string().trim().min(1, 'validation.name').max(80)
 export const description = z.string().max(500)
 export const absolutePath = z
   .string()

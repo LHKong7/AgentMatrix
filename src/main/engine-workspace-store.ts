@@ -1,13 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { link, mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
-import { createWorkspace } from '../shared/workspace'
 import { appError } from '../shared/errors'
 import type { Locale } from '../shared/i18n'
 import { migrateWorkspaceDocument } from '../shared/engines/migration'
 import { engineWorkspaceSchema, type EngineWorkspace } from '../shared/engines/workspace'
+import { createInitialEngineWorkspace, validateAssetHistory } from '../shared/engines/editing'
 
-/** Schema v2 persistence. Activate with the v2 editors; never run alongside a v1 writer. */
+/** Active schema v2 persistence, including atomic migration of the legacy document. */
 export class EngineWorkspaceStore {
   private queue: Promise<unknown> = Promise.resolve()
   constructor(
@@ -28,47 +28,27 @@ export class EngineWorkspaceStore {
       if (!parsed.success) throw appError('error.invalidData')
       const current = await this.read()
       if (parsed.data.revision !== current.revision) throw appError('error.conflict')
-      this.validateHistory(current, parsed.data)
+      validateAssetHistory(current, parsed.data)
       const next = { ...parsed.data, revision: current.revision + 1 }
       await this.write(next)
       return next
     })
   }
-  private validateHistory(current: EngineWorkspace, next: EngineWorkspace) {
-    for (const collection of ['prompts', 'skills'] as const) {
-      for (const prior of current[collection]) {
-        const updated = next[collection].find((asset) => asset.id === prior.id)
-        // Deleting a library asset is allowed once bindings are removed. Run snapshots own their copies.
-        if (!updated) continue
-        const priorMax = Math.max(...prior.versions.map((version) => version.version))
-        for (const revision of prior.versions) {
-          const retained = updated.versions.find((version) => version.version === revision.version)
-          if (JSON.stringify(retained) !== JSON.stringify(revision))
-            throw appError('error.assetHistory')
-        }
-        for (const revision of updated.versions) {
-          if (
-            revision.version <= priorMax &&
-            !prior.versions.some((version) => version.version === revision.version)
-          )
-            throw appError('error.assetHistory')
-        }
-      }
-    }
-  }
   private async read(): Promise<EngineWorkspace> {
-    let contents: string
+    let contents: Buffer
     try {
-      contents = await readFile(this.filePath, 'utf8')
+      contents = await readFile(this.filePath)
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      const initial = migrateWorkspaceDocument(createWorkspace(this.initialLocale)).workspace
+      const initial = createInitialEngineWorkspace(this.initialLocale)
       await this.write(initial)
       return initial
     }
     let converted: ReturnType<typeof migrateWorkspaceDocument>
     try {
-      converted = migrateWorkspaceDocument(JSON.parse(contents))
+      converted = migrateWorkspaceDocument(
+        JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(contents)),
+      )
     } catch {
       throw appError('error.unreadable', { path: this.filePath })
     }
@@ -78,7 +58,7 @@ export class EngineWorkspaceStore {
     }
     return converted.workspace
   }
-  private async backup(contents: string) {
+  private async backup(contents: Buffer) {
     const digest = createHash('sha256').update(contents).digest('hex')
     const backup = `${this.filePath}.v1.${digest}.bak`
     const temporary = `${backup}.${randomUUID()}.tmp`
@@ -95,7 +75,7 @@ export class EngineWorkspaceStore {
         await link(temporary, backup)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
-        if ((await readFile(backup, 'utf8')) !== contents) throw appError('error.migrationBackup')
+        if (!(await readFile(backup)).equals(contents)) throw appError('error.migrationBackup')
       }
     } finally {
       await unlink(temporary).catch((error: NodeJS.ErrnoException) => {

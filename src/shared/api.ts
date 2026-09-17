@@ -1,4 +1,4 @@
-import type { Workspace } from './workspace'
+import type { EngineWorkspace } from './engines/workspace'
 import type {
   CredentialInput,
   CredentialMetadata,
@@ -14,8 +14,8 @@ export interface AppInfo {
 }
 
 export interface AgentMatrixApi {
-  loadWorkspace(): Promise<Workspace>
-  saveWorkspace(workspace: Workspace): Promise<Workspace>
+  loadWorkspace(): Promise<EngineWorkspace>
+  saveWorkspace(workspace: EngineWorkspace): Promise<EngineWorkspace>
   getAppInfo(): Promise<AppInfo>
   getCredentialStatus(): Promise<CredentialStatus>
   setCredential(input: CredentialInput): Promise<CredentialMetadata>

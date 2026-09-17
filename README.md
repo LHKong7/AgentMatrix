@@ -25,18 +25,19 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 
 ## Current features
 
-- **Agents:** create, edit, delete, enable, disable, and search configurations.
-- **Model settings:** provider, model ID, base URL, and temperature.
-- **System prompts:** edit system instructions independently.
-- **MCP servers:** stdio commands, arguments, and environment references, or Streamable HTTP endpoints and token environment references.
-- **Skills:** Markdown instructions with optional source paths.
-- **Plugin bundles:** combine existing MCP servers and Skills into reusable capabilities.
-- **Resource bindings:** bind resources directly or through plugins, deduplicate them, filter disabled resources, and clean references on deletion.
-- **Local persistence:** versioned JSON, Zod validation, atomic file replacement, serialized saves, and revision conflict checks.
+- **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
+- **Shared connections and models:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents.
+- **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit.
+- **MCP definitions:** configure stdio, Streamable HTTP, or SSE, with arguments, environment values, secret references, headers, and authentication metadata.
+- **Resource bundles:** reuse prompt, Skill, and MCP bindings. Native plugins have separate metadata tied to an engine installation.
+- **Resolved previews:** inspect shared bindings and draft diagnostics before native adapter validation. Direct bindings override bundle bindings; disabled assets are excluded. Removing definitions cleans references while retaining dependent agents as drafts.
+- **Local persistence:** schema v2 JSON, Zod validation, atomic replacement, revision conflicts, immutable asset history, and automatic v1 migration with an exact-byte backup.
 - **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Browser preview disables credential storage.
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
-This is a configuration management foundation. **Model requests, MCP connections, Skill file loading, and third-party plugin installation are not implemented.** Enabled means the configuration is available; it does not mean an agent or service is running. Plugins currently describe resource bundles and do not execute third-party code.
+This is a configuration management foundation. **CLI execution, model requests, MCP connections, Skill directory imports, native configuration imports, and third-party plugin installation are not implemented.** Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
+
+Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires a future adapter compatibility check before launch.
 
 ## Language support
 
@@ -44,7 +45,7 @@ Use the language selector in the top bar or **Settings → Language**. On the fi
 
 Switching languages updates UI text, accessible labels, dialogs, validation messages, and number formatting. It also updates the document's `lang` attribute. Existing agent names, descriptions, prompts, Skill instructions, and resource data are user content and are never translated or overwritten. New agent drafts use the active language; the first desktop workspace uses the system language. If preference storage is unavailable, switching still works for the current window.
 
-Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`. Use stable keys through `useI18n().t()` in React or `translate()` in shared code. Chinese entries must satisfy the English key schema; tests verify matching placeholders. Main-process application failures use stable serialized error codes so the renderer can translate them in the current language. Native OS diagnostics retain their technical details.
+Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `configuration-*.ts` catalogs. Use stable keys through `useI18n().t()` in React or `translate()` in shared code. Chinese entries must satisfy the English key schema; tests verify matching placeholders. Main-process application failures use stable serialized error codes so the renderer can translate them in the current language. Native OS diagnostics retain their technical details.
 
 ## Commands
 
@@ -89,7 +90,9 @@ docs/                    Architecture, CLI research, and implementation plan
 
 Desktop configuration lives in Electron's `userData/workspace.json`; Settings shows its exact path. On macOS it is usually `~/Library/Application Support/AgentMatrix/workspace.json`. Development smoke tests use `AGENT_MATRIX_DATA_DIR` for isolation; packaged builds ignore that variable.
 
-Environment settings store **variable-name references**, such as `{"API_TOKEN":"MY_API_TOKEN"}`, for a future runtime to resolve. Settings now provides an encrypted credential vault at `userData/credentials/vault.json`; schema v2 connection bindings will reference its IDs. The current schema v1 agents do not call providers or consume these credentials yet. Do not put keys into prompts, arguments, or ordinary configuration fields.
+Connections and MCP definitions store **secret references**, either an environment variable name or a credential ID. Settings provides the encrypted credential vault at `userData/credentials/vault.json`; configuration editors can select saved credential metadata without reading plaintext values. Resolving these references for an actual CLI run remains runtime work. Do not put keys into prompts, arguments, or ordinary configuration fields.
+
+The active store uses schema v2. Before converting a v1 workspace, it preserves the original bytes as `workspace.json.v1.<sha256>.bak`; migration retains IDs and bindings and leaves unresolved engine choices editable. A fresh workspace has no assumed provider, model, installation, or sampling temperature. Browser preview writes `agent-matrix:preview:v2` and retains the old `agent-matrix:preview:v1` value when migrating.
 
 Unreadable or incompatible workspace files produce an error and are preserved. There is no silent reset. Exit the app and make a backup before editing its workspace file manually.
 
@@ -97,7 +100,7 @@ The main process enables context isolation and renderer sandboxing, and disables
 
 ## Next stages
 
-1. Complete the shared foundation for **OpenCode, Pi, and DeepSeek Harness**: versioned prompts and Skill imports, model connections, credential references, MCP definitions, resource bundles, migration, and bilingual editors with launch diagnostics. Import native configuration read-only and generate managed run inputs.
+1. Complete the remaining shared foundation for **OpenCode, Pi, and DeepSeek Harness**: capture Skill directories, probe configured installations, import native configuration read-only, generate immutable managed run inputs, and connect the session contract to typed IPC. Shared libraries, bilingual configuration editors, resolution diagnostics, credential references, and v2 migration are active.
 2. Deliver **OpenCode through ACP** as the first complete desktop workflow: configuration, streaming, tools, supported permissions, cancellation, history, immutable run inputs, and configuration application status. Shared prompt/Skill/MCP mappings are part of its acceptance gate.
 3. Deliver **Pi through RPC**, then **DeepSeek Harness through ACP**, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
 4. After the initial three-engine milestone, expand to Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands, then later scheduling and collaboration. See the [implementation plan](docs/cli-agent-plan.md) and [nine-engine research](docs/cli-agent-research.md).

@@ -15,6 +15,16 @@ beforeEach(async () => {
 afterEach(() => rm(root, { recursive: true, force: true }))
 
 describe('schema v2 storage and migration', () => {
+  it('preserves invalid UTF-8 instead of migrating replacement characters', async () => {
+    const contents = Buffer.from(JSON.stringify(createWorkspace()))
+    const offset = contents.indexOf(Buffer.from('General assistant'))
+    expect(offset).toBeGreaterThan(0)
+    contents[offset] = 0xff
+    await writeFile(store.filePath, contents)
+    await expect(store.load()).rejects.toThrow('error.unreadable')
+    expect(await readFile(store.filePath)).toEqual(contents)
+    expect(await readdir(root)).toEqual(['workspace.json'])
+  })
   it('backs up original v1 bytes before publication and does not repeat migration', async () => {
     const original = JSON.stringify(createWorkspace('zh-CN'), null, 4) + '\n'
     await writeFile(store.filePath, original)

@@ -1,6 +1,8 @@
 import type { Messages } from './en'
+import { configurationZh } from './configuration-zh-CN'
 
 export const zhCN = {
+  ...configurationZh,
   'nav.agents': '我的 Agents',
   'nav.mcpServers': 'MCP Servers',
   'nav.skills': 'Skills',
