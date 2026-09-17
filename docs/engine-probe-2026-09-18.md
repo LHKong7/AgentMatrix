@@ -49,3 +49,7 @@ Official entry points: [OpenCode ACP](https://opencode.ai/docs/acp/), [Pi reposi
 ## Credential-storage follow-up
 
 The real Electron 44.4.1 smoke test passed on this macOS host using a temporary AgentMatrix data directory and synthetic secrets. `safeStorage` asynchronous encryption was available; vault bytes contained ciphertext, OS decryption recovered the synthetic value, metadata-only IPC omitted secret values, and restart/replacement/deletion passed. Backend failure and corrupt-storage preservation are covered by unit tests. This does not verify Windows/Linux credential backends or general agent sandbox enforcement.
+
+## Application-client follow-up
+
+The application ACP client, using official SDK 1.4.0 and AgentMatrix's bounded framing/deadline layer, subsequently initialized both OpenCode and DSH successfully. See the [captured application-client handshakes](probes/2026-09-18-application-acp.json) and [reproduction command](acp-client.md#verification). This verifies interoperability beyond the original discovery script; it still makes no model calls and does not pass the streaming, tool, cancellation, or resume gates.

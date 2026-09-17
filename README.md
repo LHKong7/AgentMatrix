@@ -56,6 +56,7 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run dev:web`      | Preview the UI in a browser                                                         |
 | `npm run check`        | Run ESLint, unit tests, TypeScript, and production builds                           |
 | `npm run test:smoke`   | Build and test a real Electron window, including language switching and persistence |
+| `npm run probe:acp`    | Opt-in installed OpenCode/DSH handshake through the application ACP client          |
 | `npm run format`       | Format source and documentation                                                     |
 | `npm run format:check` | Check formatting                                                                    |
 | `npm run build`        | Build into `out/`                                                                   |
@@ -64,6 +65,8 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run dist`         | Build platform distributables into `release/`                                       |
 
 Desktop smoke tests use a temporary configuration directory and clean it up afterward. They require a desktop graphics environment. CI runs `check`, which does not require a display.
+
+The ACP probe requires explicit executable-path environment variables; see [ACP client verification](docs/acp-client.md#verification). Its successful handshake does not validate model calls or tool execution.
 
 ## Project layout
 

@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:smoke": "npm run build && node scripts/smoke.mjs",
     "probe:engines": "node scripts/probe-engines.mjs",
+    "probe:acp": "vitest run --config vitest.acp.config.ts",
     "check": "npm run lint && npm run test && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -26,6 +27,7 @@
     "dist": "npm run build && electron-builder"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "1.4.0",
     "lucide-react": "^0.577.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
