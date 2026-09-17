@@ -110,7 +110,7 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
     await expect(
       f.factory.create('session-a', { kind: 'create', commandId: 'create', agentId: 'reviewer' }),
     ).rejects.toThrow()
-    state.installations[0]!.kind = 'deepseek-harness'
+    state.installations[0]!.kind = 'claude-code'
     await f.workspace.save(state)
     await expect(f.factory.probe({ installationId: 'oc' })).rejects.toThrow('runtimeUnsupported')
     await expect(

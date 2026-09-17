@@ -7,7 +7,7 @@ export const sessionEn = {
   'sessions.agent': 'Agent configuration',
   'sessions.choose': 'Choose an agent',
   'sessions.support':
-    'OpenCode 1.18.16 and Pi 0.85.1 are available on the desktop. DeepSeek Harness runtime support is in progress.',
+    'OpenCode 1.18.16, Pi 0.85.1, and experimental DeepSeek Harness 0.1.5-rc.2 are available. DSH displays committed replies, not live tokens; token billing is unavailable. History comes from AgentMatrix when resuming.',
   'sessions.probe': 'Check installation',
   'sessions.probeHint':
     'Check the saved CLI in Engines before starting. This executes its version command.',
@@ -86,7 +86,7 @@ export const sessionEn = {
     'Session history is unavailable. Execution and permission controls have been stopped.',
   'sessions.failure.engine': 'The engine could not complete the operation.',
   'error.runtimeUnsupported':
-    'Runtime execution is currently available for OpenCode 1.18.16 and Pi 0.85.1 on macOS/Linux only.',
+    'Runtime execution requires OpenCode 1.18.16, Pi 0.85.1, or experimental DeepSeek Harness 0.1.5-rc.2 on macOS/Linux. Only macOS has been tested.',
   'error.dshConfiguration': 'DeepSeek Harness cannot apply this configuration: {feature}.',
   'error.runtimeProbe':
     'The CLI version check failed. Check its executable path and prefix arguments.',

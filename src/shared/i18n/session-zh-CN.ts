@@ -7,7 +7,7 @@ export const sessionZhCN: Record<keyof typeof sessionEn, string> = {
   'sessions.agent': 'Agent 配置',
   'sessions.choose': '选择 Agent',
   'sessions.support':
-    '桌面端已接入 OpenCode 1.18.16 和 Pi 0.85.1。DeepSeek Harness 运行时正在开发中。',
+    '已接入 OpenCode 1.18.16、Pi 0.85.1 和实验性 DeepSeek Harness 0.1.5-rc.2。DSH 在回复提交后显示内容，不逐 Token 显示；计费用量不可用，恢复时通过 AgentMatrix 日志展示历史。',
   'sessions.probe': '检查安装',
   'sessions.probeHint': '启动前请在“引擎”中检查已保存的 CLI，此操作会执行其版本命令。',
   'sessions.empty': '暂无会话',
@@ -76,7 +76,8 @@ export const sessionZhCN: Record<keyof typeof sessionEn, string> = {
   'sessions.failure.interrupted': '进程连接已中断，恢复时将使用已保存的原生对话。',
   'sessions.failure.storage': '会话历史不可用，执行与权限操作已停止。',
   'sessions.failure.engine': '引擎未能完成此操作。',
-  'error.runtimeUnsupported': '目前仅支持在 macOS/Linux 上运行 OpenCode 1.18.16 和 Pi 0.85.1。',
+  'error.runtimeUnsupported':
+    '运行时需要 macOS/Linux 上的 OpenCode 1.18.16、Pi 0.85.1 或实验性 DeepSeek Harness 0.1.5-rc.2。目前仅验证了 macOS。',
   'error.dshConfiguration': 'DeepSeek Harness 无法应用此配置：{feature}。',
   'error.runtimeProbe': 'CLI 版本检查失败，请检查可执行文件路径与前置参数。',
   'error.runtimeCwd': '请在 Agent 配置中填写现有工作目录的绝对路径。',

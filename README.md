@@ -26,7 +26,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 ## Current features
 
 - **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
-- **OpenCode and Pi desktop sessions:** explicitly check a saved installation, then start from a saved profile. Stream messages, inspect tools, answer native permission requests, cancel turns, reload history, and resume interrupted sessions. Adapters are pinned to OpenCode 1.18.16 and Pi 0.85.1; native permissions apply to OpenCode, while Pi requires an explicit compatible execution policy; see [setup and verification](docs/desktop-sessions.md).
+- **OpenCode, Pi, and DSH desktop sessions:** explicitly check a saved installation, then start from a saved profile. View messages and tools, answer supported native permission requests, cancel turns, reload history, and resume interrupted sessions. Adapters are pinned to OpenCode 1.18.16, Pi 0.85.1, and experimental DSH 0.1.5-rc.2. DSH displays committed replies; OpenCode and Pi stream text. Native approvals apply to OpenCode and DSH; Pi requires an explicit compatible execution policy; see [setup and verification](docs/desktop-sessions.md).
 - **Shared connections and models:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents.
 - **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit.
 - **Skill directory imports:** select a directory in the desktop editor to capture `SKILL.md`, scripts, and references with file digests. Reimport creates a new revision while retaining previous bytes; importing never executes scripts.
@@ -37,7 +37,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Browser preview disables credential storage.
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
-OpenCode and Pi execution are connected to the desktop UI and verified on macOS against local provider fixtures. DeepSeek Harness remains a configurable draft without a desktop runtime adapter; its [configuration adapter](docs/dsh-configuration.md) passes native Prompt/Skill/MCP and policy fixtures. External provider acceptance, complete configuration application reporting, native configuration import, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
+All three engines are connected to the desktop UI and verified on macOS against local provider fixtures. DSH has separate [configuration](docs/dsh-configuration.md) and [runtime](docs/dsh-runtime.md) evidence, including both its generic and native DeepSeek provider components. External provider acceptance, complete configuration application reporting, native configuration import, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
 
 Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires native adapter compatibility checks before launch.
 
@@ -51,22 +51,22 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 
 ## Commands
 
-| Command                 | Purpose                                                                                                     |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `npm run dev`           | Start Electron with hot reload                                                                              |
-| `npm run dev:web`       | Preview the UI in a browser                                                                                 |
-| `npm run check`         | Run ESLint, unit tests, TypeScript, and production builds                                                   |
-| `npm run test:smoke`    | Build and test a real Electron window, including language switching and persistence                         |
-| `npm run test:sessions` | Build and test desktop sessions with an explicitly selected OpenCode or Pi CLI and a local provider fixture |
-| `npm run probe:dsh`     | Opt-in installed DSH ACP lifecycle and managed configuration through two local provider routes              |
-| `npm run probe:pi`      | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                   |
-| `npm run probe:acp`     | Opt-in installed OpenCode/DSH handshake through the application ACP client                                  |
-| `npm run format`        | Format source and documentation                                                                             |
-| `npm run format:check`  | Check formatting                                                                                            |
-| `npm run build`         | Build into `out/`                                                                                           |
-| `npm start`             | Run the existing production build                                                                           |
-| `npm run package`       | Create an unsigned app directory for the current platform                                                   |
-| `npm run dist`          | Build platform distributables into `release/`                                                               |
+| Command                 | Purpose                                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`           | Start Electron with hot reload                                                                                    |
+| `npm run dev:web`       | Preview the UI in a browser                                                                                       |
+| `npm run check`         | Run ESLint, unit tests, TypeScript, and production builds                                                         |
+| `npm run test:smoke`    | Build and test a real Electron window, including language switching and persistence                               |
+| `npm run test:sessions` | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture |
+| `npm run probe:dsh`     | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes          |
+| `npm run probe:pi`      | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                         |
+| `npm run probe:acp`     | Opt-in installed OpenCode/DSH handshake through the application ACP client                                        |
+| `npm run format`        | Format source and documentation                                                                                   |
+| `npm run format:check`  | Check formatting                                                                                                  |
+| `npm run build`         | Build into `out/`                                                                                                 |
+| `npm start`             | Run the existing production build                                                                                 |
+| `npm run package`       | Create an unsigned app directory for the current platform                                                         |
+| `npm run dist`          | Build platform distributables into `release/`                                                                     |
 
 Desktop smoke tests use a temporary configuration directory and clean it up afterward. They require a desktop graphics environment. CI runs `check`, which does not require a display.
 
@@ -98,7 +98,7 @@ docs/                    Architecture, CLI research, and implementation plan
 
 Desktop configuration lives in Electron's `userData/workspace.json`; Settings shows its exact path. On macOS it is usually `~/Library/Application Support/AgentMatrix/workspace.json`. Development smoke tests use `AGENT_MATRIX_DATA_DIR` for isolation; packaged builds ignore that variable.
 
-Connections and MCP definitions store **secret references**, either an environment variable name or a credential ID. Settings provides the encrypted credential vault at `userData/credentials/vault.json`; configuration editors can select saved credential metadata without reading plaintext values. The desktop runtime resolves only the captured references immediately before launching OpenCode or Pi. Do not put keys into prompts, arguments, or ordinary configuration fields.
+Connections and MCP definitions store **secret references**, either an environment variable name or a credential ID. Settings provides the encrypted credential vault at `userData/credentials/vault.json`; configuration editors can select saved credential metadata without reading plaintext values. The desktop runtime resolves only the captured references immediately before launching OpenCode, Pi, or DSH. Do not put keys into prompts, arguments, or ordinary configuration fields.
 
 The active store uses schema v2. Before converting a v1 workspace, it preserves the original bytes as `workspace.json.v1.<sha256>.bak`; migration retains IDs and bindings and leaves unresolved engine choices editable. A fresh workspace has no assumed provider, model, installation, or sampling temperature. Browser preview writes `agent-matrix:preview:v2` and retains the old `agent-matrix:preview:v1` value when migrating.
 
@@ -112,7 +112,7 @@ The main process enables context isolation and renderer sandboxing, and disables
 
 1. Complete configuration provenance and application reporting for **OpenCode, Pi, and DeepSeek Harness**. Shared libraries, Skill capture, bilingual editors, credentials, v2 migration, immutable run inputs, and typed session IPC are active. Automatic installation discovery and native configuration import remain open.
 2. Finish the **OpenCode ACP** acceptance gate: verify the intended external endpoint/model/auth route, complete effective configuration reporting, and audit the remaining shared-configuration requirements. Early Pi and DSH lifecycle probes now pass against local fixtures. Streaming, tools, permissions, cancellation, history, and restart/resume now run through the bilingual desktop UI against a local fixture. Shared prompt/Skill/MCP mappings remain part of acceptance.
-3. Complete **Pi RPC** acceptance and deliver **DeepSeek Harness through ACP**, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
+3. Complete **Pi RPC** and **DeepSeek Harness ACP** acceptance, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
 4. After the initial three-engine milestone, expand to Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands, then later scheduling and collaboration. See the [implementation plan](docs/cli-agent-plan.md) and [nine-engine research](docs/cli-agent-research.md).
 
 Packaging targets are configured for macOS DMG, Windows NSIS, and Linux AppImage. Brand assets, signing, notarization, and platform verification remain release work.

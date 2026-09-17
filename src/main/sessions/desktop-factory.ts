@@ -18,6 +18,9 @@ import { connectOpenCode } from '../engines/adapters/opencode/runtime'
 import { planPi, piContract } from '../engines/adapters/pi/configuration'
 import { inspectPiSources } from '../engines/adapters/pi/sources'
 import { connectPi } from '../engines/adapters/pi/runtime'
+import { dshContract, inspectDshComposition } from '../engines/adapters/dsh/composition'
+import { planDsh } from '../engines/adapters/dsh/configuration'
+import { connectDsh } from '../engines/adapters/dsh/runtime'
 import type { ResolvedSkill } from '../../shared/engines/resolution'
 import { baseProcessEnvironment } from '../engines/process/managed-process'
 import { captureCommand } from '../engines/process/capture-command'
@@ -78,7 +81,7 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
     const installation = state.installations.find((item) => item.id === installationId)
     if (
       !installation ||
-      !['opencode', 'pi'].includes(installation.kind) ||
+      !['opencode', 'pi', 'deepseek-harness'].includes(installation.kind) ||
       installation.platform !== process.platform ||
       !['darwin', 'linux'].includes(process.platform)
     )
@@ -101,6 +104,8 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
               XDG_STATE_HOME: join(root, 'state'),
               OPENCODE_DISABLE_AUTOUPDATE: 'true',
               PI_CODING_AGENT_DIR: join(root, 'pi'),
+              DSH_HOME: join(root, 'dsh'),
+              DSH_TELEMETRY_DISABLED: '1',
             },
           },
           this.lifetime.signal,
@@ -114,9 +119,13 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
           ? version === openCodeContract.engineVersion
             ? ['acp']
             : []
-          : version === piContract.engineVersion
-            ? ['pi-rpc']
-            : []
+          : installation.kind === 'pi'
+            ? version === piContract.engineVersion
+              ? ['pi-rpc']
+              : []
+            : version === dshContract.engineVersion
+              ? ['acp']
+              : []
       // Optimistic workspace revision prevents overwriting edits made during the probe.
       return await workspace.save(state)
     } catch (error) {
@@ -149,7 +158,7 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
         (item) => item.id === profile?.engineInstallationId,
       )
       if (!profile) throw appError('error.runConfiguration')
-      if (!installation || !['opencode', 'pi'].includes(installation.kind))
+      if (!installation || !['opencode', 'pi', 'deepseek-harness'].includes(installation.kind))
         throw appError('error.runtimeUnsupported')
       if (command.cwd) profile.execution.cwd = command.cwd
       if (!profile.execution.cwd) throw appError('error.runtimeCwd')
@@ -160,7 +169,12 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
         if (skill.revision.kind !== 'directory') throw appError('error.skillCaptureInvalid')
         return readFile(join(await skills.verify(skill.revision), 'SKILL.md'), 'utf8')
       }
-      if (installation.kind === 'pi') {
+      if (installation.kind === 'deepseek-harness') {
+        const composition = await inspectDshComposition(installation.executable, cwd)
+        manifest = await runs.create(snapshotId, state, profile.id, (configuration, paths) =>
+          planDsh(configuration, paths, { composition, readSkillEntry }),
+        )
+      } else if (installation.kind === 'pi') {
         const sources = await inspectPiSources(cwd)
         manifest = await runs.create(snapshotId, state, profile.id, (configuration, paths) =>
           planPi(configuration, paths, { sources, readSkillEntry }),
@@ -211,7 +225,9 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
           ? connectPi
           : manifest.installation.kind === 'opencode'
             ? connectOpenCode
-            : null
+            : manifest.installation.kind === 'deepseek-harness'
+              ? connectDsh
+              : null
       if (!connect) throw new RuntimeFailure('unsupported')
       return await connect({
         store: runs,

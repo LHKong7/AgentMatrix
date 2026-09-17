@@ -1,6 +1,6 @@
 # Session contract and lifecycle
 
-The initial runtime shares application commands and state across OpenCode ACP, Pi RPC, and DeepSeek Harness ACP. Their native protocols, capability checks, and permission behavior remain separate. The shared schemas and state projection are implemented in `src/shared/sessions/`; the coordinator, bounded recent-event stream, and durable journal are in `src/main/sessions/`. The coordinator is tested with the production OpenCode and Pi runtimes. The desktop factory, sender-checked Electron IPC, and bilingual session controls now use this path; DSH desktop runtime integration remains open.
+The initial runtime shares application commands and state across OpenCode ACP, Pi RPC, and DeepSeek Harness ACP. Their native protocols, capability checks, and permission behavior remain separate. The shared schemas and state projection are implemented in `src/shared/sessions/`; the coordinator, bounded recent-event stream, and durable journal are in `src/main/sessions/`. The coordinator is tested with the production OpenCode, Pi, and DeepSeek Harness runtimes. The desktop factory, sender-checked Electron IPC, and bilingual session controls now use this path; DSH preserves its committed-message and resume-without-replay behavior; see [runtime evidence](dsh-runtime.md).
 
 ## Identity and commands
 

@@ -7,13 +7,14 @@ import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
 
 const engine = process.env.AGENT_MATRIX_SESSION_ENGINE || 'opencode'
-assert.ok(['opencode', 'pi'].includes(engine), 'Select opencode or pi')
+assert.ok(['opencode', 'pi', 'dsh'].includes(engine), 'Select opencode, pi, or dsh')
 const isPi = engine === 'pi'
-const version = isPi ? '0.85.1' : '1.18.16'
-const executable = isPi ? process.env.AGENT_MATRIX_TEST_PI : process.env.AGENT_MATRIX_TEST_OPENCODE
+const isDsh = engine === 'dsh'
+const version = isPi ? '0.85.1' : isDsh ? '0.1.5-rc.2' : '1.18.16'
+const executable = process.env[`AGENT_MATRIX_TEST_${engine.toUpperCase()}`]
 assert.ok(
   executable,
-  `Set AGENT_MATRIX_TEST_${isPi ? 'PI' : 'OPENCODE'} to the installed ${engine} ${version} executable`,
+  `Set AGENT_MATRIX_TEST_${engine.toUpperCase()} to the installed ${engine} ${version} executable`,
 )
 const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-desktop-session-')))
 const dataDirectory = join(root, 'data'),
@@ -87,7 +88,9 @@ const server = createServer(async (request, response) => {
             type: 'function',
             function: {
               name: 'read',
-              arguments: JSON.stringify({ [isPi ? 'path' : 'filePath']: join(cwd, 'fixture.txt') }),
+              arguments: JSON.stringify({
+                [isPi ? 'path' : isDsh ? 'file_path' : 'filePath']: join(cwd, 'fixture.txt'),
+              }),
             },
           },
         ],
@@ -116,6 +119,14 @@ if (isPi) {
   workspace.installations[0].name = 'Pi'
   workspace.agents[0].engineOptions = { kind: 'pi', projectTrust: 'deny', contextFiles: 'inherit' }
   workspace.agents[0].execution.approval = 'unrestricted'
+} else if (isDsh) {
+  workspace.installations[0].kind = 'deepseek-harness'
+  workspace.installations[0].name = 'DeepSeek Harness'
+  workspace.agents[0].engineOptions = {
+    kind: 'deepseek-harness',
+    profileTemplate: 'acp',
+    patchReload: 'startup',
+  }
 } else workspace.installations[0].prefixArgs = ['--pure']
 workspace.installations[0].version = null
 workspace.installations[0].probedAt = null
@@ -295,6 +306,7 @@ try {
     toolResult: calls.some((call) => call.read),
     rendererReloadWithoutResubmit: true,
     streamingCancellation: true,
+    messageDelivery: isDsh ? 'Committed semantic messages' : 'Streaming text',
     permissionCancellation: isPi ? 'unsupported: no universal per-tool approval' : true,
     sharedPromptOldAndNewSnapshots: true,
     appQuitAndRestart: true,

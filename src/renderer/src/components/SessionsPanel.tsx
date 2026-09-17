@@ -42,7 +42,7 @@ export function SessionsPanel({
   const state = view.snapshot?.id === selected ? view.snapshot : null
   const blocked = busy || view.loading || view.unavailable
   const profile = workspace.agents.find((agent) => agent.id === agentId)
-  const supported = ['opencode', 'pi'].includes(
+  const supported = ['opencode', 'pi', 'deepseek-harness'].includes(
     workspace.installations.find((engine) => engine.id === profile?.engineInstallationId)?.kind ??
       '',
   )

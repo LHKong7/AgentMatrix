@@ -38,11 +38,11 @@ The script resolves OpenCode from `PATH`, or accepts `--opencode=/absolute/path`
 
 ## Remaining evidence
 
-- V1: version/entry-point discovery is partial. OpenCode and [Pi configuration mappings](pi-configuration.md) now have local native evidence; complete discovery/provenance and DSH adapter work remain open.
+- V1: version/entry-point discovery is partial. OpenCode, [Pi](pi-configuration.md), and [DSH configuration mappings](dsh-configuration.md) now have local native evidence; complete discovery/provenance remains open.
 - V2: awaiting the selected service/model and local credential reference for actual streaming/tool calls. Synthetic or local protocol fixtures cannot pass this gate.
 - V3: macOS process startup/cleanup and credential encryption observed; descendant cleanup under active work and execution boundaries remain open. Other platforms are untested.
-- V4: SDK limitations are established and the selected ACP route now passes two local provider lifecycle fixtures. [DSH evidence](dsh-acp.md); configuration/runtime adapters, desktop integration, and external-service acceptance remain open.
-- V5: the later [Pi lifecycle fixture](pi-rpc.md) passes local prompt/event/cancellation/restoration and trust checks. Shared-runtime normalization, desktop behavior, and external-provider acceptance remain open.
+- V4: SDK limitations are established and the selected ACP route now passes two local provider lifecycle fixtures. [DSH evidence](dsh-acp.md); the [configuration adapter](dsh-configuration.md) and [runtime/desktop integration](dsh-runtime.md) also pass local fixtures. External-service and full D4 acceptance remain open.
+- V5: the later [Pi lifecycle fixture](pi-rpc.md) passes local prompt/event/cancellation/restoration and trust checks. The separate [runtime and desktop fixtures](pi-runtime.md) also pass. External-provider and full C4 acceptance remain open.
 
 Official entry points: [OpenCode ACP](https://opencode.ai/docs/acp/), [Pi repository](https://github.com/earendil-works/pi), and [DeepSeek Harness repository](https://github.com/deepseek-ai/deepseek-harness). Published package files were also inspected locally; repository descriptions alone were not used to mark runtime checks as passed.
 
