@@ -129,6 +129,14 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     const closed = owned.closed.finally(() => signal.removeEventListener('abort', abort))
     void closed.catch(() => {})
     return {
+      configurationChecks: [
+        'inputs.integrity',
+        'sources.unchanged',
+        'cli.version',
+        'opencode.config',
+        'opencode.session-model',
+        'opencode.session-agent',
+      ],
       nativeSessionId: id,
       closed,
       redact: (text) => redactText(text, launch.secrets ?? []),

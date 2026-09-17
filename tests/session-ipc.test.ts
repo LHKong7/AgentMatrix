@@ -30,6 +30,7 @@ function fixture() {
     get: vi.fn(async () => snapshot),
     list: vi.fn(async () => [snapshot]),
     readEvents: vi.fn(),
+    configuration: vi.fn(),
     removeOwner: vi.fn(),
     unsubscribe: vi.fn(),
     subscribe: vi.fn(
@@ -73,9 +74,22 @@ describe('session IPC ownership', () => {
       ).rejects.toThrow('untrusted')
     }
     f.frame.url = 'https://untrusted.example/'
+    await expect(f.invoke(sessionChannels.configuration, { sessionId: 's' })).rejects.toThrow(
+      'untrusted',
+    )
+    expect(f.coordinator.configuration).not.toHaveBeenCalled()
     await expect(f.invoke(sessionChannels.list)).rejects.toThrow('untrusted')
     expect(f.coordinator.command).not.toHaveBeenCalled()
     expect(f.coordinator.list).not.toHaveBeenCalled()
+  })
+  it('routes report reads through the same verified session owner', async () => {
+    const f = fixture()
+    await f.invoke(sessionChannels.configuration, { sessionId: 's' })
+    expect(f.coordinator.configuration).toHaveBeenCalledWith({ sessionId: 's' })
+    f.contents.emit('destroyed')
+    await expect(f.invoke(sessionChannels.configuration, { sessionId: 's' })).rejects.toThrow(
+      'untrusted',
+    )
   })
   it('invalidates frame subscriptions on reload and cannot send into the next document', async () => {
     const f = fixture()

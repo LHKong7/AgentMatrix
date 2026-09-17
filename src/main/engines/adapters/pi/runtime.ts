@@ -116,6 +116,13 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
       active?.fail(handlerFailure ?? new RuntimeFailure('process-exit')),
     )
     return {
+      configurationChecks: [
+        'inputs.integrity',
+        'sources.unchanged',
+        'cli.version',
+        'pi.state',
+        'pi.skills',
+      ],
       nativeSessionId: id,
       closed,
       redact: (text) => redactText(text, launch.secrets ?? []),

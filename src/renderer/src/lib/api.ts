@@ -9,6 +9,9 @@ const browserApi: AgentMatrixApi = {
     throw appError('error.runtimeDesktopOnly')
   },
   sessions: {
+    async configuration() {
+      throw appError('error.runtimeDesktopOnly')
+    },
     async list() {
       return []
     },

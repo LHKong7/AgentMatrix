@@ -12,6 +12,7 @@ import { formatError } from '../../../shared/errors'
 import { api } from '../lib/api'
 import { SessionFeed, emptySessionView } from '../lib/session-feed'
 import { useI18n } from '../i18n'
+import { ConfigurationReport } from './ConfigurationReport'
 
 const selectedKey = 'agentmatrix.selected-session'
 type Response = Extract<SessionCommand, { kind: 'respond' }>['response']
@@ -35,6 +36,7 @@ export function SessionsPanel({
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
+  const [showConfiguration, setShowConfiguration] = useState(false)
   const locked = useRef(false)
   const pendingMessage = useRef<string | null>(null)
   const transcript = useRef<HTMLDivElement>(null)
@@ -165,6 +167,14 @@ export function SessionsPanel({
   }
   return (
     <>
+      {showConfiguration && state && (
+        <ConfigurationReport
+          key={state.id}
+          session={state}
+          workspaceRevision={workspace.revision}
+          onClose={() => setShowConfiguration(false)}
+        />
+      )}
       <div className="page-heading session-page-heading">
         <div>
           <div className="eyebrow">
@@ -288,6 +298,13 @@ export function SessionsPanel({
                   </small>
                 </div>
                 <div className="session-actions">
+                  <button
+                    className="button secondary"
+                    disabled={blocked}
+                    onClick={() => setShowConfiguration(true)}
+                  >
+                    {t('report.title')}
+                  </button>
                   {state.status === 'created' && (
                     <button
                       className="button secondary"

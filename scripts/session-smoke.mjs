@@ -194,6 +194,24 @@ async function send(text) {
   )
 }
 const sessions = () => page.evaluate(() => window.agentMatrix.sessions.list())
+async function configurationReport(title = 'Configuration report', close = 'Close') {
+  await page.getByRole('button', { name: title, exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.locator('[data-report-field="model"]').waitFor()
+  assert.ok(!(await dialog.textContent()).includes(secret))
+  const value = await page.evaluate(async () => {
+    const sessionId = document.querySelector('.conversation').getAttribute('data-session-id')
+    return window.agentMatrix.sessions.configuration({ sessionId })
+  })
+  assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
+  if (process.env.AGENT_MATRIX_REPORT_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.AGENT_MATRIX_REPORT_SCREENSHOT + (title === '配置报告' ? '.zh.png' : ''),
+      fullPage: true,
+    })
+  await dialog.getByRole('button', { name: close, exact: true }).last().click()
+  return value
+}
 try {
   await launch()
   await language('en')
@@ -209,11 +227,20 @@ try {
   await status('Ready')
   const original = (await sessions())[0]
   assert.ok(original.nativeSessionId)
+  const initialReport = await configurationReport()
+  assert.equal(initialReport.savedState, 'same')
+  assert.equal(initialReport.observation.runId, original.runId)
+  assert.equal(initialReport.snapshotDigest, original.snapshotDigest)
+  assert.equal(
+    initialReport.fields.find((field) => field.id === 'prompts').status,
+    isDsh ? 'composition' : isPi ? 'unknown' : 'observed',
+  )
   await send(`Read fixture.txt. Synthetic key: ${secret}`)
   if (!isPi) await page.locator('.permission-card').waitFor()
   else await status('Ready')
   await language('zh-CN')
   await page.getByRole('heading', { name: '会话', exact: true }).waitFor()
+  await configurationReport('配置报告', '关闭')
   if (process.env.AGENT_MATRIX_SESSION_SCREENSHOT)
     await page.screenshot({ path: process.env.AGENT_MATRIX_SESSION_SCREENSHOT, fullPage: true })
   if (!isPi) await page.getByRole('button', { name: /^允许一次/ }).click()
@@ -261,6 +288,14 @@ try {
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
   await navigate('Sessions')
   await status('Ready')
+  const pendingReport = await configurationReport()
+  assert.equal(pendingReport.savedState, 'pending')
+  assert.deepEqual(
+    pendingReport.assets
+      .filter((asset) => asset.id === 'role')
+      .map((asset) => [asset.version, asset.nextVersion, asset.libraryVersion]),
+    [[1, 2, 2]],
+  )
   await send('Keep using the captured role')
   await status('Ready')
   assert.equal(calls.at(-1).role, 'original')
@@ -278,11 +313,18 @@ try {
   await language('en')
   await navigate('Sessions')
   await status('Interrupted')
+  const historicalReport = await configurationReport()
+  assert.equal(historicalReport.observationIsCurrent, false)
+  assert.equal(historicalReport.observation.runId, latest.runId)
   await page.getByRole('button', { name: 'Resume session', exact: true }).click()
   await status('Ready')
   const resumed = (await sessions()).find((session) => session.id === latest.id)
   assert.equal(resumed.nativeSessionId, latest.nativeSessionId)
   assert.notEqual(resumed.runId, latest.runId)
+  const resumedReport = await configurationReport()
+  assert.equal(resumedReport.observationIsCurrent, true)
+  assert.equal(resumedReport.observation.runId, resumed.runId)
+  assert.equal(resumedReport.assets.find((asset) => asset.id === 'role').version, 2)
   await send('Continue the saved session')
   await status('Ready')
   await page.getByRole('button', { name: 'Close session', exact: true }).click()
@@ -307,6 +349,13 @@ try {
     rendererReloadWithoutResubmit: true,
     streamingCancellation: true,
     messageDelivery: isDsh ? 'Committed semantic messages' : 'Streaming text',
+    configurationReport: {
+      nativeEvidence: true,
+      persistedAfterRestart: true,
+      pendingAssetVersions: true,
+      englishAndChinese: true,
+      sensitiveValuesOmitted: true,
+    },
     permissionCancellation: isPi ? 'unsupported: no universal per-tool approval' : true,
     sharedPromptOldAndNewSnapshots: true,
     appQuitAndRestart: true,

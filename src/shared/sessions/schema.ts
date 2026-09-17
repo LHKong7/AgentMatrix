@@ -1,4 +1,9 @@
 import { z } from 'zod'
+import {
+  configurationChecksSchema,
+  configurationObservationSchema,
+  type ConfigurationReport,
+} from '../engines/configuration-report'
 import { absolutePath, entityId, runtimeModeSchema } from '../engines/schema'
 
 const text = z.string().max(65_536)
@@ -169,6 +174,7 @@ export const sessionSnapshotSchema = z
     pendingRequests: z.array(interactionRequestSchema).max(100),
     settledRequestIds: z.array(entityId).max(1000),
     failure: sessionFailureSchema.nullable(),
+    configuration: configurationObservationSchema.optional(),
   })
   .strict()
   .superRefine((snapshot, context) => {
@@ -176,6 +182,13 @@ export const sessionSnapshotSchema = z
       context.addIssue({ code: 'custom', path: [path], message: 'validation.invalid' })
     if (snapshot.status === 'created' && (snapshot.runId !== null || snapshot.cursor !== 0))
       invalid('status')
+    if (
+      snapshot.configuration &&
+      (snapshot.configuration.snapshotDigest !== snapshot.snapshotDigest ||
+        snapshot.configuration.nativeSessionId !== snapshot.nativeSessionId ||
+        !snapshot.runId)
+    )
+      invalid('configuration')
     if (!['created', 'closing', 'closed'].includes(snapshot.status) && !snapshot.runId)
       invalid('runId')
     if (
@@ -217,7 +230,13 @@ export const sessionEventDataSchema = z
   .discriminatedUnion('kind', [
     z.object({ kind: z.literal('run.starting') }).strict(),
     z.object({ kind: z.literal('run.resuming') }).strict(),
-    z.object({ kind: z.literal('run.ready'), nativeSessionId: nativeId }).strict(),
+    z
+      .object({
+        kind: z.literal('run.ready'),
+        nativeSessionId: nativeId,
+        configurationChecks: configurationChecksSchema.optional(),
+      })
+      .strict(),
     z.object({ kind: z.literal('turn.started'), messageId: entityId, text }).strict(),
     z
       .object({
@@ -315,6 +334,7 @@ export type SessionDelivery =
 
 /** The preload must register its listener before invoking subscribe to avoid lost events. */
 export interface SessionApi {
+  configuration(input: z.infer<typeof sessionQuerySchema>): Promise<ConfigurationReport>
   command(input: SessionCommand): Promise<SessionSnapshot>
   get(input: z.infer<typeof sessionQuerySchema>): Promise<SessionSnapshot>
   list(): Promise<SessionSnapshot[]>

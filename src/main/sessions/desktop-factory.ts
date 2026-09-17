@@ -26,6 +26,7 @@ import { baseProcessEnvironment } from '../engines/process/managed-process'
 import { captureCommand } from '../engines/process/capture-command'
 import { RuntimeFailure } from '../engines/runtime'
 import type { SessionRuntimeFactory } from './coordinator'
+import { buildConfigurationReport } from '../engines/configuration-report'
 
 interface Dependencies {
   workspace: {
@@ -245,6 +246,14 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
         getErrorKey(error)?.startsWith('error.credential') ? 'credentials' : 'configuration',
       )
     }
+  }
+  async configuration(snapshot: SessionSnapshot) {
+    const { runs, workspace } = this.dependencies
+    return buildConfigurationReport(
+      await runs.read(snapshot.snapshotId),
+      snapshot,
+      await workspace.load(),
+    )
   }
   async shutdown(): Promise<void> {
     this.lifetime.abort()

@@ -1,9 +1,11 @@
 import { configurationEn } from './configuration-en'
 import { sessionEn } from './session-en'
+import { reportEn } from './report-en'
 
 export const en = {
   ...configurationEn,
   ...sessionEn,
+  ...reportEn,
   'nav.agents': 'My Agents',
   'nav.mcpServers': 'MCP Servers',
   'nav.skills': 'Skills',

@@ -142,6 +142,7 @@ for (const route of ['pi-ai', 'deepseek-native'] as const) {
           factories.push(factory)
           const coordinator = new SessionCoordinator(new SessionJournal(journalDirectory), {
             create: (id, command) => factory.create(id, command),
+            configuration: (snapshot) => factory.configuration(snapshot),
             connect: async (snapshot, signal) => {
               const runtime = await factory.connect(snapshot, signal)
               runtimes.push(runtime)
@@ -168,6 +169,15 @@ for (const route of ['pi-ai', 'deepseek-native'] as const) {
           return coordinator.get({ sessionId: created.id })
         }
         const ready = await wait('ready')
+        const report = await coordinator.configuration({ sessionId: created.id })
+        expect(report.observation?.runId).toBe(ready.runId)
+        expect(report.fields.find((field) => field.id === 'model')?.status).toBe('observed')
+        expect(report.fields.find((field) => field.id === 'authentication')?.status).toBe(
+          'composition',
+        )
+        expect(report.fields.find((field) => field.id === 'reasoning')?.status).toBe(
+          route === 'deepseek-native' ? 'observed' : 'unknown',
+        )
         const send = async (commandId: string) => {
           const snapshot = await coordinator.get({ sessionId: created.id })
           const command = {

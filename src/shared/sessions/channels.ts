@@ -1,4 +1,5 @@
 export const sessionChannels = {
+  configuration: 'sessions:configuration',
   command: 'sessions:command',
   get: 'sessions:get',
   list: 'sessions:list',

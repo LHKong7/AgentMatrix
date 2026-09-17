@@ -122,6 +122,16 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
     const closed = owned.closed.finally(() => signal.removeEventListener('abort', abort))
     void closed.catch(() => {})
     return {
+      configurationChecks: [
+        'inputs.integrity',
+        'sources.unchanged',
+        'cli.version',
+        'dsh.composition',
+        'dsh.session-model',
+        ...(manifest.connection.protocol === 'deepseek-official'
+          ? ['dsh.session-reasoning' as const]
+          : []),
+      ],
       nativeSessionId: id,
       closed,
       redact: (text) => redactText(text, launch.secrets ?? []),

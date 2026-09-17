@@ -173,6 +173,8 @@ A probe task produces a recorded result, including failures or unavailable route
 
 **Snapshot boundary:** record resolved asset versions, executable/version, adapter contract version, requested policy, cwd, sanitized launch metadata, and digests before execution. Add observations later without rewriting the original plan. Never persist plaintext credentials; record secret references/rotation metadata only. Native transcripts and session state may be mutable and need separate lifecycle storage. External project/global/managed files are not frozen merely because generated files are: capture provenance, recheck changes, and label limits to reproducibility.
 
+**Reporting progress:** Per-session [configuration reports](configuration-report.md) now expose captured inputs, bounded native evidence, historical attachment checks, and saved-versus-captured asset revisions. B6 remains open for library-wide affected-profile/session reporting during edits and complete native override provenance; these reports do not pass B7/C4/D4 on their own.
+
 **Required configuration checks:** changing a shared asset must not overwrite a previous run's captured inputs; two sessions from one profile must not share mutable generated configuration; native overrides must be visible; a resumed conversation must not silently claim a newly edited prompt was applied. Retain asset revisions needed by resumable sessions even if the library item is later deleted.
 
 ## 7. Phase C: Pi as the second engine

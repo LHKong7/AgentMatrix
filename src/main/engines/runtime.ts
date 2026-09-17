@@ -4,6 +4,7 @@ import type {
   SessionEventData,
 } from '../../shared/sessions/schema'
 import type { ProcessResult } from './process/managed-process'
+import type { ConfigurationCheck } from '../../shared/engines/configuration-report'
 
 export type RuntimeOutput = Extract<
   SessionEventData,
@@ -19,6 +20,7 @@ export type RuntimeTurnResult = Pick<
   'outcome' | 'nativeStopReason' | 'usage'
 >
 export interface RuntimeSession {
+  readonly configurationChecks?: ConfigurationCheck[]
   readonly nativeSessionId: string
   readonly closed: Promise<ProcessResult>
   redact(text: string): string

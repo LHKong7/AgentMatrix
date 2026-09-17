@@ -24,6 +24,7 @@ import {
 import { RuntimeFailure, type RuntimeSession } from '../engines/runtime'
 import { SessionJournal } from './journal'
 import { SessionEventStream } from './event-stream'
+import type { ConfigurationReport } from '../../shared/engines/configuration-report'
 
 type Failure = NonNullable<SessionSnapshot['failure']>
 type CreateCommand = Extract<SessionCommand, { kind: 'create' }>
@@ -33,6 +34,7 @@ export interface SessionRuntimeFactory {
   create(sessionId: string, command: CreateCommand): Promise<Identity>
   /** Restore only the supplied native ID when status is resuming. Failed connection owns cleanup. */
   connect(snapshot: SessionSnapshot, signal: AbortSignal): Promise<RuntimeSession>
+  configuration?(snapshot: SessionSnapshot): Promise<ConfigurationReport>
 }
 interface PendingInteraction {
   resolve(answer: InteractionResponse): void
@@ -75,6 +77,11 @@ const failureOf = (error: unknown): Failure => ({
 
 /** Serialize durable decisions per session; never hold that queue while waiting for native work. */
 export class SessionCoordinator {
+  async configuration(input: unknown): Promise<ConfigurationReport> {
+    const query = sessionQuerySchema.parse(input)
+    if (!this.factory.configuration) throw appError('error.runtimeUnsupported')
+    return this.factory.configuration(await this.get(query))
+  }
   private readonly contexts = new Map<string, Context>()
   private readonly queues = new Map<string, Promise<unknown>>()
   private stopping = false
@@ -420,7 +427,13 @@ export class SessionCoordinator {
         await this.append(context, {
           runId: attachment.runId,
           turnId: null,
-          data: { kind: 'run.ready', nativeSessionId: runtime.nativeSessionId },
+          data: {
+            kind: 'run.ready',
+            nativeSessionId: runtime.nativeSessionId,
+            ...(runtime.configurationChecks
+              ? { configurationChecks: runtime.configurationChecks }
+              : {}),
+          },
         })
       })
     } catch (error) {

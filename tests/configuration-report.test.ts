@@ -1,0 +1,316 @@
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { buildConfigurationReport } from '../src/main/engines/configuration-report'
+import { RunInputStore } from '../src/main/engines/run-input-store'
+import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
+import { planOpenCode } from '../src/main/engines/adapters/opencode/configuration'
+import { openCodeWorkspace } from './helpers/opencode-fixture'
+import { createSessionSnapshot, applySessionEvent } from '../src/shared/sessions/state'
+import {
+  configurationChecksSchema,
+  type ConfigurationCheck,
+} from '../src/shared/engines/configuration-report'
+import { sessionSnapshotSchema } from '../src/shared/sessions/schema'
+import { SessionJournal } from '../src/main/sessions/journal'
+
+const roots: string[] = []
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+async function fixture() {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-config-report-')))
+  roots.push(root)
+  const cwd = join(root, 'project'),
+    executable = join(root, 'opencode')
+  await mkdir(cwd)
+  await writeFile(executable, 'Never executed by this fixture.')
+  const workspace = openCodeWorkspace(executable, cwd)
+  const store = new RunInputStore(join(root, 'runs'), new SkillDirectoryStore(join(root, 'skills')))
+  const manifest = await store.create('inputs', workspace, 'reviewer', (configuration, paths) =>
+    planOpenCode(configuration, paths, {
+      configHome: join(root, 'config'),
+      sources: { coverage: 'partial', files: [{ path: join(cwd, 'AGENTS.md'), exists: false }] },
+      readSkillEntry: async () => {
+        throw new Error('Unexpected Skill directory')
+      },
+    }),
+  )
+  const initial = createSessionSnapshot({
+    id: 'session',
+    agentId: manifest.agent.id,
+    installationId: manifest.installation.id,
+    engineVersion: manifest.installation.version!,
+    mode: manifest.launch.mode,
+    cwd: manifest.cwd,
+    snapshotId: manifest.id,
+    snapshotDigest: manifest.digest,
+    createdAt: manifest.createdAt,
+  })
+  const ready = (checks?: ConfigurationCheck[]) => {
+    const starting = applySessionEvent(initial, {
+      sessionId: initial.id,
+      cursor: 1,
+      timestamp: initial.createdAt,
+      runId: 'run',
+      turnId: null,
+      data: { kind: 'run.starting' },
+    })
+    return applySessionEvent(starting, {
+      sessionId: initial.id,
+      cursor: 2,
+      timestamp: initial.createdAt,
+      runId: 'run',
+      turnId: null,
+      data: {
+        kind: 'run.ready',
+        nativeSessionId: 'native-id',
+        ...(checks ? { configurationChecks: checks } : {}),
+      },
+    })
+  }
+  return { root, manifest, workspace, initial, ready, store }
+}
+describe('configuration report evidence and updates', () => {
+  it('retains captured asset versions after the library item and binding are removed', async () => {
+    const f = await fixture()
+    f.workspace.prompts = f.workspace.prompts.filter((asset) => asset.id !== 'role')
+    f.workspace.agents[0]!.promptBindings = f.workspace.agents[0]!.promptBindings.filter(
+      (binding) => binding.assetId !== 'role',
+    )
+    const report = buildConfigurationReport(f.manifest, f.ready(), f.workspace)
+    expect(report.savedState).toBe('pending')
+    expect(report.assets.find((asset) => asset.id === 'role')).toMatchObject({
+      version: 1,
+      libraryVersion: null,
+      nextVersion: null,
+      digest: expect.stringMatching(/^[a-f0-9]{64}$/),
+    })
+    expect(report.assets.find((asset) => asset.kind === 'skill')?.digest).toMatch(/^[a-f0-9]{64}$/)
+  })
+  it('does not infer Pi authentication, prompt loading, or tool policy from model state', async () => {
+    const f = await fixture()
+    f.manifest.installation.kind = 'pi'
+    f.manifest.agent.engineOptions = { kind: 'pi', thinkingLevel: 'high' }
+    const report = buildConfigurationReport(
+      f.manifest,
+      f.ready(['pi.state', 'pi.skills']),
+      f.workspace,
+    )
+    expect(report.fields.find((field) => field.id === 'connection')?.status).toBe('observed')
+    for (const id of ['authentication', 'execution', 'prompts'])
+      expect(report.fields.find((field) => field.id === id)?.status).toBe('unknown')
+    expect(report.fields.find((field) => field.id === 'reasoning')).toMatchObject({
+      status: 'observed',
+      value: 'high',
+    })
+  })
+  it('keeps generated and legacy sessions unverified without inventing observations', async () => {
+    const f = await fixture()
+    const report = buildConfigurationReport(f.manifest, f.initial, f.workspace)
+    expect(report.savedState).toBe('same')
+    expect(report.fields.every((field) => field.status === 'planned')).toBe(true)
+    expect(report.observation).toBeNull()
+    expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace).observation).toBeNull()
+    expect(report.sources).toEqual([
+      { path: join(f.manifest.cwd, 'AGENTS.md'), exists: false, digest: null },
+    ])
+  })
+  it('only labels fields covered by recorded native checks and omits sensitive configuration', async () => {
+    const f = await fixture()
+    f.manifest.connection.baseUrl =
+      'https://login:URL_KEY@example.invalid/private-key-path?key=QUERY_KEY#TOKEN'
+    f.manifest.connection.headers.Authorization = 'HEADER_KEY'
+    f.manifest.launch.environment.PRIVATE = { kind: 'literal', value: 'ENV_KEY' }
+    const report = buildConfigurationReport(
+      f.manifest,
+      f.ready(['cli.version', 'opencode.config', 'opencode.session-model']),
+      f.workspace,
+    )
+    expect(report.fields.find((field) => field.id === 'model')).toMatchObject({
+      status: 'observed',
+      value: 'fixture-model',
+      checks: ['opencode.config', 'opencode.session-model'],
+    })
+    expect(report.fields.find((field) => field.id === 'reasoning')?.status).toBe('unknown')
+    expect(report.fields.find((field) => field.id === 'sampling')?.status).toBe('unknown')
+    expect(report.fields.find((field) => field.id === 'connection')?.value).toContain(
+      'https://example.invalid',
+    )
+    const text = JSON.stringify(report)
+    for (const secret of [
+      'URL_KEY',
+      'private-key-path',
+      'QUERY_KEY',
+      'TOKEN',
+      'HEADER_KEY',
+      'ENV_KEY',
+      'ROLE_MARKER',
+      'APPEND_MARKER',
+      'SKILL_MARKER',
+      'PROBE_KEY',
+    ])
+      expect(text).not.toContain(secret)
+    expect(report.observationIsCurrent).toBe(true)
+  })
+  it('keeps DSH composition evidence separate from session selection and unknown policy enforcement', async () => {
+    const f = await fixture()
+    f.manifest.installation.kind = 'deepseek-harness'
+    const report = buildConfigurationReport(
+      f.manifest,
+      f.ready(['dsh.composition', 'dsh.session-model']),
+      f.workspace,
+    )
+    expect(report.fields.find((field) => field.id === 'model')?.status).toBe('observed')
+    for (const id of ['connection', 'execution', 'prompts', 'skills', 'mcp'])
+      expect(report.fields.find((field) => field.id === id)?.status).toBe('composition')
+    expect(report.fields.find((field) => field.id === 'reasoning')?.status).toBe('unknown')
+  })
+  it('compares resolved bindings while preserving old versions and digests', async () => {
+    const f = await fixture(),
+      before = JSON.stringify(f.manifest)
+    f.workspace.prompts[0]!.versions.push({ version: 2, content: 'NEW_ROLE' })
+    f.workspace.prompts[0]!.currentVersion = 2
+    f.workspace.revision++
+    const report = buildConfigurationReport(f.manifest, f.ready(['opencode.config']), f.workspace)
+    expect(report.savedState).toBe('pending')
+    expect(report.fields.find((field) => field.id === 'prompts')?.changed).toBe(true)
+    expect(report.assets.find((asset) => asset.id === 'role')).toMatchObject({
+      version: 1,
+      nextVersion: 2,
+      libraryVersion: 2,
+      source: 'agent',
+    })
+    f.workspace.agents[0]!.promptBindings[0]!.selection = { follow: 'pinned', version: 1 }
+    const pinned = buildConfigurationReport(f.manifest, f.ready(), f.workspace)
+    expect(pinned.savedState).toBe('same')
+    expect(pinned.assets.find((asset) => asset.id === 'role')).toMatchObject({
+      version: 1,
+      nextVersion: 1,
+      libraryVersion: 2,
+    })
+    expect(JSON.stringify(f.manifest)).toBe(before)
+    expect(await f.store.read('inputs')).toEqual(f.manifest)
+  })
+  it('honors direct binding overrides instead of reporting a shadowed bundle as pending', async () => {
+    const f = await fixture()
+    f.workspace.prompts[0]!.versions.push({ version: 2, content: 'NEW_ROLE' })
+    f.workspace.prompts[0]!.currentVersion = 2
+    f.workspace.agents[0]!.promptBindings[0]!.selection = { follow: 'pinned', version: 1 }
+    f.workspace.bundles.push({
+      id: 'bundle',
+      version: '1.0.0',
+      name: 'Bundle',
+      description: '',
+      enabled: true,
+      promptBindings: [{ assetId: 'role', selection: { follow: 'latest' }, mode: 'replace' }],
+      skillBindings: [],
+      mcpServerIds: [],
+    })
+    f.workspace.agents[0]!.bundleIds = ['bundle']
+    expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace).savedState).toBe('same')
+  })
+  it('reports removed or unresolved profiles without losing captured assets', async () => {
+    const f = await fixture()
+    f.workspace.agents[0]!.modelProfileId = null
+    expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace)).toMatchObject({
+      savedState: 'draft',
+      assets: expect.arrayContaining([
+        expect.objectContaining({ id: 'role', version: 1, nextVersion: null }),
+      ]),
+    })
+    f.workspace.agents = []
+    expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace).savedState).toBe('missing')
+  })
+  it('does not treat metadata-only edits as changes to executable inputs', async () => {
+    const f = await fixture()
+    f.workspace.installations[0]!.probedAt = new Date().toISOString()
+    f.workspace.connections[0]!.name = 'Renamed connection'
+    f.workspace.agents[0]!.name = 'Renamed agent'
+    expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace).savedState).toBe('same')
+    f.workspace.connections[0]!.auth = {
+      kind: 'bearer',
+      secret: { kind: 'environment', name: 'NEW_KEY' },
+    }
+    expect(
+      buildConfigurationReport(f.manifest, f.ready(), f.workspace).fields.find(
+        (field) => field.id === 'connection',
+      )?.changed,
+    ).toBe(true)
+  })
+  it('rejects mismatched identity and evidence instead of displaying another session as verified', async () => {
+    const f = await fixture(),
+      state = f.ready(['cli.version'])
+    expect(() =>
+      buildConfigurationReport(
+        f.manifest,
+        { ...state, snapshotDigest: '0'.repeat(64) },
+        f.workspace,
+      ),
+    ).toThrow('report.identity')
+    expect(() =>
+      buildConfigurationReport(
+        f.manifest,
+        { ...state, configuration: { ...state.configuration!, nativeSessionId: 'another' } },
+        f.workspace,
+      ),
+    ).toThrow('report.evidence')
+    expect(
+      sessionSnapshotSchema.safeParse({
+        ...state,
+        configuration: { ...state.configuration!, snapshotDigest: '0'.repeat(64) },
+      }).success,
+    ).toBe(false)
+    expect(configurationChecksSchema.safeParse(['cli.version', 'cli.version']).success).toBe(false)
+    expect(configurationChecksSchema.safeParse(['raw-secret-config']).success).toBe(false)
+  })
+  it('retains bounded observations across journal restart and replaces them only after successful resume', async () => {
+    const f = await fixture(),
+      journal = new SessionJournal(join(f.root, 'journal'))
+    await journal.create(f.initial)
+    await journal.append('session', 0, {
+      runId: 'run',
+      turnId: null,
+      data: { kind: 'run.starting' },
+    })
+    await journal.append('session', 1, {
+      runId: 'run',
+      turnId: null,
+      data: {
+        kind: 'run.ready',
+        nativeSessionId: 'native-id',
+        configurationChecks: ['cli.version', 'opencode.session-model'],
+      },
+    })
+    const restarted = new SessionJournal(join(f.root, 'journal'))
+    const interrupted = await restarted.get('session')
+    expect(interrupted.status).toBe('interrupted')
+    expect(interrupted.configuration?.checks).toEqual(['cli.version', 'opencode.session-model'])
+    expect(
+      buildConfigurationReport(f.manifest, interrupted, f.workspace).observationIsCurrent,
+    ).toBe(false)
+    await restarted.append('session', interrupted.cursor, {
+      runId: 'new-run',
+      turnId: null,
+      data: { kind: 'run.resuming' },
+    })
+    const resuming = await restarted.get('session')
+    expect(buildConfigurationReport(f.manifest, resuming, f.workspace).observationIsCurrent).toBe(
+      false,
+    )
+    await restarted.append('session', resuming.cursor, {
+      runId: 'new-run',
+      turnId: null,
+      data: {
+        kind: 'run.ready',
+        nativeSessionId: 'native-id',
+        configurationChecks: ['cli.version'],
+      },
+    })
+    expect((await restarted.get('session')).configuration).toMatchObject({
+      runId: 'new-run',
+      checks: ['cli.version'],
+    })
+  })
+})

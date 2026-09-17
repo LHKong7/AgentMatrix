@@ -70,6 +70,15 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
       agent: { id: 'reviewer' },
     })
     expect(f.resolveSecret).not.toHaveBeenCalled()
+    const report = await f.factory.configuration(
+      createSessionSnapshot({ ...identity, id: 'session-a', createdAt: new Date().toISOString() }),
+    )
+    expect(report.fields.find((field) => field.id === 'model')).toMatchObject({
+      value: 'fixture-model',
+      status: 'planned',
+    })
+    expect(report.observation).toBeNull()
+    expect(f.resolveSecret).not.toHaveBeenCalled()
     expect(await readdir(join(f.root, 'probes'))).toEqual([])
     expect(
       await readFile(join(f.runs.paths(identity.snapshotId).root, 'manifest.json'), 'utf8'),

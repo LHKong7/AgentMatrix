@@ -147,6 +147,15 @@ export function applySessionEvent(previous: SessionSnapshot, input: SessionEvent
       if (state.status === 'resuming' && state.nativeSessionId !== data.nativeSessionId)
         throw appError('error.sessionStale')
       state.nativeSessionId = data.nativeSessionId
+      if (data.configurationChecks)
+        state.configuration = {
+          runId: event.runId!,
+          snapshotDigest: state.snapshotDigest,
+          nativeSessionId: data.nativeSessionId,
+          checkedAt: event.timestamp,
+          checks: data.configurationChecks,
+        }
+      else delete state.configuration
       state.status = 'ready'
       break
     case 'turn.started':

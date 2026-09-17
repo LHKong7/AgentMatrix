@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-09-17T21:10:50.273Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "opencode",
+  "version": "1.18.16",
+  "route": "Local Chat Completions protocol fixture",
+  "externalProviderCalls": false,
+  "desktopVersionProbe": true,
+  "profileToSession": true,
+  "permissionReply": true,
+  "toolResult": true,
+  "rendererReloadWithoutResubmit": true,
+  "streamingCancellation": true,
+  "messageDelivery": "Streaming text",
+  "configurationReport": {
+    "nativeEvidence": true,
+    "persistedAfterRestart": true,
+    "pendingAssetVersions": true,
+    "englishAndChinese": true,
+    "sensitiveValuesOmitted": true
+  },
+  "permissionCancellation": true,
+  "sharedPromptOldAndNewSnapshots": true,
+  "appQuitAndRestart": true,
+  "nativeResume": true,
+  "confirmedClose": true,
+  "englishAndChinese": true,
+  "journalCredentialRedaction": true,
+  "untrustedTextEscaped": true
+}
