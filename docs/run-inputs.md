@@ -1,6 +1,6 @@
 # Run input snapshots
 
-`RunInputStore` captures a resolved configuration for a future CLI launch. It is a main-process storage component; no production adapter or session IPC invokes it yet. A successful capture proves that the planned files were published and can be verified, not that an engine accepted or applied them.
+`RunInputStore` captures a resolved configuration for a future CLI launch. It is a main-process storage component used by the opt-in OpenCode configuration probe; production session IPC does not invoke it yet. A successful capture proves that the planned files were published and can be verified, not that an engine accepted or applied them.
 
 ## Captured inputs and mutable state
 
@@ -18,6 +18,8 @@ The first process attachment may use its run ID as the snapshot ID. A resumed at
 The manifest records the workspace revision, resolved asset versions and provenance, engine installation/version, canonical executable path and SHA-256, canonical cwd, adapter contract version, and the launch plan. Its digest covers canonical JSON with sorted object keys, excluding the digest itself. Input-file hashes, sizes, and executable flags are covered by that digest. The mutable `state` tree is outside the digest.
 
 The adapter returns validated generated files, prompt-file and Skill-directory mappings, launch arguments, environment references, and native-source observations. Every selected asset must have exactly one mapping. Environment entries distinguish ordinary literals, captured input files/directories, mutable state directories, and secret references. Input references must point to materialized content. Credentials are resolved later in memory by the runtime; this store never reads provider environment values or decrypts the vault.
+
+Secret environment entries can specify `json-string` encoding for engines that interpolate before parsing JSON; omission preserves raw encoding. `prepareRunLaunch` performs that encoding after resolving the reference in memory, retaining both forms for diagnostic redaction. This optional manifest-v1 field does not add secret values to the persisted document.
 
 Adapters must keep credentials out of literal fields, arguments, and generated file contents. This component cannot identify a secret pasted into ordinary prompt text or a native configuration string. It also does not attest provider compatibility, prompt semantics, Skill discovery, plugin execution, or effective permissions.
 

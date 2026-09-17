@@ -120,6 +120,8 @@ export const configurationEn = {
   'config.executableFile': 'executable',
   'error.skillDesktopOnly': 'Directory import is available in the desktop app.',
   'error.runPath': 'Run inputs contain an unsafe or conflicting path.',
+  'error.openCodeConfiguration':
+    'This OpenCode configuration cannot be mapped by the current adapter: {feature}.',
   'error.runIntegrity':
     'The saved run inputs are missing or have changed. The original snapshot was preserved.',
   'error.runConfiguration':

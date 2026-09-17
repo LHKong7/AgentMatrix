@@ -1,0 +1,409 @@
+import { createServer } from 'node:http'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { expect, it } from 'vitest'
+import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
+import { planOpenCode } from '../src/main/engines/adapters/opencode/configuration'
+import { inspectOpenCodeSources } from '../src/main/engines/adapters/opencode/sources'
+import { RunInputStore } from '../src/main/engines/run-input-store'
+import { prepareRunLaunch } from '../src/main/engines/run-launch'
+import { ManagedProcess, type ProcessLaunch } from '../src/main/engines/process/managed-process'
+import { attachAcpProcess } from '../src/main/engines/acp/attachment'
+import type { SessionNotification } from '@agentclientprotocol/sdk'
+import { openCodeWorkspace } from './helpers/opencode-fixture'
+
+async function capture(launch: ProcessLaunch, args: string[]): Promise<string> {
+  const child = new ManagedProcess({ ...launch, args })
+  let expired = false
+  const timer = setTimeout(() => {
+    expired = true
+    void child.terminate().catch(() => {})
+  }, 25_000)
+  try {
+    await child.ready
+    const reader = child.stdout.getReader()
+    const chunks: Uint8Array[] = []
+    let length = 0
+    while (true) {
+      const item = await reader.read()
+      if (item.done) break
+      length += item.value.byteLength
+      if (length > 4_194_304) throw new Error('Native readback exceeded its output limit')
+      chunks.push(item.value)
+    }
+    const result = await child.closed
+    if (expired || result.code !== 0 || result.failure)
+      throw new Error(`Native readback failed: ${result.stderr}`)
+    return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))
+  } finally {
+    clearTimeout(timer)
+    await child.terminate()
+  }
+}
+
+it.runIf(Boolean(process.env.AGENT_MATRIX_TEST_OPENCODE))(
+  'loads captured configuration and performs a real ACP turn against a local protocol fixture',
+  async () => {
+    const executable = process.env.AGENT_MATRIX_TEST_OPENCODE!
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-opencode-native-')))
+    const cwd = join(root, 'project')
+    const home = join(root, 'home')
+    const configHome = join(root, 'config')
+    await mkdir(join(cwd, '.git'), { recursive: true })
+    await mkdir(home)
+    await mkdir(configHome)
+    await writeFile(join(cwd, 'fixture.txt'), 'TOOL_RESULT_MARKER\n')
+    const key = 'synthetic-"quoted"-{file:/never-read}-key'
+    const mcpCwd = join(root, 'mcp-cwd')
+    await mkdir(mcpCwd)
+    const mcpScript = join(root, 'mcp-fixture.cjs')
+    await writeFile(
+      mcpScript,
+      `
+const readline = require('node:readline');
+readline.createInterface({ input: process.stdin }).on('line', (line) => {
+  const request = JSON.parse(line);
+  if (request.id === undefined) return;
+  let result = {};
+  if (request.method === 'initialize') result = { protocolVersion: request.params.protocolVersion, serverInfo: { name: 'agentmatrix-fixture', version: '1.0.0' }, capabilities: { tools: {} } };
+  if (request.method === 'tools/list') result = { tools: [{ name: 'marker', description: 'Return a configuration probe marker', inputSchema: { type: 'object', properties: {} } }] };
+  if (request.method === 'tools/call') result = { content: [{ type: 'text', text: process.cwd() === ${JSON.stringify(mcpCwd)} && process.env.MCP_SECRET === ${JSON.stringify(key)} && process.argv[2] === 'literal;argument' ? 'MCP_CONFIG_MARKER' : 'MCP_CONFIGURATION_FAILED' }] };
+  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: request.id, result }) + '\\n');
+});
+`,
+    )
+    const requests: {
+      model: unknown
+      authorization: string | undefined
+      hasRole: boolean
+      hasAppend: boolean
+      hasToolResult: boolean
+      hasMcpResult: boolean
+      hasSkillResult: boolean
+    }[] = []
+    let mainRequests = 0
+    const server = createServer(async (request, response) => {
+      try {
+        let body = ''
+        for await (const chunk of request) {
+          body += String(chunk)
+          if (body.length > 2_097_152) throw new Error('Fixture request limit')
+        }
+        const input = JSON.parse(body)
+        const main =
+          Array.isArray(input.tools) &&
+          input.tools.some(
+            (tool: { function?: { name?: string } }) => tool.function?.name === 'read',
+          )
+        const hasToolResult = input.messages.some(
+          (message: { role: string; content: unknown }) =>
+            message.role === 'tool' &&
+            JSON.stringify(message.content).includes('TOOL_RESULT_MARKER'),
+        )
+        const hasMcpResult = input.messages.some(
+          (message: { role: string; content: unknown }) =>
+            message.role === 'tool' &&
+            JSON.stringify(message.content).includes('MCP_CONFIG_MARKER'),
+        )
+        const hasSkillResult = input.messages.some(
+          (message: { role: string; content: unknown }) =>
+            message.role === 'tool' &&
+            JSON.stringify(message.content).includes('DIRECTORY_SKILL_MARKER'),
+        )
+        const mcpTool = input.tools?.find((tool: { function?: { name?: string } }) =>
+          tool.function?.name?.endsWith('_marker'),
+        )
+        if (main) {
+          mainRequests++
+          requests.push({
+            model: input.model,
+            authorization: request.headers.authorization,
+            hasRole: body.includes('ROLE_MARKER'),
+            hasAppend: body.includes('APPEND_MARKER'),
+            hasToolResult,
+            hasMcpResult,
+            hasSkillResult,
+          })
+        }
+        if (!input.stream) {
+          response.writeHead(200, { 'Content-Type': 'application/json' })
+          response.end(
+            JSON.stringify({
+              id: 'fixture',
+              object: 'chat.completion',
+              created: 1,
+              model: input.model,
+              choices: [
+                {
+                  index: 0,
+                  message: { role: 'assistant', content: 'Probe title' },
+                  finish_reason: 'stop',
+                },
+              ],
+              usage: { prompt_tokens: 10, completion_tokens: 3, total_tokens: 13 },
+            }),
+          )
+          return
+        }
+        response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+        const chunk = (delta: object, finish_reason: string | null = null) =>
+          response.write(
+            `data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', created: 1, model: input.model, choices: [{ index: 0, delta, finish_reason }] })}\n\n`,
+          )
+        if (main && !hasToolResult && mainRequests < 4) {
+          chunk({
+            role: 'assistant',
+            tool_calls: [
+              {
+                index: 0,
+                id: 'probe-read',
+                type: 'function',
+                function: {
+                  name: 'read',
+                  arguments: JSON.stringify({ filePath: join(cwd, 'fixture.txt') }),
+                },
+              },
+            ],
+          })
+          chunk({}, 'tool_calls')
+        } else if (main && !hasSkillResult && mainRequests < 5) {
+          chunk({
+            role: 'assistant',
+            tool_calls: [
+              {
+                index: 0,
+                id: 'probe-skill',
+                type: 'function',
+                function: { name: 'skill', arguments: JSON.stringify({ name: 'directory-check' }) },
+              },
+            ],
+          })
+          chunk({}, 'tool_calls')
+        } else if (main && !hasMcpResult && mcpTool && mainRequests < 6) {
+          chunk({
+            role: 'assistant',
+            tool_calls: [
+              {
+                index: 0,
+                id: 'probe-mcp',
+                type: 'function',
+                function: { name: mcpTool.function.name, arguments: '{}' },
+              },
+            ],
+          })
+          chunk({}, 'tool_calls')
+        } else {
+          chunk({ role: 'assistant', content: 'Verified ' })
+          chunk({ content: main ? 'TOOL_RESULT_MARKER' : 'probe title' })
+          chunk({}, 'stop')
+        }
+        response.end('data: [DONE]\n\n')
+      } catch {
+        response.writeHead(400)
+        response.end('Protocol fixture rejected the request')
+      }
+    })
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('Missing fixture address')
+    let attachment: Awaited<ReturnType<typeof attachAcpProcess>> | undefined
+    try {
+      const workspace = openCodeWorkspace(executable, cwd)
+      workspace.connections[0]!.baseUrl = `http://127.0.0.1:${address.port}/v1`
+      workspace.mcpServers = [
+        {
+          id: 'fixture',
+          name: 'MCP fixture',
+          description: '',
+          enabled: true,
+          transport: 'stdio',
+          command: process.execPath,
+          args: [mcpScript, 'literal;argument'],
+          cwd: mcpCwd,
+          environment: {},
+          envRefs: { MCP_SECRET: { kind: 'environment', name: 'PROBE_KEY' } },
+          timeoutMs: 10000,
+        },
+      ]
+      workspace.agents[0]!.mcpServerIds = ['fixture']
+      const captures = new SkillDirectoryStore(join(root, 'skills'))
+      const skillSource = join(root, 'skill-source')
+      await mkdir(join(skillSource, 'references'), { recursive: true })
+      await writeFile(
+        join(skillSource, 'SKILL.md'),
+        '---\nname: directory-check\ndescription: Native directory Skill probe\n---\nDIRECTORY_SKILL_MARKER\nSee references/context.md.',
+      )
+      await writeFile(join(skillSource, 'references/context.md'), 'Captured reference bytes')
+      const imported = await captures.capture(skillSource)
+      workspace.skills.push({
+        id: 'directory',
+        name: 'Directory Skill',
+        description: '',
+        enabled: true,
+        sourcePath: imported.sourcePath,
+        currentVersion: 1,
+        versions: [imported.snapshot],
+      })
+      workspace.agents[0]!.skillBindings.push({
+        assetId: 'directory',
+        selection: { follow: 'latest' },
+      })
+      const store = new RunInputStore(join(root, 'runs'), captures)
+      const sources = await inspectOpenCodeSources(cwd, { home, configHome })
+      const manifest = await store.create('native', workspace, 'reviewer', (configuration, paths) =>
+        planOpenCode(configuration, paths, {
+          configHome,
+          sources,
+          readSkillEntry: async (skill) => {
+            if (skill.revision.kind !== 'directory') throw new Error('Unexpected Markdown lookup')
+            return readFile(join(await captures.verify(skill.revision), 'SKILL.md'), 'utf8')
+          },
+        }),
+      )
+      const { launch } = await prepareRunLaunch(store, 'native', async () => key, {
+        ...process.env,
+        HOME: home,
+      })
+      Object.assign(launch.environment, {
+        OPENCODE_TEST_HOME: home,
+        OPENCODE_DISABLE_MODELS_FETCH: 'true',
+        OPENCODE_DISABLE_DEFAULT_PLUGINS: 'true',
+        OPENCODE_DISABLE_CLAUDE_CODE: 'true',
+        OPENCODE_DISABLE_EXTERNAL_SKILLS: 'true',
+      })
+      const version = (await capture(launch, ['--version'])).trim()
+      expect(version).toBe('1.18.16')
+      const config = JSON.parse(await capture(launch, ['debug', 'config', '--pure']))
+      expect(config.model).toBe('agentmatrix-local/selected')
+      expect(config.provider['agentmatrix-local'].options.apiKey).toBe(key)
+      expect(config.agent.build.prompt).toContain('ROLE_MARKER')
+      expect(config.instructions).toContain(join(store.paths('native').inputs, 'prompts/rules.md'))
+      const skills = JSON.parse(await capture(launch, ['debug', 'skill', '--pure']))
+      expect(JSON.stringify(skills)).toContain('SKILL_MARKER')
+      expect(JSON.stringify(skills)).toContain('DIRECTORY_SKILL_MARKER')
+      expect(
+        await readFile(
+          join(store.paths('native').inputs, 'skills/directory-check/references/context.md'),
+          'utf8',
+        ),
+      ).toBe('Captured reference bytes')
+      await rm(skillSource, { recursive: true })
+      await rm(captures.root, { recursive: true })
+      expect(await store.read('native')).toEqual(manifest)
+      const updates: SessionNotification[] = []
+      let permissions = 0
+      attachment = await attachAcpProcess(
+        { ...launch, args: [...launch.args, '--pure'] },
+        {
+          update: async (notification) => {
+            updates.push(notification)
+          },
+          permission: async (request) => {
+            permissions++
+            const option = request.options.find((candidate) => candidate.kind === 'allow_once')
+            return option
+              ? { outcome: { outcome: 'selected', optionId: option.optionId } }
+              : { outcome: { outcome: 'cancelled' } }
+          },
+        },
+        { requestTimeoutMs: 30_000 },
+      )
+      const initialized = await attachment.client.initialize('0.1.0')
+      expect(initialized.agentInfo?.version).toBe(version)
+      const session = await attachment.client.newSession({ cwd, mcpServers: [] })
+      const response = await attachment.client.prompt(
+        {
+          sessionId: session.sessionId,
+          prompt: [{ type: 'text', text: 'Read fixture.txt, then report its marker.' }],
+        },
+        45_000,
+      )
+      expect(response.stopReason).toBe('end_turn')
+      expect(requests.length).toBeGreaterThanOrEqual(4)
+      expect(
+        requests.every(
+          (request) =>
+            request.model === 'fixture-model' &&
+            request.authorization === `Bearer ${key}` &&
+            request.hasRole &&
+            request.hasAppend,
+        ),
+      ).toBe(true)
+      expect(requests.some((request) => request.hasToolResult)).toBe(true)
+      expect(requests.some((request) => request.hasMcpResult)).toBe(true)
+      expect(requests.some((request) => request.hasSkillResult)).toBe(true)
+      expect(permissions).toBeGreaterThanOrEqual(3)
+      expect(
+        updates.some(
+          (notification) =>
+            notification.update.sessionUpdate === 'tool_call_update' &&
+            notification.update.status === 'completed',
+        ),
+      ).toBe(true)
+      const text = updates
+        .flatMap((notification) =>
+          notification.update.sessionUpdate === 'agent_message_chunk' &&
+          notification.update.content.type === 'text'
+            ? [notification.update.content.text]
+            : [],
+        )
+        .join('')
+      expect(text).toContain('Verified TOOL_RESULT_MARKER')
+      await attachment.close()
+      expect(await store.verifyForReuse('native')).toEqual(manifest)
+      const nativePath = join(cwd, 'opencode.jsonc')
+      const nativeContents =
+        '{\n  // Preserved native project setting\n  "$schema": "https://opencode.ai/config.json",\n  "agent": { "build": { "prompt": "NATIVE_OVERRIDE_MARKER" } },\n  "compaction": { "auto": false }\n}\n'
+      await writeFile(nativePath, nativeContents)
+      const overridden = JSON.parse(await capture(launch, ['debug', 'config', '--pure']))
+      expect(overridden.agent.build.prompt).toBe('NATIVE_OVERRIDE_MARKER')
+      expect(overridden.compaction.auto).toBe(false)
+      expect(await readFile(nativePath, 'utf8')).toBe(nativeContents)
+      await expect(
+        prepareRunLaunch(store, 'native', async () => key, { HOME: home }),
+      ).rejects.toThrow('error.runSourceChanged')
+      if (process.env.AGENT_MATRIX_OPENCODE_REPORT)
+        await writeFile(
+          process.env.AGENT_MATRIX_OPENCODE_REPORT,
+          JSON.stringify(
+            {
+              checkedAt: new Date().toISOString(),
+              engine: 'opencode',
+              engineVersion: version,
+              platform: process.platform,
+              architecture: process.arch,
+              route:
+                'Local OpenAI Chat Completions protocol fixture; not an intended external provider',
+              externalProviderCalls: false,
+              configReadback: true,
+              promptAndInstructionObserved: true,
+              skillDiscovery: true,
+              directorySkillInvocation: true,
+              inputIntegrityAfterEngineExit: true,
+              streamedResponse: true,
+              permissionReplies: permissions,
+              toolRoundTrip: true,
+              mcpStdioRoundTrip: true,
+              mcpCwdAndSecretEnvironment: true,
+              credentialInterpolation: true,
+              nativeResume: 'not tested',
+              nativeOverrides:
+                'Project prompt override observed; native file preserved; changed source blocks snapshot reuse',
+              productionRuntime: 'not connected',
+            },
+            null,
+            2,
+          ) + '\n',
+        )
+    } finally {
+      await attachment?.close()
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await rm(root, { recursive: true, force: true })
+    }
+  },
+)

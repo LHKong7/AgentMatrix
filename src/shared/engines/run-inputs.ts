@@ -46,7 +46,13 @@ export const launchEnvironmentSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('input-file'), path: assetRelativePath }).strict(),
   z.object({ kind: z.literal('input-directory'), path: assetRelativePath }).strict(),
   z.object({ kind: z.literal('state-directory'), path: assetRelativePath }).strict(),
-  z.object({ kind: z.literal('secret'), reference: secretReferenceSchema }).strict(),
+  z
+    .object({
+      kind: z.literal('secret'),
+      reference: secretReferenceSchema,
+      encoding: z.enum(['raw', 'json-string']).optional(),
+    })
+    .strict(),
 ])
 export const plannedLaunchSchema = z
   .object({

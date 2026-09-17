@@ -112,6 +112,7 @@ export const configurationZh = {
   'config.executableFile': '可执行文件',
   'error.skillDesktopOnly': '目录导入仅在桌面应用中可用。',
   'error.runPath': '运行输入包含不安全或冲突的路径。',
+  'error.openCodeConfiguration': '当前适配器无法映射此 OpenCode 配置：{feature}。',
   'error.runIntegrity': '保存的运行输入缺失或已更改。原快照已保留。',
   'error.runConfiguration': '所选配置无法为此引擎安装创建运行快照。',
   'error.runExists': '此标识对应的快照已存在，无法覆盖。',
