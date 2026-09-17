@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { pluginConfigurationSchema } from './plugin-options'
 import {
   absolutePath,
   agentProfileSchema,
@@ -168,6 +169,10 @@ export const nativePluginSchema = z
     version: z.string().min(1).max(100),
     source: z.string().max(4000),
     path: absolutePath,
+    options: z
+      .object({ kind: z.literal('deepseek-harness'), config: pluginConfigurationSchema })
+      .strict()
+      .optional(),
   })
   .strict()
 

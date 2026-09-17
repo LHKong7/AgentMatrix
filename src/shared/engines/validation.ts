@@ -10,6 +10,7 @@ export type EngineIssueCode =
   | 'prefix-arguments'
   | 'native-options'
   | 'native-plugins'
+  | 'native-plugin-options'
   | 'plugins-pure-mode'
   | 'pi-plugin-policy'
   | 'protocol'
@@ -121,8 +122,11 @@ export function engineConfigurationIssues(
   )
     add('native-options', 'engine-options', 'engineOptions.agent')
   if (configuration.nativePlugins.length) {
-    if (kind === 'deepseek-harness') add('native-plugins', 'plugins', 'nativePlugins.activation')
-    else if (kind === 'pi' && agent.execution.approval !== 'unrestricted')
+    if (
+      configuration.nativePlugins.some((plugin) => plugin.options && plugin.options.kind !== kind)
+    )
+      add('native-plugin-options', 'plugins', 'nativePlugins.options')
+    if (kind === 'pi' && agent.execution.approval !== 'unrestricted')
       add('pi-plugin-policy', 'plugins', 'nativePlugins.tools-policy')
     else if (
       kind === 'opencode' &&

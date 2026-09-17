@@ -692,6 +692,29 @@ export function ResourceEditor({
                   onChange={(path) => setDraft({ ...draft, path })}
                 />
                 <p className="hint">{t('config.nativeHint')}</p>
+                {(workspace.installations.find((item) => item.id === draft.engineInstallationId)
+                  ?.kind === 'deepseek-harness' ||
+                  draft.options) && (
+                  <>
+                    <JsonField
+                      label={t('plugin.dshOptions')}
+                      value={draft.options?.config ?? {}}
+                      onChange={(config) =>
+                        setDraft({ ...draft, options: { kind: 'deepseek-harness', config } })
+                      }
+                    />
+                    <p className="hint">{t('plugin.dshOptionsHint')}</p>
+                    {draft.options && (
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => setDraft({ ...draft, options: undefined })}
+                      >
+                        {t('plugin.clearOptions')}
+                      </button>
+                    )}
+                  </>
+                )}
                 <NativePluginInspection
                   key={JSON.stringify([
                     draft.engineInstallationId,

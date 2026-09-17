@@ -8,6 +8,7 @@ export default defineConfig({
       'tests/dsh-configuration-installed.probe.ts',
       'tests/dsh-runtime-installed.probe.ts',
       'tests/dsh-plugin-installed.probe.ts',
+      'tests/dsh-plugin-activation.probe.ts',
     ],
     testTimeout: 120_000,
   },

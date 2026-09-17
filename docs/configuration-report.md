@@ -26,6 +26,8 @@ For selected OpenCode ESM plugins, `opencode.plugins` records initializer and co
 
 For selected Pi extensions, `pi.plugins` checks native witness registration and current-session factory/startup receipts on launch, turns, and resume. It does not verify every extension feature or complete dependency provenance. See [Pi activation checks](pi-plugin-activation.md).
 
+For selected DSH modules, `dsh.plugins` records native boot completion and fresh observations of active row/fiber identities, captured configuration, owned process, and current native session. Checks repeat around turns and on resume. This evidence is separate from `dsh.composition`, whose dump does not activate modules; it does not prove arbitrary hooks or complete dependency provenance. See [DSH activation checks](dsh-plugin-activation.md).
+
 Unset sampling defaults and unsupported reasoning readback remain unknown. The report presents the captured request and the scope of its native checks; it is not an assertion that every field is applied or continuously unchanged. Failures/interruption remain visible alongside historical evidence.
 
 ## Saved changes and assets

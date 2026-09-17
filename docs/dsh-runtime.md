@@ -25,7 +25,7 @@ The application journal supplies visible history after renderer reload or proces
 
 Editing shared Prompt assets affects newly captured sessions. Existing sessions and resumed conversations retain their original inputs. App quit waits for process cleanup and marks sessions interrupted. The explicit Close action ends the application conversation after cleanup; durable native state is retained with its run inputs.
 
-DSH cards, terminal interaction, elicitation, forks, native transcript replay, SDK parity, and arbitrary native plugins are outside this adapter's accepted runtime surface. The UI exposes the supported ACP profile and diagnoses incompatible templates/settings at launch. The [installed plugin contract](dsh-plugin-contract.md) now provides evidence for future selected-plugin support, including a startup race: an ACP session can exist before all native components finish loading. Native boot completion and ongoing plugin lifecycle checks remain required.
+DSH cards, terminal interaction, elicitation, forks, native transcript replay, SDK parity, and general bundle patch import are outside this adapter's accepted runtime surface. The UI exposes the supported ACP profile and diagnoses incompatible templates/settings at launch. Explicitly selected installed modules now have [native boot and plugin lifecycle checks](dsh-plugin-activation.md), including per-instance JSON configuration. The runtime waits for native boot before creating/restoring the ACP session and checks active fibers and current-session identity before Ready, around turns, and on resume. This addresses the startup race established by the [installed plugin contract](dsh-plugin-contract.md); it does not verify arbitrary plugin behavior.
 
 ## Verification
 
@@ -44,4 +44,6 @@ The optional runtime report prefix produces `.pi-ai.json` and `.deepseek-native.
 
 The [Electron record](probes/2026-09-18-dsh-desktop-sessions.json) covers installation probing, profile launch, native tools and approvals, literal rendering of HTML-like output, renderer reload without another request, cancellation, shared-Prompt edits with old/new inputs, app quit/restart, native resume, Close, bilingual controls, and journal redaction. All fixtures use synthetic credentials and isolated local HTTP providers. No external model service is called.
 
-This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, complete effective-configuration reporting, the combined cross-engine asset-update scenario, selected native plugins, remote MCP, and platform coverage beyond macOS remain open.
+The later [plugin desktop result](probes/2026-09-18-dsh-plugin-desktop.json) additionally verifies selected native modules, bilingual options editing, native system sections reaching the local provider, activation reports, and fresh checks on native resume. Separate [activation fixtures](dsh-plugin-activation.md) pass both provider routes.
+
+This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, complete effective-configuration reporting, the combined cross-engine asset-update scenario, broader plugin/bundle coverage, remote MCP, and platform coverage beyond macOS remain open.

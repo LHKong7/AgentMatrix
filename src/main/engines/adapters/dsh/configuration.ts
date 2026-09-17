@@ -1,4 +1,5 @@
 import { piApis as apis } from '../../../../shared/engines/contracts'
+import { planDshPlugins } from './plugins'
 import { assertEngineConfiguration } from '../../../../shared/engines/validation'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -120,7 +121,7 @@ export async function planDsh(
     files: [],
     promptPaths: {},
     skillPaths: {},
-    externalSources: context.composition.sources,
+    externalSources: structuredClone(context.composition.sources),
   }
   let index = 0
   const secretName = (reference: SecretReference | null) => {
@@ -316,6 +317,7 @@ export async function planDsh(
     })
     mcpMappings.push({ id: server.id, serverName, transport: server.transport })
   }
+  await planDshPlugins(configuration, paths, generated, rows)
   generated.files.push(
     {
       path: 'profile/package.json',

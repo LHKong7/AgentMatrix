@@ -85,6 +85,7 @@ export function buildConfigurationReport(
               prompts: ['dsh.composition'],
               skills: ['dsh.composition'],
               mcp: ['dsh.composition'],
+              plugins: manifest.nativePlugins.length ? ['dsh.plugins'] : [],
             } as Partial<Record<ConfigurationField, ConfigurationCheck[]>>)
           : {}),
   }

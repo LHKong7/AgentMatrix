@@ -1,6 +1,18 @@
 import type { pluginEn } from './plugin-en'
 
 export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
+  'plugin.dshOptions': 'DSH 插件配置（JSON）',
+  'plugin.dshOptionsHint':
+    '交给原生插件校验的普通配置，最多 64 KiB，不接受可执行表达式对象。API Key 请使用共享凭据引用管理。',
+  'error.dshPluginEntry':
+    '请选择已编译的 DSH JavaScript 模块，或具有明确根 import 导出、main 入口或 index.js 的安装包。目前不支持导出数组和 TypeScript 源文件。',
+  'error.dshPluginBundle': '此目录是 DSH 补丁包。请明确选择组件模块；目前尚未实现补丁包导入。',
+  'error.dshPluginId':
+    'DSH 插件 ID 必须唯一，只能使用最多 100 个字母、数字、连字符或下划线，且不能与托管组件 ID 冲突。',
+  'error.dshPluginRange': '已安装插件声明的 DSH 或 Cordis 同级依赖版本范围不兼容或无效。',
+  'error.dshPluginFramework':
+    '已安装的 DSH 或 Cordis 框架与验证过的插件加载器版本不符，或无法检查其文件。',
+  'plugin.clearOptions': '清除插件选项',
   'plugin.inspect': '检查已安装文件',
   'plugin.inspecting': '正在检查文件…',
   'plugin.result': '已安装文件检查',
@@ -28,7 +40,7 @@ export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
   'plugin.useVersion': '使用包版本',
   'plugin.versionMismatch': '配置版本与已安装的包版本不同，请在保存前核对。',
   'plugin.idHint':
-    'V1 导出的 ID 会在启动时核对。没有导出 ID 的 OpenCode 旧式模块和 Pi 扩展使用此字段作为标签，并以来源摘要标识绑定。',
+    'V1 导出的 ID 会在启动时核对。没有导出 ID 的 OpenCode 旧式模块和 Pi 扩展使用此字段作为标签，并以来源摘要标识绑定。DSH 将此字段用作唯一的原生组件 ID；不同 ID 可创建同一模块的独立实例。',
   'error.pluginDesktopOnly': '已安装插件检查仅在桌面应用中可用。',
   'error.pluginBusy': '另一个插件检查仍在进行中。',
   'error.pluginEngine': '请先选择已保存的 OpenCode 安装，再检查插件。',

@@ -160,6 +160,28 @@ if (isPi) {
     profileTemplate: 'acp',
     patchReload: 'startup',
   }
+  workspace.agents[0].promptBindings[0].mode = 'append'
+  const path = join(root, 'desktop-dsh-plugin.cjs')
+  await writeFile(
+    path,
+    `exports.inject=['systemPrompt'];
+exports.Config={'~standard':{version:1,vendor:'fixture',validate:value=>typeof value?.marker==='string'?{value}:{issues:[{message:'marker required'}]}}};
+exports.apply=(ctx,config)=>ctx.systemPrompt.section({name:'desktop-plugin',order:900,text:config.marker});
+`,
+  )
+  workspace.nativePlugins = [
+    {
+      id: 'desktop-plugin',
+      name: 'Desktop DSH plugin',
+      nativeId: 'desktop-plugin',
+      engineInstallationId: 'oc',
+      version: 'fixture',
+      source: 'local desktop fixture',
+      path,
+      options: { kind: 'deepseek-harness', config: { marker: 'DESKTOP_PLUGIN_MARKER' } },
+    },
+  ]
+  workspace.agents[0].nativePluginIds = ['desktop-plugin']
 } else {
   const path = join(root, 'desktop-plugin.mjs')
   await writeFile(
@@ -467,10 +489,12 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     return window.agentMatrix.sessions.configuration({ sessionId })
   })
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
-  if (!isDsh) {
-    assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
-    assert.ok(value.observation.checks.includes(isPi ? 'pi.plugins' : 'opencode.plugins'))
-  }
+  assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
+  assert.ok(
+    value.observation.checks.includes(
+      isPi ? 'pi.plugins' : isDsh ? 'dsh.plugins' : 'opencode.plugins',
+    ),
+  )
   if (process.env.AGENT_MATRIX_REPORT_SCREENSHOT)
     await page.screenshot({
       path: process.env.AGENT_MATRIX_REPORT_SCREENSHOT + (title === '配置报告' ? '.zh.png' : ''),
@@ -482,6 +506,39 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
 try {
   await launch()
   await language('en')
+  if (isDsh) {
+    for (const locale of ['en', 'zh-CN']) {
+      await language(locale)
+      await navigate(locale === 'en' ? 'Native plugins' : '原生插件')
+      await page
+        .getByRole('button', {
+          name: locale === 'en' ? 'Edit Desktop DSH plugin' : '编辑 Desktop DSH plugin',
+          exact: true,
+        })
+        .click()
+      const dialog = page.getByRole('dialog')
+      await dialog
+        .getByLabel(locale === 'en' ? 'DSH plugin configuration (JSON)' : 'DSH 插件配置（JSON）', {
+          exact: true,
+        })
+        .fill(JSON.stringify({ marker: 'DESKTOP_PLUGIN_MARKER', locale }))
+      await dialog
+        .getByRole('button', {
+          name: locale === 'en' ? 'Save configuration' : '保存配置',
+          exact: true,
+        })
+        .click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(
+        await page.evaluate(
+          async () =>
+            (await window.agentMatrix.loadWorkspace()).nativePlugins[0].options.config.locale,
+        ),
+        locale,
+      )
+    }
+    await language('en')
+  }
   await navigate('Engines')
   await page.getByRole('button', { name: 'Check installation', exact: true }).click()
   await waitForIpc(
@@ -644,7 +701,7 @@ try {
   if (!isPi) await page.getByRole('button', { name: /^允许一次/ }).click()
   await status('就绪')
   assert.equal(calls.at(-1).directoryRead, 'default')
-  if (!isDsh) assert.equal(calls.at(-1).plugin, true)
+  assert.equal(calls.at(-1).plugin, true)
   assert.equal(
     await page.locator('.message.assistant pre').textContent(),
     'UI_REPLY <script>not executable</script>',
@@ -804,7 +861,7 @@ try {
   await status('Ready')
   assert.equal(calls.at(-1).role, 'new')
   assert.equal(calls.at(-1).directoryRead, 'alternate')
-  if (!isDsh) assert.equal(calls.at(-1).plugin, true)
+  assert.equal(calls.at(-1).plugin, true)
   const latest = (await sessions()).find((session) => session.id !== original.id)
   assert.ok(latest)
   assert.equal(latest.cwd, alternateCwd)
@@ -879,15 +936,16 @@ try {
     permissionReply: isPi ? 'unsupported: no universal per-tool approval' : true,
     toolResult: calls.some((call) => call.read),
     rendererReloadWithoutResubmit: true,
-    selectedPluginActivation: !isDsh
-      ? {
-          capturedBinding: true,
-          nativeHookReachedProvider: true,
-          newAndResumedInstanceVerified: true,
-          englishAndChineseReport: true,
-          extensionCommandsAndInputHandling: isPi ? true : 'not part of the OpenCode fixture',
-        }
-      : 'not supported',
+    selectedPluginActivation: {
+      capturedBinding: true,
+      nativeHookReachedProvider: true,
+      newAndResumedInstanceVerified: true,
+      englishAndChineseReport: true,
+      extensionCommandsAndInputHandling: isPi ? true : 'not part of this engine fixture',
+      nativeOptionsEditor: isDsh
+        ? { englishAndChinese: true, persisted: true }
+        : 'not part of this engine fixture',
+    },
     streamingCancellation: true,
     messageDelivery: isDsh ? 'Committed semantic messages' : 'Streaming text',
     configurationReport: {

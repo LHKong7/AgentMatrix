@@ -75,7 +75,6 @@ export async function describeConfigurationCapabilities(
       feature === 'installation' || feature === 'model' ? 'native' : 'adapter'
     if (feature === 'mcp' && kind === 'pi') mechanism = 'extension-required'
     if (
-      (feature === 'plugins' && kind === 'deepseek-harness') ||
       (feature === 'sampling' &&
         (kind === 'deepseek-harness' ||
           (kind === 'pi' && !connection.protocol?.startsWith('openai-')))) ||

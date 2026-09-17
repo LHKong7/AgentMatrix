@@ -8,6 +8,7 @@ import { RuntimeFailure, type RuntimeSession } from '../../runtime'
 import { redactText } from '../../process/redacted-tail'
 import { prepareDshLaunch, verifyDshHome } from './launch'
 import { verifyDshOptions } from './readback'
+import { prepareDshPluginAttachment } from './plugins'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -41,6 +42,10 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
     options.environment,
     signal,
   )
+  const plugins = manifest.nativePlugins.length
+    ? await prepareDshPluginAttachment(manifest, store.paths(snapshotId))
+    : null
+  if (plugins) Object.assign(launch.environment, plugins.environment)
   let active: AcpTurn | null = null
   let submitted = false
   let cancelled = false
@@ -82,6 +87,12 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
       },
     })
     const owned = attachment
+    const closed = owned.closed.finally(async () => {
+      signal.removeEventListener('abort', abort)
+      await plugins?.cleanup()
+    })
+    void closed.catch(() => {})
+    const lifetime = AbortSignal.any([signal, owned.client.signal])
     if (signal.aborted) throw new RuntimeFailure('process-exit')
     const initialized = await owned.client.initialize('0.1.0')
     // The ACP component's own version is deliberately different from the CLI package version.
@@ -92,6 +103,8 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
       throw new RuntimeFailure('configuration', 'dsh.acp-version')
     if (!initialized.agentCapabilities?.sessionCapabilities?.resume)
       throw new RuntimeFailure('unsupported', 'resume')
+    // ACP may acknowledge initialization while native plugins are still loading.
+    await plugins?.verify(owned.process.pid, lifetime, null, true)
     const previous = options.previousNativeSessionId
     if (previous !== undefined && !z.uuid().safeParse(previous).success)
       throw new RuntimeFailure('configuration', 'dsh.session-identity')
@@ -115,12 +128,11 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
         value: modelValue,
       })
       verifyDshOptions(state.configOptions, manifest)
+      await plugins?.verify(owned.process.pid, lifetime, id)
       if (handlerFailure) throw handlerFailure
       if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     }
     await verify()
-    const closed = owned.closed.finally(() => signal.removeEventListener('abort', abort))
-    void closed.catch(() => {})
     return {
       configurationChecks: [
         'inputs.integrity',
@@ -128,6 +140,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
         'cli.version',
         'dsh.composition',
         'dsh.session-model',
+        ...(plugins ? ['dsh.plugins' as const] : []),
         ...(manifest.connection.protocol === 'deepseek-official'
           ? ['dsh.session-reasoning' as const]
           : []),
@@ -155,6 +168,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
           )
           await turn.finish()
           if (handlerFailure) throw handlerFailure
+          await plugins?.verify(owned.process.pid, lifetime, id)
           // usage_update is context occupancy; DSH does not report billable prompt usage.
           return { ...turn.result({ stopReason: result.stopReason }), usage: null }
         } catch (error) {
@@ -179,6 +193,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
   } catch (error) {
     signal.removeEventListener('abort', abort)
     await attachment?.close()
+    await plugins?.cleanup()
     throw handlerFailure ?? failureOf(error)
   }
 }

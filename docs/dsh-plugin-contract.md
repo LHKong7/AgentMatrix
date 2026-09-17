@@ -1,6 +1,6 @@
 # Installed DSH plugin contract
 
-The opt-in fixture verifies the installed **DeepSeek Harness 0.1.5-rc.2** plugin lifecycle on macOS arm64. It uses the existing managed composition generator, native configuration dump, process supervisor, and ACP client, then adds fixture-owned native rows before capture. This establishes the contract needed for selected-plugin support; the production adapter still rejects user-selected DSH plugin bindings.
+The opt-in fixture verifies the installed **DeepSeek Harness 0.1.5-rc.2** plugin lifecycle on macOS arm64. It uses the existing managed composition generator, native configuration dump, process supervisor, and ACP client, then adds fixture-owned native rows before capture. This establishes the contract for the separately implemented [production selected-plugin activation](dsh-plugin-activation.md).
 
 The [recorded result](probes/2026-09-18-dsh-plugin-contract.json) includes versions and entry/manifest digests for the CLI, app boot, ACP component, Cordis 4.0.2, Loader 1.0.3, and Include 1.0.7. A CLI version alone does not pin its dependency installation. These observations do not capture the entire dependency graph.
 
@@ -29,13 +29,13 @@ More significantly, the ACP transport can initialize before native boot settles.
 
 A deterministic fixture holds an asynchronous plugin behind a file gate. Both ACP initialization and `session/new` succeed while that plugin is still waiting. No model request is needed to reproduce this race. Readiness must therefore require evidence beyond an ACP session response.
 
-The launcher exposes `appReady.onReady`. A fixture observer receives this notification after all enabled Loader entries reach active state; none of the seven failed trees emits it. The fixture also verifies a separate mechanism: a component with `loader: { await: true }` can inspect settled entry states and publish a service that ACP explicitly requires. With that dependency, ACP initialization remains pending until the selected delayed plugin finishes. These are native contract observations, not yet production readiness checks.
+The launcher exposes `appReady.onReady`. A fixture observer receives this notification after all enabled Loader entries reach active state; none of the seven failed trees emits it. The fixture also verifies a separate mechanism: a component with `loader: { await: true }` can inspect settled entry states and publish a service that ACP explicitly requires. With that dependency, ACP initialization remains pending until the selected delayed plugin finishes. The production adapter uses `appReady` plus separate current-process/session checks; the Loader/service gate remains an alternative demonstrated by this fixture.
 
 `appReady` concerns initial boot, not continuous plugin health. Production integration must still bind its observations to the owned process, selected entry/fiber identities, and native session; invalidate observations on disposal or replacement; and obtain fresh evidence on resume. Parent-owned process cleanup remains necessary even when plugin cleanup hooks fail or never run.
 
 ## Implementation boundaries
 
-The fixture adds explicit local module rows with configuration. It does not implement the desktop library's DSH entry resolver, package/bundle patch import, plugin options editor, dependency provenance, activation reports, or startup gating. Those remain required implementation work. Nested composition, native overrides, arbitrary extension behavior, external providers, and platforms other than macOS remain outside this result. No delivery gate is passed by this contract probe.
+This fixture adds explicit local module rows with configuration. The separate [activation implementation](dsh-plugin-activation.md) provides entry/package resolution, bounded options editing, source observations, reports, and startup/turn/resume gating. General bundle patch import, complete dependency provenance, nested composition, native overrides, arbitrary extension behavior, external providers, and platforms other than macOS remain outside this result. No delivery gate is passed by this contract probe.
 
 Upstream references: [Loader](https://github.com/deepseek-ai/deepseek-harness/blob/master/vendor/loader/src/index.ts), [app boot](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/boot/app-boot/src/index.ts), and the [project repository](https://github.com/deepseek-ai/deepseek-harness). These development-branch links may change; the fixture record identifies the installed artifacts actually tested.
 

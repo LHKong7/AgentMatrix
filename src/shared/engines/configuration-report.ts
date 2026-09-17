@@ -16,6 +16,7 @@ export const configurationCheckSchema = z.enum([
   'pi.skills',
   'pi.plugins',
   'dsh.composition',
+  'dsh.plugins',
   'dsh.session-model',
   'dsh.session-reasoning',
 ])

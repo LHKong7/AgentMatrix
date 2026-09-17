@@ -1,4 +1,19 @@
 export const pluginEn = {
+  'plugin.clearOptions': 'Clear plugin options',
+  'plugin.dshOptions': 'DSH plugin configuration (JSON)',
+  'plugin.dshOptionsHint':
+    'Plain configuration passed to the native plugin schema. Up to 64 KiB; executable expression objects are not accepted. Keep API keys in shared credential references.',
+  'error.dshPluginEntry':
+    'Select a compiled DSH JavaScript module or an installed package with an explicit root import export, main entry, or index.js. Export arrays and TypeScript sources are not supported.',
+  'error.dshPluginBundle':
+    'This directory is a DSH patch bundle. Select a component module explicitly; bundle patch import is not implemented yet.',
+  'error.dshPluginId':
+    'DSH plugin IDs must be unique, use up to 100 letters, digits, hyphens or underscores, and not conflict with managed component IDs.',
+  'error.dshPluginRange':
+    'The installed plugin declares an incompatible or invalid DSH or Cordis peer dependency range.',
+  'error.dshPluginFramework':
+    'The installed DSH or Cordis framework differs from the verified plugin loader versions, or its files could not be inspected.',
+
   'plugin.inspect': 'Inspect installed files',
   'plugin.inspecting': 'Inspecting files…',
   'plugin.result': 'Installed file inspection',
@@ -29,7 +44,7 @@ export const pluginEn = {
   'plugin.versionMismatch':
     'The configured version differs from the installed package version. Review it before saving.',
   'plugin.idHint':
-    'V1 exported IDs are checked at startup. For OpenCode legacy modules and Pi extensions without an exported ID, this is a label; source digests identify the binding.',
+    'V1 exported IDs are checked at startup. For OpenCode legacy modules and Pi extensions without an exported ID, this is a label; source digests identify the binding. DSH uses this as a unique native component ID; distinct IDs allow separate instances of the same module.',
   'error.pluginDesktopOnly': 'Installed plugin inspection is available in the desktop app.',
   'error.pluginBusy': 'Another plugin inspection is still in progress.',
   'error.pluginEngine': 'Choose a saved OpenCode installation before inspecting a plugin.',

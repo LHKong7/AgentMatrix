@@ -1,5 +1,7 @@
 import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
+  'report.check.dsh.plugins':
+    'DSH 原生启动已完成；已通过新请求检查选中的插件实例及当前会话；依赖覆盖范围不完整',
   'report.title': '配置报告',
   'report.description': '查看会话捕获的输入、原生校验及新会话待应用的修改。',
   'report.limits':

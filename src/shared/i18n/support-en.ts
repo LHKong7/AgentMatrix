@@ -1,4 +1,7 @@
 export const supportEn = {
+  'support.issue.native-plugin-options':
+    'These plugin options belong to a different engine. Clear or change them before starting.',
+
   'support.issue.pi-plugin-policy':
     'Selected Pi extensions can register or enable tools. This adapter requires unrestricted execution for these bindings.',
   'support.issue.plugins-pure-mode':

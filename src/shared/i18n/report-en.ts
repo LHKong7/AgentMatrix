@@ -1,4 +1,7 @@
 export const reportEn = {
+  'report.check.dsh.plugins':
+    'Native DSH boot completed; selected plugin fibers and current session checked with a fresh request; dependency coverage is partial',
+
   'report.title': 'Configuration report',
   'report.description': 'Captured inputs, native checks, and changes for new sessions.',
   'report.limits':

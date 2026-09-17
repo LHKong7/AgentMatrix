@@ -26,7 +26,8 @@ function fixture() {
     connection: workspace.connections[0]!,
     model: workspace.models[0]!,
     cwd: '/fixture/project',
-  } as RunInputManifest
+    nativePlugins: [],
+  } as unknown as RunInputManifest
   let choices: SessionConfigOption[] = [
     {
       id: 'model',
