@@ -35,4 +35,4 @@ React UI → typed preload API → sender-checked IPC → WorkspaceStore → wor
 
 凭证应交给系统凭证库，配置中保存 credential ID 或环境变量名。插件安装需要独立的 manifest 校验、来源与权限设计；当前资源组合模型不隐含执行第三方代码的权限。
 
-针对首批多 CLI 接入，下一步采用 engine adapter → session service → typed events → chat UI，复用各 CLI 的原生 Agent 循环。共享配置、专属选项与当前 schema 的迁移建议见 [CLI Agent 接入调研](cli-agent-research.md)。未来若增加自研 Agent，再单独实现直接调用模型的 provider adapter 与 MCP 调用循环。
+针对首批多 CLI 接入，下一步采用 engine adapter → session service → typed events → chat UI，复用各 CLI 的原生 Agent 循环。共享配置、专属选项与当前 schema 的迁移建议见 [CLI Agent 接入调研](cli-agent-research.md)，拆解后的工作项、优先级与依赖关系见 [接入落地计划](cli-agent-plan.md)。未来若增加自研 Agent，再单独实现直接调用模型的 provider adapter 与 MCP 调用循环。
