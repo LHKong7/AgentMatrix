@@ -62,8 +62,8 @@ describe('engine configuration constraints before native work', () => {
       const plugins = report.capabilities.find((row) => row.feature === 'plugins')!
       expect(plugins).toMatchObject({
         requested: false,
-        mechanism: kind === 'opencode' ? 'adapter' : 'unsupported',
-        availability: kind === 'opencode' ? 'unknown' : 'blocked',
+        mechanism: kind === 'deepseek-harness' ? 'unsupported' : 'adapter',
+        availability: kind === 'deepseek-harness' ? 'blocked' : 'unknown',
       })
       expect(
         report.capabilities.find((row) => row.feature === 'authentication')!.availability,

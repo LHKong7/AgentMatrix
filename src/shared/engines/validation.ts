@@ -11,6 +11,7 @@ export type EngineIssueCode =
   | 'native-options'
   | 'native-plugins'
   | 'plugins-pure-mode'
+  | 'pi-plugin-policy'
   | 'protocol'
   | 'authentication'
   | 'secret-reference'
@@ -96,6 +97,10 @@ export function engineConfigurationIssues(
     add('platform', 'installation', 'installation.platform')
   if (
     (kind === 'deepseek-harness' && installation.prefixArgs.length > 0) ||
+    (kind === 'pi' &&
+      installation.prefixArgs.some(
+        (arg) => arg === '-e' || arg === '--extension' || arg.startsWith('--extension='),
+      )) ||
     installation.prefixArgs.some((arg) => arg.includes('\0'))
   )
     add('prefix-arguments', 'installation', 'installation.prefixArgs')
@@ -116,8 +121,13 @@ export function engineConfigurationIssues(
   )
     add('native-options', 'engine-options', 'engineOptions.agent')
   if (configuration.nativePlugins.length) {
-    if (kind !== 'opencode') add('native-plugins', 'plugins', 'nativePlugins.activation')
-    else if (installation.prefixArgs.some((arg) => /^--pure(?:=|$)/.test(arg)))
+    if (kind === 'deepseek-harness') add('native-plugins', 'plugins', 'nativePlugins.activation')
+    else if (kind === 'pi' && agent.execution.approval !== 'unrestricted')
+      add('pi-plugin-policy', 'plugins', 'nativePlugins.tools-policy')
+    else if (
+      kind === 'opencode' &&
+      installation.prefixArgs.some((arg) => /^--pure(?:=|$)/.test(arg))
+    )
       add('plugins-pure-mode', 'plugins', 'nativePlugins.pure-mode')
   }
   if (kind === 'pi' && agent.execution.approval === 'ask')

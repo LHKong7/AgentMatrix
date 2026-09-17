@@ -10,6 +10,7 @@ import { join } from 'node:path'
 import { parseDocument } from 'yaml'
 import { z } from 'zod'
 import { appError } from '../../../../shared/errors'
+import { planPiPlugins } from './plugins'
 import type { SecretReference } from '../../../../shared/engines/schema'
 import type {
   ResolvedAgentConfiguration,
@@ -132,7 +133,7 @@ export async function planPi(
     files: [],
     promptPaths: {},
     skillPaths: {},
-    externalSources: context.sources,
+    externalSources: structuredClone(context.sources),
   }
   let secretIndex = 0
   const secret = (reference: SecretReference | null) => {
@@ -251,5 +252,6 @@ export async function planPi(
         2,
       ) + '\n',
   })
+  await planPiPlugins(configuration, paths, generated)
   return generated
 }

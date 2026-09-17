@@ -9,6 +9,7 @@ import { redactText } from '../../process/redacted-tail'
 import { preparePiLaunch, verifyPiHome } from './launch'
 import { verifyPiReadback } from './readback'
 import { rememberPiSession, restorePiSession } from './session-state'
+import { preparePiPluginAttachment } from './plugins'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -45,6 +46,8 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
   const previous = options.previousNativeSessionId
     ? await restorePiSession(paths, manifest, options.previousNativeSessionId)
     : undefined
+  const plugins = await preparePiPluginAttachment(manifest, paths)
+  if (plugins) Object.assign(launch.environment, plugins.environment)
   let active: PiTurn | null = null
   let submitted: Promise<unknown> | null = null
   let attachment: PiAttachment | undefined
@@ -58,6 +61,8 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
       event: async (event) => {
         try {
           if (active) await active.event(event)
+          else if (plugins && event.type === 'extension_error')
+            throw new RuntimeFailure('configuration', 'pi.plugins.startup')
           else if (!piIdleEvents.has(event.type))
             throw new RuntimeFailure('protocol', 'pi.unowned-event')
         } catch (error) {
@@ -77,6 +82,11 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
       },
     })
     const owned = attachment
+    const closed = owned.closed.finally(async () => {
+      signal.removeEventListener('abort', abort)
+      await plugins?.cleanup()
+    })
+    void closed.catch(() => {})
     if (signal.aborted) throw new RuntimeFailure('process-exit')
     // Project settings may override the global defaults; pin supported continuation policy explicitly.
     const configure = async () => {
@@ -94,6 +104,7 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
       await configure()
     }
     const state = await verifyPiReadback(owned.client, manifest, paths)
+    await plugins?.verify(owned.client, owned.process.pid, state)
     if (
       launch.secrets?.some(
         (secret) => state.sessionId.includes(secret) || state.sessionFile.includes(secret),
@@ -110,8 +121,7 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
     await store.verifyForReuse(snapshotId)
     await verifyPiHome(store, snapshotId)
     const id = state.sessionId
-    const closed = owned.closed.finally(() => signal.removeEventListener('abort', abort))
-    void closed.catch(() => {})
+    let nativeHistoryRequired = Boolean(previous)
     void owned.client.closed.then(() =>
       active?.fail(handlerFailure ?? new RuntimeFailure('process-exit')),
     )
@@ -122,6 +132,7 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
         'cli.version',
         'pi.state',
         'pi.skills',
+        ...(plugins ? ['pi.plugins' as const] : []),
       ],
       nativeSessionId: id,
       closed,
@@ -144,28 +155,44 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
           const current = await verifyPiReadback(owned.client, manifest, paths)
           if (current.sessionId !== id || current.sessionFile !== state.sessionFile)
             throw new RuntimeFailure('configuration', 'pi.session-identity')
-          // Extension commands can acknowledge without agent_settled or replace the session. They need a separate accepted contract.
+          const saved = await restorePiSession(paths, manifest, id, {
+            allowUnwritten: !nativeHistoryRequired,
+          })
+          nativeHistoryRequired ||= saved.persisted
+          const handledBefore = await plugins?.verify(owned.client, owned.process.pid, current)
+          // Only selected, witnessed extensions can finish without agent_settled.
           if (text.startsWith('/')) {
             const commands = z
               .object({ commands: z.array(z.object({ name: z.string(), source: z.string() })) })
               .parse(await owned.client.request({ type: 'get_commands' }))
             const name = text.slice(1).split(' ')[0]
             if (
-              commands.commands.some(
-                (command) => command.source === 'extension' && command.name === name,
-              )
+              name?.startsWith('agentmatrix-witness-') ||
+              (!plugins &&
+                commands.commands.some(
+                  (command) => command.source === 'extension' && command.name === name,
+                ))
             )
               throw new RuntimeFailure('unsupported', 'pi.extension-command')
           }
           if (turn.cancelled) return { outcome: 'cancelled', nativeStopReason: null, usage: null }
           submitted = owned.client.request({ type: 'prompt', message: text })
           await submitted
+          if (plugins) {
+            const handledAfter = await plugins.verify(owned.client, owned.process.pid, state)
+            if (handledAfter > handledBefore!) turn.finishExtensionOnly()
+          }
           const result = await turn.settled
           const final = await verifyPiReadback(owned.client, manifest, paths)
           if (final.sessionId !== id || final.sessionFile !== state.sessionFile)
             throw new RuntimeFailure('configuration', 'pi.session-identity')
-          await restorePiSession(paths, manifest, id)
+          const persisted = await restorePiSession(paths, manifest, id, {
+            allowUnwritten:
+              result.nativeStopReason === 'extension-handled' && !nativeHistoryRequired,
+          })
+          nativeHistoryRequired ||= persisted.persisted
           await verifyPiHome(store, snapshotId)
+          await plugins?.verify(owned.client, owned.process.pid, final)
           return result
         } catch (error) {
           const failure = handlerFailure ?? failureOf(error)
@@ -193,6 +220,7 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
   } catch (error) {
     signal.removeEventListener('abort', abort)
     await attachment?.close()
+    await plugins?.cleanup()
     throw failureOf(error)
   }
 }

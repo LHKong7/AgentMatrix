@@ -78,6 +78,17 @@ export class PiTurn {
     this.cancelled = true
     this.lifetime.abort()
   }
+  /** Only a verified selected extension's completed command/input handler can use this path. */
+  finishExtensionOnly(): void {
+    if (this.started || this.ended || this.assistantOpen || this.tools.size) return
+    this.ended = true
+    this.lifetime.abort()
+    this.complete({
+      outcome: this.cancelled ? 'cancelled' : this.extensionFailed ? 'failed' : 'completed',
+      nativeStopReason: 'extension-handled',
+      usage: null,
+    })
+  }
   fail(error: RuntimeFailure): void {
     this.ended = true
     this.lifetime.abort()

@@ -15,7 +15,8 @@ import { pluginInspectionSchema } from '../../../../shared/engines/plugin-inspec
 import { observeExternalFile } from '../../run-input-store'
 import { RuntimeFailure } from '../../runtime'
 import { pluginEngineRangeStatus } from '../../plugin-engine-range'
-import { inspectFile, inspectOpenCodePlugin, pluginInspectionLimits } from './plugin-inspection'
+import { inspectOpenCodePlugin, pluginInspectionLimits } from './plugin-inspection'
+import { inspectFile } from '../../installed-plugin-files'
 import { pluginExportNames } from './plugin-exports'
 import bridgeSource from './plugin-bridge.mjs?raw'
 

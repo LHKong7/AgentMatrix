@@ -24,6 +24,8 @@ The report reads and verifies the saved manifest and captured files, then compar
 
 For selected OpenCode ESM plugins, `opencode.plugins` records initializer and config-hook completion in the instance acknowledged by ACP. It is checked on new sessions and resume; read-only file inspection cannot supply it. Complete dependency capture and arbitrary hook behavior remain outside this observation. See [activation checks](opencode-plugin-activation.md).
 
+For selected Pi extensions, `pi.plugins` checks native witness registration and current-session factory/startup receipts on launch, turns, and resume. It does not verify every extension feature or complete dependency provenance. See [Pi activation checks](pi-plugin-activation.md).
+
 Unset sampling defaults and unsupported reasoning readback remain unknown. The report presents the captured request and the scope of its native checks; it is not an assertion that every field is applied or continuously unchanged. Failures/interruption remain visible alongside historical evidence.
 
 ## Saved changes and assets

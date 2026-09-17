@@ -19,7 +19,7 @@ The planner statically enumerates explicit ESM exports with the [Babel parser](h
 
 The bridge preserves legacy initializer ordering, export aliases, separate initializer results, V1 default server selection, and unrelated V1 named exports. Multiple legacy exports are not flattened into one hook object. Frozen hook objects are supported, nested tool/auth objects retain their identity, and method calls retain their original receivers. Native initializer arguments are forwarded unchanged. The current library schema has no plugin options editor, so configuring option tuples remains follow-up work.
 
-CommonJS and `export *` entry shapes are rejected explicitly. An unexpected runtime namespace, invalid V1 ID/server shape, missing dependency, or failed import cannot produce valid activation evidence. Selecting two references that resolve to the same entry is rejected. Pi extensions and DeepSeek Harness native plugins remain separate adapter work.
+CommonJS and `export *` entry shapes are rejected explicitly. An unexpected runtime namespace, invalid V1 ID/server shape, missing dependency, or failed import cannot produce valid activation evidence. Selecting two references that resolve to the same entry is rejected. [Pi extension activation](pi-plugin-activation.md) uses a separate native contract. DeepSeek Harness native plugins remain pending.
 
 ## Instance-specific verification
 

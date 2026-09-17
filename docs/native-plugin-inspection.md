@@ -1,6 +1,6 @@
 # Installed native plugin inspection
 
-AgentMatrix can inspect an explicitly selected installed **OpenCode** plugin from its library editor. Inspection remains read-only. Supported OpenCode ESM bindings now have separate [startup and resume activation checks](opencode-plugin-activation.md); Pi and DeepSeek Harness plugin activation remain pending.
+AgentMatrix can inspect an explicitly selected installed **OpenCode** plugin from its library editor. Inspection remains read-only. Supported OpenCode ESM bindings now have separate [startup and resume activation checks](opencode-plugin-activation.md); [Pi activation](pi-plugin-activation.md) uses separate capture/startup inspection; DeepSeek Harness activation remains pending.
 
 ## Desktop workflow
 
@@ -27,7 +27,7 @@ The activation path verifies the captured entry/package observations at startup 
 
 The [installed-release contract probe](opencode-plugin-contract.md) confirms that local packages bypass the native engine-range gate. It also verifies that OpenCode can continue after a plugin load, initialization, or config-hook error, and that pure mode excludes external plugins. Reading generated configuration or receiving an ACP session is therefore insufficient activation evidence; the separate activation verifier handles these cases.
 
-Pi extension selection and DeepSeek Harness plugin/composition recognition remain separate adapter work. No Pi MCP extension is chosen implicitly. The [native plugin installation documentation](https://opencode.ai/docs/plugins/) describes package-manager installation and local discovery; automatic installation remains outside AgentMatrix's initial scope.
+Pi extension selection now has its own [resolver and activation checks](pi-plugin-activation.md); the editor inspection button remains OpenCode-only. DeepSeek Harness plugin/composition recognition remains separate adapter work. No Pi MCP extension is chosen implicitly. The [native plugin installation documentation](https://opencode.ai/docs/plugins/) describes package-manager installation and local discovery; automatic installation remains outside AgentMatrix's initial scope.
 
 ## Validation
 

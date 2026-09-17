@@ -81,7 +81,8 @@ export async function restorePiSession(
   paths: RunPaths,
   manifest: SessionInputs,
   nativeSessionId: string,
-): Promise<{ reference: Reference; sessionPath: string }> {
+  options: { allowUnwritten?: boolean } = {},
+): Promise<{ reference: Reference; sessionPath: string; persisted: boolean }> {
   try {
     const reference = referenceSchema.parse(
       JSON.parse(await boundedRead(join(paths.state, 'pi-session.json'))),
@@ -93,12 +94,21 @@ export async function restorePiSession(
       throw new Error('Session reference changed')
     const directory = await sessionDirectory(paths)
     const sessionPath = join(directory, reference.file)
+    // Pi defers creating a transcript until a model reply. Only a live, never-persisted
+    // conversation may accept that absence; restoration continues to require the header.
+    if (options.allowUnwritten) {
+      const file = await lstat(sessionPath).catch((error: NodeJS.ErrnoException) => {
+        if (error.code !== 'ENOENT') throw error
+        return null
+      })
+      if (!file) return { reference, sessionPath, persisted: false }
+    }
     const header = z
       .object({ type: z.literal('session'), id: z.uuid(), cwd: z.string() })
       .parse(JSON.parse(await boundedRead(sessionPath, true)))
     if (header.id !== nativeSessionId || header.cwd !== manifest.cwd)
       throw new Error('Native session header changed')
-    return { reference, sessionPath }
+    return { reference, sessionPath, persisted: true }
   } catch {
     throw new RuntimeFailure('configuration', 'pi.session-identity')
   }

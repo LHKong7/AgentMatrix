@@ -38,6 +38,31 @@ const end = (turn: PiTurn, text: string, stopReason = 'stop', usage: unknown = u
   })
 
 describe('Pi turn normalization', () => {
+  it('finishes verified extension-only work without inventing model usage', async () => {
+    const f = fixture()
+    f.turn.finishExtensionOnly()
+    expect(await f.turn.settled).toEqual({
+      outcome: 'completed',
+      nativeStopReason: 'extension-handled',
+      usage: null,
+    })
+    const cancelled = fixture()
+    cancelled.turn.cancel()
+    cancelled.turn.finishExtensionOnly()
+    expect((await cancelled.turn.settled).outcome).toBe('cancelled')
+  })
+  it('does not let an extension-only receipt finish an active model turn', async () => {
+    const f = fixture(),
+      completed = vi.fn()
+    void f.turn.settled.then(completed)
+    await start(f.turn)
+    f.turn.finishExtensionOnly()
+    await Promise.resolve()
+    expect(completed).not.toHaveBeenCalled()
+    await end(f.turn, 'Model response')
+    await f.turn.event({ type: 'agent_settled' })
+    expect((await f.turn.settled).nativeStopReason).toBe('stop')
+  })
   it('redacts split secrets, preserves Unicode, and reconciles final text without duplicates', async () => {
     const secret = 'synthetic-中文-secret'
     const f = fixture([secret])

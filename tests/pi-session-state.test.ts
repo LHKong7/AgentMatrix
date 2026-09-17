@@ -34,6 +34,23 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 describe('Pi native session identity', () => {
+  it('allows an unwritten live session only explicitly while still requiring the captured reference', async () => {
+    const f = await fixture()
+    await rm(f.sessionPath)
+    await expect(restorePiSession(f.paths, f.manifest, f.id)).rejects.toThrow()
+    expect(
+      await restorePiSession(f.paths, f.manifest, f.id, { allowUnwritten: true }),
+    ).toMatchObject({ persisted: false, sessionPath: f.sessionPath })
+    await writeFile(f.sessionPath, JSON.stringify({ ...f.header, cwd: '/wrong' }) + '\n')
+    await expect(
+      restorePiSession(f.paths, f.manifest, f.id, { allowUnwritten: true }),
+    ).rejects.toThrow()
+    await rm(f.sessionPath)
+    await rm(f.referencePath)
+    await expect(
+      restorePiSession(f.paths, f.manifest, f.id, { allowUnwritten: true }),
+    ).rejects.toThrow()
+  })
   it('restores only the captured native conversation and never overwrites its reference', async () => {
     const f = await fixture()
     expect(await restorePiSession(f.paths, f.manifest, f.id)).toMatchObject({

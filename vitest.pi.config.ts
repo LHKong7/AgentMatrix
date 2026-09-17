@@ -8,6 +8,7 @@ export default defineConfig({
       'tests/pi-installed.probe.ts',
       'tests/pi-configuration-installed.probe.ts',
       'tests/pi-runtime-installed.probe.ts',
+      'tests/pi-plugin-activation.probe.ts',
     ],
     testTimeout: 120_000,
   },

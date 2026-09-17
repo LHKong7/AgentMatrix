@@ -75,6 +75,8 @@ export const reportEn = {
     'Selected OpenCode plugins initialized and configured in the acknowledged native instance; transitive dependencies not captured',
   'report.check.pi.state': 'Pi RPC state: route, endpoint, thinking, and idle policy',
   'report.check.pi.skills': 'Pi RPC discovered Skill commands; invocation not checked',
+  'report.check.pi.plugins':
+    'Selected Pi factories and session-start handlers completed for the acknowledged native session; transitive dependencies not captured',
   'report.check.dsh.composition': 'DSH config dump matched; plugins were not activated by the dump',
   'report.check.dsh.session-model': 'DSH ACP selected provider/model tuple',
   'report.check.dsh.session-reasoning': 'DSH ACP selected reasoning effort',

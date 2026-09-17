@@ -128,6 +128,30 @@ if (isPi) {
   workspace.installations[0].name = 'Pi'
   workspace.agents[0].engineOptions = { kind: 'pi', projectTrust: 'deny', contextFiles: 'inherit' }
   workspace.agents[0].execution.approval = 'unrestricted'
+  const path = join(root, 'desktop-pi-extension.ts')
+  await writeFile(
+    path,
+    `export default (pi) => {
+    pi.on('before_agent_start', (event) => ({systemPrompt: event.systemPrompt + '\\nDESKTOP_PLUGIN_MARKER'}));
+    pi.registerCommand('desktop-confirm', {description:'Desktop confirmation', async handler(_args, ctx) {
+      const accepted = await ctx.ui.confirm('Desktop extension', 'Continue?');
+      ctx.ui.notify(accepted ? 'DESKTOP_EXTENSION_CONFIRMED' : 'DESKTOP_EXTENSION_CANCELLED', 'info');
+    }});
+    pi.on('input', (event) => event.text === 'DESKTOP_HANDLE_WITHOUT_MODEL' ? {action:'handled'} : {action:'continue'});
+  };\n`,
+  )
+  workspace.nativePlugins = [
+    {
+      id: 'desktop-extension',
+      name: 'Desktop extension',
+      nativeId: 'desktop-extension',
+      engineInstallationId: 'oc',
+      version: 'fixture',
+      source: 'local desktop fixture',
+      path,
+    },
+  ]
+  workspace.agents[0].nativePluginIds = ['desktop-extension']
 } else if (isDsh) {
   workspace.installations[0].kind = 'deepseek-harness'
   workspace.installations[0].name = 'DeepSeek Harness'
@@ -443,9 +467,9 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     return window.agentMatrix.sessions.configuration({ sessionId })
   })
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
-  if (!isPi && !isDsh) {
+  if (!isDsh) {
     assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
-    assert.ok(value.observation.checks.includes('opencode.plugins'))
+    assert.ok(value.observation.checks.includes(isPi ? 'pi.plugins' : 'opencode.plugins'))
   }
   if (process.env.AGENT_MATRIX_REPORT_SCREENSHOT)
     await page.screenshot({
@@ -493,7 +517,7 @@ try {
   )
   assert.match(
     rejectedCreation,
-    /execution.universal-approval|model.sampling|model.parameters.reasoning/,
+    /nativePlugins.tools-policy|execution.universal-approval|model.sampling|model.parameters.reasoning/,
   )
   assert.equal((await sessions()).length, 0)
   const capturedRuns = await readdir(join(dataDirectory, 'runs')).catch((error) => {
@@ -620,13 +644,29 @@ try {
   if (!isPi) await page.getByRole('button', { name: /^允许一次/ }).click()
   await status('就绪')
   assert.equal(calls.at(-1).directoryRead, 'default')
-  if (!isPi && !isDsh) assert.equal(calls.at(-1).plugin, true)
+  if (!isDsh) assert.equal(calls.at(-1).plugin, true)
   assert.equal(
     await page.locator('.message.assistant pre').textContent(),
     'UI_REPLY <script>not executable</script>',
   )
   assert.equal(await page.locator('.transcript script').count(), 0)
   await language('en')
+  if (isPi) {
+    const beforeExtensions = calls.length
+    for (const locale of ['en', 'zh-CN']) {
+      await language('en')
+      await send('/desktop-confirm')
+      await language(locale)
+      await page
+        .getByRole('button', { name: locale === 'en' ? 'Confirm' : '确认', exact: true })
+        .click()
+      await status(locale === 'en' ? 'Ready' : '就绪')
+    }
+    await language('en')
+    await send('DESKTOP_HANDLE_WITHOUT_MODEL')
+    await status('Ready')
+    assert.equal(calls.length, beforeExtensions)
+  }
   const history = await page.evaluate(
     (sessionId) =>
       window.agentMatrix.sessions.readEvents({ sessionId, afterCursor: 0, limit: 500 }),
@@ -764,7 +804,7 @@ try {
   await status('Ready')
   assert.equal(calls.at(-1).role, 'new')
   assert.equal(calls.at(-1).directoryRead, 'alternate')
-  if (!isPi && !isDsh) assert.equal(calls.at(-1).plugin, true)
+  if (!isDsh) assert.equal(calls.at(-1).plugin, true)
   const latest = (await sessions()).find((session) => session.id !== original.id)
   assert.ok(latest)
   assert.equal(latest.cwd, alternateCwd)
@@ -839,15 +879,15 @@ try {
     permissionReply: isPi ? 'unsupported: no universal per-tool approval' : true,
     toolResult: calls.some((call) => call.read),
     rendererReloadWithoutResubmit: true,
-    selectedPluginActivation:
-      !isPi && !isDsh
-        ? {
-            capturedBinding: true,
-            nativeHookReachedProvider: true,
-            newAndResumedInstanceVerified: true,
-            englishAndChineseReport: true,
-          }
-        : 'not supported',
+    selectedPluginActivation: !isDsh
+      ? {
+          capturedBinding: true,
+          nativeHookReachedProvider: true,
+          newAndResumedInstanceVerified: true,
+          englishAndChineseReport: true,
+          extensionCommandsAndInputHandling: isPi ? true : 'not part of the OpenCode fixture',
+        }
+      : 'not supported',
     streamingCancellation: true,
     messageDelivery: isDsh ? 'Committed semantic messages' : 'Streaming text',
     configurationReport: {

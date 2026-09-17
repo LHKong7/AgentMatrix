@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-09-17T23:08:52.104Z",
+  "engine": "pi",
+  "engineVersion": "0.85.1",
+  "platform": "darwin",
+  "arch": "arm64",
+  "explicitMultiEntryPackage": true,
+  "asyncFactoryAwaited": true,
+  "relativeTypeScriptImport": true,
+  "virtualTypeboxImport": true,
+  "customToolReachedProvider": true,
+  "systemHooksReachedProvider": true,
+  "disabledAmbientDiscovery": true,
+  "projectTrustDenyPreserved": true,
+  "extensionCommandDialog": true,
+  "extensionCommandCancellation": true,
+  "extensionWorkBeforeFirstModelReply": true,
+  "commonJsAndEsmEntries": true,
+  "inputHandledWithoutModel": true,
+  "nativeResume": true,
+  "rejected": [
+    "import",
+    "factory",
+    "startup",
+    "resources",
+    "missing-dependency",
+    "invalid-factory",
+    "changed-entry-on-resume"
+  ],
+  "provider": "local synthetic HTTP fixture",
+  "sourceCoverage": "entry files and adjacent package; transitive dependencies not captured"
+}

@@ -29,7 +29,7 @@ export const pluginEn = {
   'plugin.versionMismatch':
     'The configured version differs from the installed package version. Review it before saving.',
   'plugin.idHint':
-    'V1 exported IDs are checked at startup. For legacy modules without an exported ID, this is a label; source digests identify the binding.',
+    'V1 exported IDs are checked at startup. For OpenCode legacy modules and Pi extensions without an exported ID, this is a label; source digests identify the binding.',
   'error.pluginDesktopOnly': 'Installed plugin inspection is available in the desktop app.',
   'error.pluginBusy': 'Another plugin inspection is still in progress.',
   'error.pluginEngine': 'Choose a saved OpenCode installation before inspecting a plugin.',
@@ -50,4 +50,10 @@ export const pluginEn = {
   'error.pluginVersion': 'The installed package version differs from the selected plugin version.',
   'error.pluginRange':
     'The installed plugin requires a different OpenCode version or declares an invalid version range.',
+  'error.piPluginEntry':
+    'Select a Pi extension file, an index.ts/index.js directory, or a package with explicit pi.extensions file entries. Glob and directory entries are not supported yet.',
+  'error.piPluginResources':
+    'This Pi package also declares Skills, prompts, or themes. Select an extension file explicitly and configure shared assets separately.',
+  'error.piPluginRange':
+    'The installed extension declares an incompatible or invalid Pi peer dependency version range.',
 } as const

@@ -72,6 +72,8 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
     '已选 OpenCode 插件已在会话确认的原生实例中完成初始化和配置；未捕获传递依赖',
   'report.check.pi.state': 'Pi RPC 状态：路线、接口、推理与空闲策略',
   'report.check.pi.skills': 'Pi RPC 已发现的 Skill 命令；未验证调用',
+  'report.check.pi.plugins':
+    '已选 Pi 工厂与会话启动处理器已在确认的原生会话中执行完成；未捕获传递依赖',
   'report.check.dsh.composition': 'DSH 配置导出匹配；导出过程未启动插件',
   'report.check.dsh.session-model': 'DSH ACP 当前提供商与模型组合',
   'report.check.dsh.session-reasoning': 'DSH ACP 当前推理强度',

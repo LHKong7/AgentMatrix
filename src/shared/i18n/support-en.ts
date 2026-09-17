@@ -1,4 +1,6 @@
 export const supportEn = {
+  'support.issue.pi-plugin-policy':
+    'Selected Pi extensions can register or enable tools. This adapter requires unrestricted execution for these bindings.',
   'support.issue.plugins-pure-mode':
     'OpenCode pure mode skips external plugins. Remove --pure before starting with selected plugins.',
   'support.title': 'Engine compatibility',
@@ -47,7 +49,7 @@ export const supportEn = {
     'The installed version or runtime mode does not match the pinned adapter. Check the installation.',
   'support.issue.platform': 'This installation cannot run on the current desktop platform.',
   'support.issue.prefix-arguments':
-    'The prefix arguments are invalid; DeepSeek Harness requires an empty prefix.',
+    'The prefix arguments are invalid. Select Pi extensions through plugin bindings; DeepSeek Harness requires an empty prefix.',
   'support.issue.native-options':
     'The native options do not match this adapter. OpenCode requires a valid agent name; DeepSeek Harness requires the ACP profile.',
   'support.issue.native-plugins':

@@ -28,7 +28,7 @@ export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
   'plugin.useVersion': '使用包版本',
   'plugin.versionMismatch': '配置版本与已安装的包版本不同，请在保存前核对。',
   'plugin.idHint':
-    'V1 导出的 ID 会在启动时核对。没有导出 ID 的旧式模块使用此字段作为标签，并以来源摘要标识绑定。',
+    'V1 导出的 ID 会在启动时核对。没有导出 ID 的 OpenCode 旧式模块和 Pi 扩展使用此字段作为标签，并以来源摘要标识绑定。',
   'error.pluginDesktopOnly': '已安装插件检查仅在桌面应用中可用。',
   'error.pluginBusy': '另一个插件检查仍在进行中。',
   'error.pluginEngine': '请先选择已保存的 OpenCode 安装，再检查插件。',
@@ -47,4 +47,9 @@ export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
   'error.pluginDuplicate': '两个已选插件解析到了同一入口，请只保留一个绑定。',
   'error.pluginVersion': '已安装的包版本与所选插件版本不一致。',
   'error.pluginRange': '已安装的插件要求其他 OpenCode 版本，或声明了无效的版本范围。',
+  'error.piPluginEntry':
+    '请选择 Pi 扩展文件、含 index.ts/index.js 的目录，或 pi.extensions 显式列出文件的包。目前不支持通配符和目录入口。',
+  'error.piPluginResources':
+    '此 Pi 包还声明了 Skills、提示词或主题。请显式选择扩展文件，并单独配置共享资源。',
+  'error.piPluginRange': '已安装扩展声明了不兼容或无效的 Pi peer dependency 版本范围。',
 }

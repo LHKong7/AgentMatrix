@@ -1,6 +1,5 @@
-import { createHash } from 'node:crypto'
-import { constants, type BigIntStats } from 'node:fs'
-import { open, realpath, stat } from 'node:fs/promises'
+import { fileIdentity as identity, inspectFile } from '../../installed-plugin-files'
+import { realpath, stat } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { appError, getErrorKey } from '../../../../shared/errors'
@@ -8,8 +7,6 @@ import type { PluginInspection } from '../../../../shared/engines/plugin-inspect
 
 export const pluginInspectionLimits = { metadataBytes: 256 * 1024, entryBytes: 20_000_000 }
 const indexNames = ['index.ts', 'index.tsx', 'index.js', 'index.mjs', 'index.cjs']
-const identity = (value: BigIntStats) =>
-  [value.dev, value.ino, value.mode, value.size, value.mtimeNs, value.ctimeNs].join(':')
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 
@@ -37,50 +34,6 @@ async function pathStat(path: string) {
 function contained(root: string, path: string) {
   const suffix = relative(root, path)
   return suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix)
-}
-
-/** Bounded, nonblocking regular-file reads. No import, subprocess, package manager, or network. */
-export async function inspectFile(path: string, limit: number, keepBytes: boolean) {
-  const resolvedPath = await realpath(path)
-  const handle = await open(
-    resolvedPath,
-    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-  )
-  try {
-    const before = await handle.stat({ bigint: true })
-    if (!before.isFile()) throw appError('error.pluginFile')
-    if (before.size > limit) throw appError('error.pluginLimit')
-    const hash = createHash('sha256')
-    const chunk = Buffer.alloc(64 * 1024)
-    const chunks: Buffer[] = []
-    let bytes = 0
-    while (bytes <= Number(before.size)) {
-      const read = await handle.read(
-        chunk,
-        0,
-        Math.min(chunk.length, Number(before.size) + 1 - bytes),
-        bytes,
-      )
-      if (!read.bytesRead) break
-      bytes += read.bytesRead
-      hash.update(chunk.subarray(0, read.bytesRead))
-      if (keepBytes) chunks.push(Buffer.from(chunk.subarray(0, read.bytesRead)))
-    }
-    if (
-      bytes !== Number(before.size) ||
-      identity(before) !== identity(await handle.stat({ bigint: true })) ||
-      resolvedPath !== (await realpath(path)) ||
-      identity(before) !== identity(await stat(path, { bigint: true }))
-    )
-      throw appError('error.pluginChanged')
-    return {
-      observation: { path, resolvedPath, sha256: hash.digest('hex'), bytes },
-      stamp: identity(before),
-      content: keepBytes ? Buffer.concat(chunks) : null,
-    }
-  } finally {
-    await handle.close()
-  }
 }
 
 /** Inspect the v1.18.16 local server entry rules; never infer an exported ID from a package name. */

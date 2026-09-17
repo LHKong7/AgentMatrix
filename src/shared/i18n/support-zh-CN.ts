@@ -1,6 +1,8 @@
 import type { supportEn } from './support-en'
 
 export const supportZhCN: Record<keyof typeof supportEn, string> = {
+  'support.issue.pi-plugin-policy':
+    '已选 Pi 扩展可以注册或启用工具，此适配器要求这些绑定使用不受限执行策略。',
   'support.issue.plugins-pure-mode':
     'OpenCode pure 模式会跳过外部插件。使用已选插件启动前，请移除 --pure。',
   'support.title': '引擎兼容性',
@@ -41,7 +43,8 @@ export const supportZhCN: Record<keyof typeof supportEn, string> = {
   'support.issue.unsupported-engine': '此引擎尚无桌面运行适配器。',
   'support.issue.installation-version': '安装版本或运行模式与固定的适配版本不符，请检查引擎安装。',
   'support.issue.platform': '此引擎安装无法在当前桌面平台运行。',
-  'support.issue.prefix-arguments': '前置参数无效；DeepSeek Harness 的前置参数必须为空。',
+  'support.issue.prefix-arguments':
+    '前置参数无效。请通过插件绑定选择 Pi 扩展；DeepSeek Harness 的前置参数必须为空。',
   'support.issue.native-options':
     '专属设置不符合当前适配器要求。OpenCode 需要有效的 Agent 名称，DeepSeek Harness 需要 ACP 配置。',
   'support.issue.native-plugins':

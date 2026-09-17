@@ -72,6 +72,7 @@ export function buildConfigurationReport(
             model: ['pi.state'],
             reasoning: ['pi.state'],
             skills: ['pi.skills'],
+            plugins: manifest.nativePlugins.length ? ['pi.plugins'] : [],
           } as Partial<Record<ConfigurationField, ConfigurationCheck[]>>)
         : kind === 'deepseek-harness'
           ? ({
