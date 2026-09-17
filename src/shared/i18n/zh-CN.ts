@@ -205,6 +205,10 @@ export const zhCN = {
   'error.sessionChoice': '请选择此交互请求提供的响应。',
   'error.sessionCursor': '会话事件缺失或游标无效，请重新加载会话状态和历史。',
   'error.sessionOverflow': '会话事件或订阅数量超出限制。',
+  'error.sessionMissing': '找不到此会话的历史记录。',
+  'error.sessionExists': '此 ID 的会话已存在，原有历史已保留。',
+  'error.sessionStorage': '无法读取或保存会话历史，原有数据已保留。',
+  'error.sessionJournalFull': '此会话历史已达到存储上限，请新建会话。',
   'validation.min': '最小允许值或长度为 {limit}。',
   'validation.max': '最大允许值或长度为 {limit}。',
 } satisfies Messages

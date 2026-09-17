@@ -222,6 +222,12 @@ export const en = {
   'error.sessionCursor':
     'Session events are missing or the cursor is invalid. Reload the session state and history.',
   'error.sessionOverflow': 'The session event or subscriber limit was exceeded.',
+  'error.sessionMissing': 'The session history could not be found.',
+  'error.sessionExists': 'A session with this ID already exists. Its history was preserved.',
+  'error.sessionStorage':
+    'Session history could not be read or saved. Existing data was preserved.',
+  'error.sessionJournalFull':
+    'This session history reached its storage limit. Start a new session.',
   'validation.min': 'The minimum allowed value or length is {limit}.',
   'validation.max': 'The maximum allowed value or length is {limit}.',
 } as const
