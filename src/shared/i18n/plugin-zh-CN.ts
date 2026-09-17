@@ -1,0 +1,38 @@
+import type { pluginEn } from './plugin-en'
+
+export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
+  'plugin.inspect': '检查已安装文件',
+  'plugin.inspecting': '正在检查文件…',
+  'plugin.result': '已安装文件检查',
+  'plugin.filesOnly': '文件已检查 · 激活尚未验证',
+  'plugin.scope':
+    '检查所选本地入口和相邻的包元数据。依赖、导出的插件 ID、钩子和运行时兼容性仍需验证，目前尚不能在会话中激活插件。',
+  'plugin.engineHint': '文件检查目前支持 OpenCode 安装。',
+  'plugin.versionHint': '入口解析依据 OpenCode {version}。所选引擎版本尚未通过此契约的验证。',
+  'plugin.package': '包名称',
+  'plugin.version': '包版本',
+  'plugin.range': '声明的 OpenCode 版本范围',
+  'plugin.rangeHint': '此处仅显示声明，尚未判定兼容性。',
+  'plugin.unknown': '未声明',
+  'plugin.entry': '解析后的服务端入口',
+  'plugin.localSource': '本地来源',
+  'plugin.checkedAt': '检查时间',
+  'plugin.digest': '入口 SHA-256',
+  'plugin.metadataDigest': '包元数据 SHA-256',
+  'plugin.useVersion': '使用包版本',
+  'plugin.versionMismatch': '配置版本与已安装的包版本不同，请在保存前核对。',
+  'plugin.idHint': '请单独填写原生插件 ID；包名称不能证明导出的插件 ID。',
+  'error.pluginDesktopOnly': '已安装插件检查仅在桌面应用中可用。',
+  'error.pluginBusy': '另一个插件检查仍在进行中。',
+  'error.pluginEngine': '请先选择已保存的 OpenCode 安装，再检查插件。',
+  'error.pluginPath': '请输入本机已安装插件的绝对路径。',
+  'error.pluginMissing': '所选插件或其声明的入口不存在。',
+  'error.pluginFile': '插件入口和包元数据必须是普通文件。',
+  'error.pluginMetadata': '相邻 package.json 中的元数据字段无效或超出长度限制。',
+  'error.pluginEntry':
+    '未能识别支持的服务端入口。请选择 JavaScript/TypeScript 文件或明确声明服务端入口的包。',
+  'error.pluginOutside': '声明的入口解析到了所选插件目录之外。',
+  'error.pluginLimit': '检查上限为 256 KiB 包元数据和 20 MB 入口文件。',
+  'error.pluginChanged': '检查过程中插件文件发生了变化，请在编辑完成后重试。',
+  'error.pluginRead': '无法读取已安装的插件文件。',
+}

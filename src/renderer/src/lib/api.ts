@@ -6,6 +6,9 @@ import { BrowserWorkspaceStore } from '../../../shared/engines/browser-store'
 
 // Browser preview never reads desktop files or stores plaintext credentials.
 const browserApi: AgentMatrixApi = {
+  async inspectNativePlugin() {
+    throw appError('error.pluginDesktopOnly')
+  },
   async chooseWorkingDirectory() {
     throw appError('error.runtimeDesktopOnly')
   },

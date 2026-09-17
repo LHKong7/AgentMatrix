@@ -1,5 +1,6 @@
 import type { EngineWorkspace } from './engines/workspace'
 import type { CapturedSkillDirectory } from './engines/skill-import'
+import type { PluginInspection, PluginInspectionQuery } from './engines/plugin-inspection'
 import type { SessionApi } from './sessions/schema'
 import type {
   CredentialInput,
@@ -25,6 +26,7 @@ export interface AgentMatrixApi {
   importSkillDirectory(): Promise<CapturedSkillDirectory | null>
   chooseWorkingDirectory(input: { defaultPath?: string }): Promise<string | null>
   probeEngine(input: { installationId: string }): Promise<EngineWorkspace>
+  inspectNativePlugin(input: PluginInspectionQuery): Promise<PluginInspection>
   sessions: SessionApi
 }
 
@@ -38,4 +40,5 @@ export const channels = {
   skillImport: 'skills:import-directory',
   workingDirectory: 'sessions:choose-working-directory',
   engineProbe: 'engines:probe',
+  pluginInspect: 'plugins:inspect-installed',
 } as const

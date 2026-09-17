@@ -1,4 +1,5 @@
 import { supportZhCN } from './support-zh-CN'
+import { pluginZhCN } from './plugin-zh-CN'
 import { historyZhCN } from './history-zh-CN'
 import { impactZhCN } from './impact-zh-CN'
 import type { Messages } from './en'
@@ -7,6 +8,7 @@ import { sessionZhCN } from './session-zh-CN'
 import { reportZhCN } from './report-zh-CN'
 
 export const zhCN = {
+  ...pluginZhCN,
   ...historyZhCN,
   ...configurationZh,
   ...sessionZhCN,

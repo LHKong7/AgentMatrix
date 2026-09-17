@@ -1719,3 +1719,29 @@ input[type='checkbox'] {
   border-top: 1px solid var(--border);
   padding-top: 12px;
 }
+
+.plugin-inspection {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.plugin-inspection dl {
+  display: grid;
+  grid-template-columns: minmax(95px, 1fr) minmax(0, 2fr);
+  gap: 8px 12px;
+  line-height: 1.5;
+}
+.plugin-inspection dt {
+  color: var(--muted);
+}
+.plugin-inspection dd {
+  margin: 0;
+}
+.plugin-inspection details {
+  margin-top: 12px;
+}
+.plugin-inspection summary {
+  cursor: pointer;
+}

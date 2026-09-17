@@ -1,4 +1,5 @@
 import { LibraryImpactPreview } from './LibraryImpactPreview'
+import { NativePluginInspection } from './NativePluginInspection'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
 import { formatError } from '../../../shared/errors'
@@ -674,6 +675,7 @@ export function ResourceEditor({
                   value={draft.nativeId}
                   onChange={(nativeId) => setDraft({ ...draft, nativeId })}
                 />
+                <p className="hint">{t('plugin.idHint')}</p>
                 <TextField
                   label={t('resourceEditor.version')}
                   value={draft.version}
@@ -690,6 +692,19 @@ export function ResourceEditor({
                   onChange={(path) => setDraft({ ...draft, path })}
                 />
                 <p className="hint">{t('config.nativeHint')}</p>
+                <NativePluginInspection
+                  key={JSON.stringify([
+                    draft.engineInstallationId,
+                    draft.path,
+                    workspace.installations.find((item) => item.id === draft.engineInstallationId),
+                  ])}
+                  installation={workspace.installations.find(
+                    (item) => item.id === draft.engineInstallationId,
+                  )}
+                  path={draft.path}
+                  version={draft.version}
+                  onUseVersion={(version) => setDraft({ ...draft, version })}
+                />
               </>
             )}
             {'enabled' in draft && (

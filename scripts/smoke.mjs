@@ -6,6 +6,7 @@ import { _electron as electron } from 'playwright'
 
 const dataDirectory = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-'))
 const skillSource = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-skill-'))
+const pluginSource = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-plugin-'))
 const runtimeErrors = []
 const env = { ...process.env, AGENT_MATRIX_DATA_DIR: dataDirectory }
 delete env.ELECTRON_RUN_AS_NODE
@@ -179,6 +180,95 @@ try {
       await dialog.getByLabel('Executable path', { exact: true }).fill(`/opt/smoke/${kind}`)
     })
   }
+  await mkdir(join(pluginSource, 'dist'))
+  await writeFile(
+    join(pluginSource, 'package.json'),
+    JSON.stringify({
+      name: '@agentmatrix/smoke-plugin',
+      version: '1.2.3',
+      exports: { './server': { import: './dist/server.mjs' } },
+      main: './missing-main.js',
+      engines: { opencode: '^1.18.0' },
+      privateCredential: syntheticSecret,
+    }),
+  )
+  await writeFile(
+    join(pluginSource, 'dist', 'server.mjs'),
+    `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(join(pluginSource, 'executed'))}, 'unexpected');\nthrow new Error('Do not execute while inspecting');\n`,
+  )
+  await addResource('Native plugins', 'Smoke Plugin', async (dialog) => {
+    await dialog
+      .getByLabel('Engine installation', { exact: true })
+      .selectOption({ label: 'Smoke OpenCode' })
+    await dialog.getByLabel('Native plugin ID', { exact: true }).fill('smoke-native-id')
+    await dialog.getByLabel('Version', { exact: true }).fill('0.9.0')
+    await dialog.getByLabel('Source', { exact: true }).fill('User-supplied origin')
+    await dialog.getByLabel('Installed path', { exact: true }).fill(pluginSource)
+    await dialog.getByRole('button', { name: 'Inspect installed files', exact: true }).click()
+    await dialog
+      .getByRole('status')
+      .filter({ hasText: 'Files checked · Activation unverified' })
+      .waitFor()
+    await dialog.getByText('@agentmatrix/smoke-plugin', { exact: true }).waitFor()
+    await dialog
+      .getByText(
+        'The configured version differs from the installed package version. Review it before saving.',
+        { exact: true },
+      )
+      .waitFor()
+    assert.equal(await dialog.getByLabel('Version', { exact: true }).inputValue(), '0.9.0')
+    await dialog.getByRole('button', { name: 'Use package version', exact: true }).click()
+    assert.equal(await dialog.getByLabel('Version', { exact: true }).inputValue(), '1.2.3')
+    assert.equal(
+      await dialog.getByLabel('Native plugin ID', { exact: true }).inputValue(),
+      'smoke-native-id',
+    )
+    assert.equal(
+      await dialog.getByLabel('Source', { exact: true }).inputValue(),
+      'User-supplied origin',
+    )
+    assert.ok(!(await dialog.innerText()).includes(syntheticSecret))
+    if (process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT)
+      await dialog.screenshot({ path: process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT })
+  })
+  const savedPlugin = (await state()).nativePlugins.find((item) => item.name === 'Smoke Plugin')
+  const workspaceBeforeInspection = await state()
+  const result = await page.evaluate((query) => window.agentMatrix.inspectNativePlugin(query), {
+    installationId: savedPlugin.engineInstallationId,
+    path: pluginSource,
+  })
+  assert.equal(result.verification, 'files-only')
+  assert.ok(!JSON.stringify(result).includes(syntheticSecret))
+  assert.deepEqual(await state(), workspaceBeforeInspection)
+  assert.ok(!(await readdir(pluginSource)).includes('executed'))
+  await language('zh-CN')
+  await navigate('原生插件')
+  await page.getByRole('button', { name: '编辑 Smoke Plugin', exact: true }).click()
+  const pluginDialog = page.getByRole('dialog')
+  assert.equal(await pluginDialog.locator('.plugin-inspection').getByRole('status').count(), 0)
+  await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
+  await pluginDialog.getByRole('status').filter({ hasText: '文件已检查 · 激活尚未验证' }).waitFor()
+  if (process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT)
+    await pluginDialog.screenshot({ path: `${process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT}.zh.png` })
+  await pluginDialog.getByLabel('安装路径', { exact: true }).fill(join(pluginSource, 'missing'))
+  assert.equal(
+    await pluginDialog.getByText('文件已检查 · 激活尚未验证', { exact: true }).count(),
+    0,
+  )
+  await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
+  await pluginDialog
+    .getByRole('alert')
+    .filter({ hasText: '所选插件或其声明的入口不存在。' })
+    .waitFor()
+  await pluginDialog.getByLabel('引擎安装', { exact: true }).selectOption({ label: 'Smoke Pi' })
+  assert.equal(
+    await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).isDisabled(),
+    true,
+  )
+  page.once('dialog', (dialog) => dialog.accept())
+  await pluginDialog.getByRole('button', { name: '取消', exact: true }).click()
+  assert.deepEqual(await state(), workspaceBeforeInspection)
+  await language('en')
   await addResource('Connections', 'Smoke Connection', async (dialog) => {
     await dialog.getByLabel('API protocol', { exact: true }).selectOption('openai-chat-completions')
     await dialog.getByLabel('API Base URL', { exact: true }).fill('http://localhost:12345/v1')
@@ -336,6 +426,10 @@ try {
   assert.equal(imported.versions[0].kind, 'directory')
   const firstDirectory = join(dataDirectory, 'assets/skills', imported.versions[0].digest, 'files')
   assert.equal(await readFile(join(firstDirectory, 'SKILL.md'), 'utf8'), skillEntry)
+  assert.deepEqual(
+    (await state()).nativePlugins.find((item) => item.name === 'Smoke Plugin'),
+    savedPlugin,
+  )
   await writeFile(join(skillSource, 'SKILL.md'), '# New directory revision\n')
   dialog = await editResource('Skills', 'Directory Skill')
   await chooseSkillDirectory(skillSource)
@@ -486,7 +580,7 @@ try {
   )
   assert.deepEqual(runtimeErrors, [])
   console.log(
-    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, Pi trust/context settings, DSH instruction placement, prompt and Skill revisions, directory capture/reimport, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
+    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, read-only installed OpenCode plugin inspection, Pi trust/context settings, DSH instruction placement, prompt and Skill revisions, directory capture/reimport, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
   )
 } catch (error) {
   if (page && !page.isClosed()) {
@@ -500,4 +594,5 @@ try {
   await app?.close().catch(() => {})
   await rm(dataDirectory, { recursive: true, force: true })
   await rm(skillSource, { recursive: true, force: true })
+  await rm(pluginSource, { recursive: true, force: true })
 }

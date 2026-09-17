@@ -19,6 +19,7 @@ import { absolutePath } from '../shared/engines/schema'
 import { resolveWorkingDirectory } from './sessions/working-directory'
 import { exportSessionHistory } from './sessions/history-export'
 import { sessionChannels, sessionExportQuerySchema } from '../shared/sessions/schema'
+import { inspectNativePlugin } from './engines/plugin-inspection'
 
 app.setName('AgentMatrix')
 if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
@@ -129,6 +130,21 @@ if (!app.requestSingleInstanceLock()) {
       safeSessionOperation(async () => {
         verifySender(event)
         return factory.probe(input)
+      }),
+    )
+    let inspectingPlugin = false
+    ipcMain.handle(channels.pluginInspect, (event, input: unknown) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        if (inspectingPlugin) throw appError('error.pluginBusy')
+        inspectingPlugin = true
+        try {
+          const result = await inspectNativePlugin(await store.load(), input)
+          verifySender(event)
+          return result
+        } finally {
+          inspectingPlugin = false
+        }
       }),
     )
     let quitReady = false
