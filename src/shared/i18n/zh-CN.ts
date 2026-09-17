@@ -169,6 +169,8 @@ export const zhCN = {
   'validation.duplicateIds': 'ID 不能重复',
   'validation.missingRef': '引用的资源不存在',
   'validation.invalid': '值无效',
+  'validation.headerConflict': '请求头名称不能重复，包括身份验证请求头。',
+  'validation.headerValue': '请求头的值不能包含换行或空字符。',
   'validation.min': '最小允许值或长度为 {limit}。',
   'validation.max': '最大允许值或长度为 {limit}。',
 } satisfies Messages

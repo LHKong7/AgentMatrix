@@ -178,6 +178,8 @@ export const en = {
   'validation.duplicateIds': 'IDs must be unique.',
   'validation.missingRef': 'A referenced resource does not exist.',
   'validation.invalid': 'Invalid value.',
+  'validation.headerConflict': 'Header names must be unique, including authentication headers.',
+  'validation.headerValue': 'Header values must not contain line breaks or null characters.',
   'validation.min': 'The minimum allowed value or length is {limit}.',
   'validation.max': 'The maximum allowed value or length is {limit}.',
 } as const
