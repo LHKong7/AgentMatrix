@@ -23,6 +23,7 @@ export interface AgentMatrixApi {
   setCredential(input: CredentialInput): Promise<CredentialMetadata>
   deleteCredential(input: DeleteCredentialInput): Promise<void>
   importSkillDirectory(): Promise<CapturedSkillDirectory | null>
+  chooseWorkingDirectory(input: { defaultPath?: string }): Promise<string | null>
   probeEngine(input: { installationId: string }): Promise<EngineWorkspace>
   sessions: SessionApi
 }
@@ -35,5 +36,6 @@ export const channels = {
   credentialSet: 'credentials:set',
   credentialDelete: 'credentials:delete',
   skillImport: 'skills:import-directory',
+  workingDirectory: 'sessions:choose-working-directory',
   engineProbe: 'engines:probe',
 } as const

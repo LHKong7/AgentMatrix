@@ -11,6 +11,7 @@ const api: AgentMatrixApi = {
   setCredential: (input) => ipcRenderer.invoke(channels.credentialSet, input),
   deleteCredential: (input) => ipcRenderer.invoke(channels.credentialDelete, input),
   importSkillDirectory: () => ipcRenderer.invoke(channels.skillImport),
+  chooseWorkingDirectory: (input) => ipcRenderer.invoke(channels.workingDirectory, input),
   probeEngine: (input) => ipcRenderer.invoke(channels.engineProbe, input),
   sessions: {
     impact: (input) => ipcRenderer.invoke(sessionChannels.impact, input),

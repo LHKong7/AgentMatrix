@@ -1,9 +1,10 @@
 import { assertEngineConfiguration } from '../../shared/engines/validation'
+import { resolveWorkingDirectory } from './working-directory'
 import { resolveAgentProfile } from '../../shared/engines/resolution'
 import { previewLibraryImpact } from '../engines/library-impact'
 import type { LibraryImpactQuery } from '../../shared/engines/impact'
 import { createHash } from 'node:crypto'
-import { lstat, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises'
 import { homedir, userInfo } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
@@ -170,9 +171,7 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
       const resolved = resolveAgentProfile(state, profile.id)
       if (resolved.status !== 'resolved') throw appError('error.runConfiguration')
       assertEngineConfiguration(resolved.configuration, { platform: process.platform })
-      const cwd = await realpath(profile.execution.cwd).catch(() => {
-        throw appError('error.runtimeCwd')
-      })
+      const cwd = await resolveWorkingDirectory(profile.execution.cwd)
       const readSkillEntry = async (skill: ResolvedSkill) => {
         if (skill.revision.kind !== 'directory') throw appError('error.skillCaptureInvalid')
         return readFile(join(await skills.verify(skill.revision), 'SKILL.md'), 'utf8')

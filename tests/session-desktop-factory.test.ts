@@ -1,4 +1,14 @@
-import { chmod, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -55,6 +65,65 @@ afterEach(async () => {
   )
 })
 describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
+  it.each(['opencode', 'pi'] as const)(
+    'captures a per-session %s directory and its native sources without changing the saved profile',
+    async (kind) => {
+      const f = await fixture(kind === 'pi' ? '0.85.1' : '1.18.16', kind)
+      await f.factory.probe({ installationId: kind === 'pi' ? 'pi' : 'oc' })
+      const selected = join(f.root, '项目 with spaces')
+      const alias = join(f.root, 'project-alias')
+      await mkdir(join(selected, '.git'), { recursive: true })
+      await writeFile(join(selected, 'AGENTS.md'), 'Selected project instructions.')
+      await symlink(selected, alias)
+      const before = await f.workspace.load()
+      const command = {
+        kind: 'create' as const,
+        commandId: 'override',
+        agentId: 'reviewer',
+        cwd: alias,
+      }
+      const first = await f.factory.create('override-session', command)
+      const manifest = await f.runs.read(first.snapshotId)
+      expect(first.cwd).toBe(await realpath(selected))
+      expect(manifest.agent.execution.cwd).toBe(alias)
+      expect(manifest.externalSources.files).toContainEqual(
+        expect.objectContaining({
+          path: join(await realpath(selected), 'AGENTS.md'),
+          exists: true,
+        }),
+      )
+      expect(
+        manifest.externalSources.files.some((source) => source.path.startsWith(`${f.cwd}/`)),
+      ).toBe(false)
+      expect(await f.workspace.load()).toEqual(before)
+      const edited = structuredClone(before)
+      edited.agents[0]!.execution.cwd = ''
+      await f.workspace.save(edited)
+      expect(await f.factory.create('override-session', command)).toEqual(first)
+      // An explicit directory also completes a profile whose default directory is unset.
+      expect((await f.factory.create('second-session', command)).cwd).toBe(first.cwd)
+      expect((await f.workspace.load()).agents[0]!.execution.cwd).toBe('')
+      await writeFile(join(selected, 'AGENTS.md'), 'Changed native instructions.')
+      await expect(f.factory.create('override-session', command)).rejects.toThrow(
+        'runSourceChanged',
+      )
+      expect(f.resolveSecret).not.toHaveBeenCalled()
+    },
+  )
+  it('rejects a non-directory before source inspection and capture', async () => {
+    const f = await fixture()
+    await f.factory.probe({ installationId: 'oc' })
+    await expect(
+      f.factory.create('file-cwd', {
+        kind: 'create',
+        commandId: 'file-cwd',
+        agentId: 'reviewer',
+        cwd: f.executable,
+      }),
+    ).rejects.toThrow('runtimeCwd')
+    await expect(readdir(f.runs.root)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(f.resolveSecret).not.toHaveBeenCalled()
+  })
   it('requires an explicit version probe, saves evidence, and captures inputs without resolving secrets', async () => {
     const f = await fixture()
     const command = { kind: 'create' as const, commandId: 'create', agentId: 'reviewer' }

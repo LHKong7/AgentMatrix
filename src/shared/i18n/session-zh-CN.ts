@@ -6,6 +6,12 @@ export const sessionZhCN: Record<keyof typeof sessionEn, string> = {
   'sessions.new': '启动新会话',
   'sessions.agent': 'Agent 配置',
   'sessions.choose': '选择 Agent',
+  'sessions.directory': '工作目录',
+  'sessions.directoryPlaceholder': '项目文件夹的绝对路径',
+  'sessions.browseDirectory': '选择文件夹',
+  'sessions.defaultDirectory': '使用配置默认目录',
+  'sessions.directoryHint':
+    '此目录用于新会话。已保存的 Agent 配置保留默认目录，已有会话继续使用创建时捕获的目录。',
   'sessions.support':
     '已接入 OpenCode 1.18.16、Pi 0.85.1 和实验性 DeepSeek Harness 0.1.5-rc.2。DSH 在回复提交后显示内容，不逐 Token 显示；计费用量不可用，恢复时通过 AgentMatrix 日志展示历史。',
   'sessions.probe': '检查安装',
@@ -80,7 +86,8 @@ export const sessionZhCN: Record<keyof typeof sessionEn, string> = {
     '运行时需要 macOS/Linux 上的 OpenCode 1.18.16、Pi 0.85.1 或实验性 DeepSeek Harness 0.1.5-rc.2。目前仅验证了 macOS。',
   'error.dshConfiguration': 'DeepSeek Harness 无法应用此配置：{feature}。',
   'error.runtimeProbe': 'CLI 版本检查失败，请检查可执行文件路径与前置参数。',
-  'error.runtimeCwd': '请在 Agent 配置中填写现有工作目录的绝对路径。',
+  'error.runtimeCwd': '请选择现有文件夹，并使用其绝对路径。',
+  'error.runtimeDirectoryBusy': '请先完成当前文件夹的选择，再打开新的选择窗口。',
   'error.runtimeDesktopOnly': 'Agent 会话与 CLI 检查需要使用桌面应用。',
   'error.runtimeOperation': '会话操作失败，请刷新会话状态后再重试。',
   'error.runtimeShutdown': '无法确认 Agent 已清理完毕，应用尚未退出，请再次尝试退出。',

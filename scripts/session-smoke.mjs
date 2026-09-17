@@ -19,11 +19,14 @@ assert.ok(
 const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-desktop-session-')))
 const dataDirectory = join(root, 'data'),
   cwd = join(root, 'project'),
+  alternateCwd = join(root, '项目 with spaces'),
   home = join(root, 'home')
 await mkdir(dataDirectory)
 await mkdir(join(cwd, '.git'), { recursive: true })
+await mkdir(join(alternateCwd, '.git'), { recursive: true })
 await mkdir(home)
 await writeFile(join(cwd, 'fixture.txt'), 'SMOKE_FILE_MARKER')
+await writeFile(join(alternateCwd, 'fixture.txt'), 'SMOKE_FILE_MARKER_ALTERNATE')
 const secret = 'agentmatrix-synthetic-desktop-secret'
 let behavior = 'tool',
   streamStarted = false
@@ -47,6 +50,11 @@ const server = createServer(async (request, response) => {
         model: input.model,
         role: body.includes('NEW_ROLE_MARKER') ? 'new' : 'original',
         read,
+        directoryRead: read
+          ? body.includes('SMOKE_FILE_MARKER_ALTERNATE')
+            ? 'alternate'
+            : 'default'
+          : null,
       })
     if (!input.stream) {
       response.writeHead(200, { 'Content-Type': 'application/json' })
@@ -89,7 +97,7 @@ const server = createServer(async (request, response) => {
             function: {
               name: 'read',
               arguments: JSON.stringify({
-                [isPi ? 'path' : isDsh ? 'file_path' : 'filePath']: join(cwd, 'fixture.txt'),
+                [isPi ? 'path' : isDsh ? 'file_path' : 'filePath']: 'fixture.txt',
               }),
             },
           },
@@ -215,6 +223,16 @@ async function send(text) {
   )
 }
 const sessions = () => page.evaluate(() => window.agentMatrix.sessions.list())
+// Substitute only the OS chooser; directory validation and all IPC/launch behavior stay real.
+async function chooseWorkingDirectory(path) {
+  await app.evaluate(({ dialog }, selected) => {
+    const original = dialog.showOpenDialog
+    dialog.showOpenDialog = async () => {
+      dialog.showOpenDialog = original
+      return { canceled: selected === null, filePaths: selected === null ? [] : [selected] }
+    }
+  }, path)
+}
 async function configurationReport(title = 'Configuration report', close = 'Close') {
   await page.getByRole('button', { name: title, exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -332,6 +350,34 @@ try {
   await page.locator('.card-grid').waitFor()
   await navigate('Sessions')
   await page.locator('[data-testid="engine-support-state"][data-state="checks-pending"]').waitFor()
+  let directory = page.getByRole('textbox', { name: 'Working directory', exact: true })
+  assert.equal(await directory.inputValue(), cwd)
+  const beforeDirectory = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  await directory.fill('relative/folder')
+  assert.equal(
+    await page.getByRole('button', { name: 'Start new session', exact: true }).isDisabled(),
+    true,
+  )
+  await directory.fill('')
+  assert.equal(
+    await page.getByRole('button', { name: 'Start new session', exact: true }).isDisabled(),
+    true,
+  )
+  await page.getByRole('button', { name: 'Use profile default', exact: true }).click()
+  assert.equal(await directory.inputValue(), cwd)
+  await chooseWorkingDirectory(null)
+  await page.getByRole('button', { name: 'Choose folder', exact: true }).click()
+  await waitForIpc(() => directory.isEnabled(), 'cancelled directory chooser')
+  assert.equal(await directory.inputValue(), cwd)
+  await directory.fill(join(root, 'does-not-exist'))
+  await page.getByRole('button', { name: 'Start new session', exact: true }).click()
+  await page.getByRole('alert').filter({ hasText: 'Choose an existing folder' }).waitFor()
+  assert.equal((await sessions()).length, 0)
+  await directory.fill(alternateCwd)
+  await page.getByLabel('Agent configuration', { exact: true }).selectOption('')
+  await page.getByLabel('Agent configuration', { exact: true }).selectOption('reviewer')
+  assert.equal(await directory.inputValue(), cwd)
+  assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), beforeDirectory)
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
   await status('Ready')
   const original = (await sessions())[0]
@@ -354,6 +400,7 @@ try {
     await page.screenshot({ path: process.env.AGENT_MATRIX_SESSION_SCREENSHOT, fullPage: true })
   if (!isPi) await page.getByRole('button', { name: /^允许一次/ }).click()
   await status('就绪')
+  assert.equal(calls.at(-1).directoryRead, 'default')
   assert.equal(
     await page.locator('.message.assistant pre').textContent(),
     'UI_REPLY <script>not executable</script>',
@@ -458,20 +505,62 @@ try {
   await send('Keep using the captured role')
   await status('Ready')
   assert.equal(calls.at(-1).role, 'original')
+  const beforeOverride = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  // Selecting a folder changes the next launch only; cancelling another chooser retains it.
+  await chooseWorkingDirectory(alternateCwd)
+  await page.getByRole('button', { name: 'Choose folder', exact: true }).click()
+  await waitForIpc(
+    async () => (await directory.inputValue()) === alternateCwd,
+    'selected working directory',
+  )
+  await chooseWorkingDirectory(null)
+  await page.getByRole('button', { name: 'Choose folder', exact: true }).click()
+  await waitForIpc(() => directory.isEnabled(), 'cancelled override chooser')
+  assert.equal(await directory.inputValue(), alternateCwd)
+  assert.equal((await sessions()).find((session) => session.id === original.id).cwd, cwd)
+  await language('zh-CN')
+  assert.equal(
+    await page.getByRole('textbox', { name: '工作目录', exact: true }).inputValue(),
+    alternateCwd,
+  )
+  await page.getByRole('button', { name: '使用配置默认目录', exact: true }).waitFor()
+  if (process.env.AGENT_MATRIX_DIRECTORY_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.AGENT_MATRIX_DIRECTORY_SCREENSHOT + '.zh.png',
+      fullPage: true,
+    })
+  await language('en')
+  if (process.env.AGENT_MATRIX_DIRECTORY_SCREENSHOT)
+    await page.screenshot({ path: process.env.AGENT_MATRIX_DIRECTORY_SCREENSHOT, fullPage: true })
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
   await waitForIpc(async () => (await sessions()).length === 2, 'new conversation capture')
   await status('Ready')
-  await send('Use the newly saved role')
+  behavior = 'tool'
+  await send('Use the newly saved role and read fixture.txt in this project')
+  if (!isPi) {
+    await page.locator('.permission-card').waitFor()
+    await page.getByRole('button', { name: /^Allow once/ }).click()
+  }
   await status('Ready')
   assert.equal(calls.at(-1).role, 'new')
+  assert.equal(calls.at(-1).directoryRead, 'alternate')
   const latest = (await sessions()).find((session) => session.id !== original.id)
   assert.ok(latest)
+  assert.equal(latest.cwd, alternateCwd)
+  assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), beforeOverride)
+  const directoryReport = await configurationReport()
+  assert.equal(directoryReport.cwd, alternateCwd)
+  assert.equal(directoryReport.fields.find((field) => field.id === 'execution').changed, true)
   await app.close()
   app = null
   await launch()
   await language('en')
   await navigate('Sessions')
   await status('Interrupted')
+  directory = page.getByRole('textbox', { name: 'Working directory', exact: true })
+  assert.equal(await directory.inputValue(), cwd)
+  // The pending launch field must not affect restoration of a captured native session.
+  await directory.fill(join(root, 'missing-after-restart'))
   const historicalReport = await configurationReport()
   assert.equal(historicalReport.observationIsCurrent, false)
   assert.equal(historicalReport.observation.runId, latest.runId)
@@ -480,12 +569,16 @@ try {
   const resumed = (await sessions()).find((session) => session.id === latest.id)
   assert.equal(resumed.nativeSessionId, latest.nativeSessionId)
   assert.notEqual(resumed.runId, latest.runId)
+  assert.equal(resumed.cwd, alternateCwd)
+  assert.equal(resumed.snapshotId, latest.snapshotId)
+  assert.equal(resumed.snapshotDigest, latest.snapshotDigest)
   const resumedReport = await configurationReport()
   assert.equal(resumedReport.observationIsCurrent, true)
   assert.equal(resumedReport.observation.runId, resumed.runId)
   assert.equal(resumedReport.assets.find((asset) => asset.id === 'role').version, 2)
   await send('Continue the saved session')
   await status('Ready')
+  assert.equal(calls.at(-1).directoryRead, 'alternate')
   await page.getByRole('button', { name: 'Close session', exact: true }).click()
   await status('Closed')
   assert.ok(
@@ -510,6 +603,17 @@ try {
       englishAndChinese: true,
     },
     profileToSession: true,
+    workingDirectory: {
+      typedAndNativeChooser: true,
+      invalidAndMissingPathsRejected: true,
+      chooserCancellationPreservesSelection: true,
+      profileSwitchResetsOverride: true,
+      savedDefaultUnchanged: true,
+      relativeFileReadInSelectedDirectory: true,
+      unicodeAndSpaces: true,
+      capturedDirectoryOnNativeResume: true,
+      englishAndChinese: true,
+    },
     permissionReply: isPi ? 'unsupported: no universal per-tool approval' : true,
     toolResult: calls.some((call) => call.read),
     rendererReloadWithoutResubmit: true,

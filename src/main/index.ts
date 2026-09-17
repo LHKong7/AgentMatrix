@@ -14,6 +14,9 @@ import { SessionCoordinator } from './sessions/coordinator'
 import { DesktopSessionFactory } from './sessions/desktop-factory'
 import { registerSessionIpc, safeSessionOperation, verifyRenderer } from './sessions/ipc'
 import { stopOwnedProcesses } from './engines/process/managed-process'
+import { z } from 'zod'
+import { absolutePath } from '../shared/engines/schema'
+import { resolveWorkingDirectory } from './sessions/working-directory'
 
 app.setName('AgentMatrix')
 if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
@@ -153,6 +156,26 @@ if (!app.requestSingleInstanceLock()) {
       verifySender(event)
       return vault.remove(input)
     })
+    let choosingDirectory = false
+    ipcMain.handle(channels.workingDirectory, (event, input: unknown) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        const options = z.object({ defaultPath: absolutePath.optional() }).strict().parse(input)
+        if (choosingDirectory) throw appError('error.runtimeDirectoryBusy')
+        choosingDirectory = true
+        try {
+          const result = await dialog.showOpenDialog(mainWindow!, {
+            properties: ['openDirectory'],
+            ...options,
+          })
+          verifySender(event)
+          if (result.canceled || !result.filePaths[0]) return null
+          return await resolveWorkingDirectory(result.filePaths[0])
+        } finally {
+          choosingDirectory = false
+        }
+      }),
+    )
     let importingSkill = false
     ipcMain.handle(channels.skillImport, async (event) => {
       verifySender(event)

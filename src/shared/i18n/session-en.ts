@@ -6,6 +6,12 @@ export const sessionEn = {
   'sessions.new': 'Start new session',
   'sessions.agent': 'Agent configuration',
   'sessions.choose': 'Choose an agent',
+  'sessions.directory': 'Working directory',
+  'sessions.directoryPlaceholder': 'Absolute path to a project folder',
+  'sessions.browseDirectory': 'Choose folder',
+  'sessions.defaultDirectory': 'Use profile default',
+  'sessions.directoryHint':
+    'This folder applies to new sessions. The saved profile keeps its default; existing sessions retain their captured folder.',
   'sessions.support':
     'OpenCode 1.18.16, Pi 0.85.1, and experimental DeepSeek Harness 0.1.5-rc.2 are available. DSH displays committed replies, not live tokens; token billing is unavailable. History comes from AgentMatrix when resuming.',
   'sessions.probe': 'Check installation',
@@ -90,7 +96,9 @@ export const sessionEn = {
   'error.dshConfiguration': 'DeepSeek Harness cannot apply this configuration: {feature}.',
   'error.runtimeProbe':
     'The CLI version check failed. Check its executable path and prefix arguments.',
-  'error.runtimeCwd': 'Choose an existing absolute working directory in the Agent configuration.',
+  'error.runtimeCwd': 'Choose an existing folder using its absolute path.',
+  'error.runtimeDirectoryBusy':
+    'Finish choosing the current folder before opening another chooser.',
   'error.runtimeDesktopOnly': 'Agent sessions and CLI checks require the desktop application.',
   'error.runtimeOperation': 'The session operation failed. Refresh the session before retrying.',
   'error.runtimeShutdown':

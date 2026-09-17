@@ -20,6 +20,7 @@
   min-width: 240px;
 }
 .session-create select,
+.session-directory input,
 .composer textarea,
 .permission-card textarea {
   border: 1px solid var(--border);
@@ -31,6 +32,27 @@
 .session-create > p,
 .session-diagnostics {
   flex-basis: 100%;
+}
+.session-directory {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+.session-directory label {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.session-directory input {
+  width: 100%;
+  min-width: 0;
+}
+.session-directory-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .session-diagnostics {
   display: grid;

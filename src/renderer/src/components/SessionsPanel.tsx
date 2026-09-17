@@ -1,7 +1,16 @@
 import { engineConfigurationIssues } from '../../../shared/engines/validation'
 import { EngineSupport } from './EngineSupport'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LoaderCircle, MessageSquare, Plus, RefreshCw, Send, Square } from 'lucide-react'
+import {
+  FolderOpen,
+  LoaderCircle,
+  MessageSquare,
+  Plus,
+  RefreshCw,
+  Send,
+  Square,
+} from 'lucide-react'
+import { absolutePath } from '../../../shared/engines/schema'
 import type { EngineWorkspace } from '../../../shared/engines/workspace'
 import { resolveAgentProfile } from '../../../shared/engines/resolution'
 import type {
@@ -32,6 +41,10 @@ export function SessionsPanel({
 }) {
   const { t, locale } = useI18n()
   const [agentId, setAgentId] = useState(initialAgent ?? workspace.agents[0]?.id ?? '')
+  const [directoryOverride, setDirectoryOverride] = useState<{
+    agentId: string
+    path: string
+  } | null>(null)
   const [sessions, setSessions] = useState<SessionSnapshot[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [view, setView] = useState(emptySessionView)
@@ -48,13 +61,29 @@ export function SessionsPanel({
   const state = view.snapshot?.id === selected ? view.snapshot : null
   const blocked = busy || view.loading || view.unavailable
   const profile = workspace.agents.find((agent) => agent.id === agentId)
+  const hasDirectoryOverride = directoryOverride?.agentId === agentId
+  const cwd = hasDirectoryOverride ? directoryOverride.path : (profile?.execution.cwd ?? '')
+  const validDirectory = absolutePath.safeParse(cwd).success
   const supported = ['opencode', 'pi', 'deepseek-harness'].includes(
     workspace.installations.find((engine) => engine.id === profile?.engineInstallationId)?.kind ??
       '',
   )
   const resolution = useMemo(
-    () => (profile ? resolveAgentProfile(workspace, profile.id) : null),
-    [workspace, profile],
+    () =>
+      profile && validDirectory
+        ? resolveAgentProfile(
+            {
+              ...workspace,
+              agents: workspace.agents.map((agent) =>
+                agent.id === profile.id
+                  ? { ...agent, execution: { ...agent.execution, cwd } }
+                  : agent,
+              ),
+            },
+            profile.id,
+          )
+        : null,
+    [workspace, profile, cwd, validDirectory],
   )
   const engineIssues = useMemo(
     () =>
@@ -212,7 +241,16 @@ export function SessionsPanel({
       <section className="session-create settings-panel">
         <label>
           {t('sessions.agent')}
-          <select value={agentId} onChange={(event) => setAgentId(event.target.value)}>
+          <select
+            value={agentId}
+            aria-label={t('sessions.agent')}
+            disabled={busy}
+            onChange={(event) => {
+              setAgentId(event.target.value)
+              setDirectoryOverride(null)
+              setError(null)
+            }}
+          >
             <option value="">{t('sessions.choose')}</option>
             {workspace.agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
@@ -221,6 +259,54 @@ export function SessionsPanel({
             ))}
           </select>
         </label>
+        <div className="session-directory">
+          <label>
+            {t('sessions.directory')}
+            <input
+              value={cwd}
+              onChange={(event) => {
+                setDirectoryOverride({ agentId, path: event.target.value })
+                setError(null)
+              }}
+              placeholder={t('sessions.directoryPlaceholder')}
+              disabled={busy || !profile}
+              maxLength={4000}
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={Boolean(profile && !validDirectory)}
+              aria-describedby="session-directory-hint"
+            />
+          </label>
+          <div className="session-directory-actions">
+            <button
+              className="button secondary"
+              disabled={!desktop || busy || !profile}
+              onClick={() =>
+                void act(async () => {
+                  const path = await api.chooseWorkingDirectory(
+                    validDirectory ? { defaultPath: cwd } : {},
+                  )
+                  if (path !== null) setDirectoryOverride({ agentId, path })
+                })
+              }
+            >
+              <FolderOpen size={16} />
+              {t('sessions.browseDirectory')}
+            </button>
+            {hasDirectoryOverride && (
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => {
+                  setDirectoryOverride(null)
+                  setError(null)
+                }}
+              >
+                {t('sessions.defaultDirectory')}
+              </button>
+            )}
+          </div>
+        </div>
         <button
           className="button primary"
           disabled={
@@ -237,6 +323,7 @@ export function SessionsPanel({
                 kind: 'create',
                 commandId: crypto.randomUUID(),
                 agentId,
+                ...(hasDirectoryOverride ? { cwd } : {}),
               })
               setSessions((values) => [created, ...values])
               setSelected(created.id)
@@ -251,6 +338,14 @@ export function SessionsPanel({
           <Plus size={16} />
           {t('sessions.new')}
         </button>
+        <p className="hint" id="session-directory-hint">
+          {t('sessions.directoryHint')}
+        </p>
+        {profile && !validDirectory && (
+          <p className="session-diagnostics" role="status">
+            {t('error.runtimeCwd')}
+          </p>
+        )}
         <p className="hint">{desktop ? t('sessions.support') : t('error.runtimeDesktopOnly')}</p>
         {resolution?.status === 'resolved' && (
           <EngineSupport configuration={resolution.configuration} platform={platform} />
