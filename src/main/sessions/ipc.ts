@@ -53,6 +53,7 @@ export function registerSessionIpc(
     )
   }
   handle(sessionChannels.command, (_event, input) => coordinator.command(input))
+  handle(sessionChannels.impact, (_event, input) => coordinator.impact(input))
   handle(sessionChannels.configuration, (_event, input) => coordinator.configuration(input))
   handle(sessionChannels.get, (_event, input) => coordinator.get(input))
   handle(sessionChannels.list, () => coordinator.list())

@@ -1,3 +1,4 @@
+import { impactZhCN } from './impact-zh-CN'
 import type { Messages } from './en'
 import { configurationZh } from './configuration-zh-CN'
 import { sessionZhCN } from './session-zh-CN'
@@ -7,6 +8,7 @@ export const zhCN = {
   ...configurationZh,
   ...sessionZhCN,
   ...reportZhCN,
+  ...impactZhCN,
   'nav.agents': '我的 Agents',
   'nav.mcpServers': 'MCP Servers',
   'nav.skills': 'Skills',

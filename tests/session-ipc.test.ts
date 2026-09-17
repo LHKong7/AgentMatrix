@@ -31,6 +31,7 @@ function fixture() {
     list: vi.fn(async () => [snapshot]),
     readEvents: vi.fn(),
     configuration: vi.fn(),
+    impact: vi.fn(),
     removeOwner: vi.fn(),
     unsubscribe: vi.fn(),
     subscribe: vi.fn(
@@ -90,6 +91,23 @@ describe('session IPC ownership', () => {
     await expect(f.invoke(sessionChannels.configuration, { sessionId: 's' })).rejects.toThrow(
       'untrusted',
     )
+  })
+  it('routes impact reads through the verified owner and never calls an untrusted service', async () => {
+    const f = fixture(),
+      query = { revision: 1, change: { collection: 'prompts', entry: {} } }
+    await f.invoke(sessionChannels.impact, query)
+    expect(f.coordinator.impact).toHaveBeenCalledWith(query)
+    f.coordinator.impact.mockClear()
+    for (const event of [
+      { ...f.event, sender: {} },
+      { ...f.event, senderFrame: { url } },
+    ])
+      await expect(
+        f.invoke(sessionChannels.impact, query, event as IpcMainInvokeEvent),
+      ).rejects.toThrow('untrusted')
+    f.contents.emit('destroyed')
+    await expect(f.invoke(sessionChannels.impact, query)).rejects.toThrow('untrusted')
+    expect(f.coordinator.impact).not.toHaveBeenCalled()
   })
   it('invalidates frame subscriptions on reload and cannot send into the next document', async () => {
     const f = fixture()

@@ -1,3 +1,4 @@
+import type { LibraryImpact, LibraryImpactQuery } from '../engines/impact'
 import { z } from 'zod'
 import {
   configurationChecksSchema,
@@ -334,6 +335,7 @@ export type SessionDelivery =
 
 /** The preload must register its listener before invoking subscribe to avoid lost events. */
 export interface SessionApi {
+  impact(input: LibraryImpactQuery): Promise<LibraryImpact>
   configuration(input: z.infer<typeof sessionQuerySchema>): Promise<ConfigurationReport>
   command(input: SessionCommand): Promise<SessionSnapshot>
   get(input: z.infer<typeof sessionQuerySchema>): Promise<SessionSnapshot>

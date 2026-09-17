@@ -187,10 +187,18 @@ async function send(text) {
   )
   await page.getByRole('textbox', { name: 'Message', exact: true }).fill(text)
   await page.getByRole('button', { name: 'Send message', exact: true }).click()
+  // A user-message acknowledgment can advance the cursor while the old Ready state is still visible.
+  // Wait for this turn to start (or finish quickly) before checking Ready or provider evidence.
   await page.waitForFunction(
-    async ({ id, cursor }) =>
-      (await window.agentMatrix.sessions.get({ sessionId: id })).cursor > cursor,
-    { id: sessionId, cursor: before.cursor },
+    async ({ id, cursor, priorTurn }) => {
+      const state = await window.agentMatrix.sessions.get({ sessionId: id })
+      return (
+        state.cursor > cursor &&
+        ((state.activeTurn && state.activeTurn.id !== priorTurn) ||
+          (state.lastTurn && state.lastTurn.id !== priorTurn))
+      )
+    },
+    { id: sessionId, cursor: before.cursor, priorTurn: before.lastTurn?.id ?? null },
   )
 }
 const sessions = () => page.evaluate(() => window.agentMatrix.sessions.list())
@@ -283,9 +291,59 @@ try {
   behavior = 'text'
   await navigate('Shared prompts')
   await page.getByRole('button', { name: 'Edit Role', exact: true }).click()
+  const impact = page.getByTestId('library-impact')
+  await impact.locator('[data-impact-profile="reviewer"][data-effect="unchanged"]').waitFor()
+  const beforePreview = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  const beforePreviewSessions = await sessions()
   await page.getByLabel('Prompt content', { exact: true }).fill('You are a probe. NEW_ROLE_MARKER.')
+  await impact.locator('[data-impact-profile="reviewer"][data-effect="changed"]').waitFor()
+  await impact
+    .locator(`[data-impact-session="${original.id}"][data-effect="pending"] summary`)
+    .click()
+  assert.match(
+    await impact.locator('[data-impact-asset="role"]').textContent(),
+    /Retained v1 · Proposed binding v2/,
+  )
+  assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), beforePreview)
+  assert.deepEqual(await sessions(), beforePreviewSessions)
+  // Reverting the unsaved edit must replace the previous preview, then changing it must recompute.
+  await page
+    .getByLabel('Prompt content', { exact: true })
+    .fill(beforePreview.prompts[0].versions[0].content)
+  await impact.locator('[data-impact-profile="reviewer"][data-effect="unchanged"]').waitFor()
+  await impact.locator(`[data-impact-session="${original.id}"][data-effect="same"]`).waitFor()
+  await page.getByLabel('Prompt content', { exact: true }).fill('You are a probe. NEW_ROLE_MARKER.')
+  await impact.locator('[data-impact-profile="reviewer"][data-effect="changed"]').waitFor()
+  if (process.env.AGENT_MATRIX_IMPACT_SCREENSHOT) {
+    await impact.scrollIntoViewIfNeeded()
+    await page.screenshot({ path: process.env.AGENT_MATRIX_IMPACT_SCREENSHOT, fullPage: true })
+  }
   await page.getByRole('button', { name: 'Save configuration', exact: true }).click()
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await language('zh-CN')
+  await page.getByRole('button', { name: '编辑 Role', exact: true }).click()
+  await impact.getByRole('heading', { name: '保存前的影响预览' }).waitFor()
+  await impact.locator('[data-impact-profile="reviewer"][data-effect="unchanged"]').waitFor()
+  await impact
+    .locator(`[data-impact-session="${original.id}"][data-effect="pending"] summary`)
+    .click()
+  assert.match(
+    await impact.locator('[data-impact-asset="role"]').textContent(),
+    /保留 v1 · 修改后绑定 v2/,
+  )
+  await impact
+    .getByText('本次编辑前，该会话与已保存的 Agent 配置就已存在差异。', { exact: true })
+    .waitFor()
+  if (process.env.AGENT_MATRIX_IMPACT_SCREENSHOT) {
+    await impact.scrollIntoViewIfNeeded()
+    await page.screenshot({
+      path: process.env.AGENT_MATRIX_IMPACT_SCREENSHOT + '.zh.png',
+      fullPage: true,
+    })
+  }
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await page.getByRole('dialog').waitFor({ state: 'hidden' })
+  await language('en')
   await navigate('Sessions')
   await status('Ready')
   const pendingReport = await configurationReport()
@@ -358,6 +416,14 @@ try {
     },
     permissionCancellation: isPi ? 'unsupported: no universal per-tool approval' : true,
     sharedPromptOldAndNewSnapshots: true,
+    libraryImpact: {
+      beforeSave: true,
+      unchangedAfterRevert: true,
+      retainedAndProposedVersions: true,
+      alreadyPending: true,
+      noWorkspaceOrSessionWrites: true,
+      englishAndChinese: true,
+    },
     appQuitAndRestart: true,
     nativeResume: true,
     confirmedClose: true,

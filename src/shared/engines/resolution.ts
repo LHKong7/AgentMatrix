@@ -85,7 +85,18 @@ function mergeBindings<T extends Binding>(
 /** Resolves shared intent only. Native policy, secret availability, and protocol checks still gate launch. */
 export function resolveAgentProfile(input: EngineWorkspace, agentId: string): ProfileResolution {
   // Parsing copies the document: a subsequent library edit cannot mutate a returned resolution.
+  return resolveParsedProfile(engineWorkspaceSchema.parse(input), agentId)
+}
+
+/** Validate and copy once when comparing many profiles in one workspace revision. */
+export function resolveAgentProfiles(input: EngineWorkspace): Map<string, ProfileResolution> {
   const workspace = engineWorkspaceSchema.parse(input)
+  return new Map(
+    workspace.agents.map((agent) => [agent.id, resolveParsedProfile(workspace, agent.id)]),
+  )
+}
+
+function resolveParsedProfile(workspace: EngineWorkspace, agentId: string): ProfileResolution {
   const issues: ResolutionIssue[] = []
   const issue = (code: ResolutionIssueCode, path: string) => issues.push({ code, path })
   const agent = workspace.agents.find((item) => item.id === agentId)

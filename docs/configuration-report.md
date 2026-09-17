@@ -30,7 +30,7 @@ Reports compare executable installation identity, connection/authentication refe
 
 Each captured asset lists its version, direct/bundle binding source, application mode where relevant, captured target, and digest. It also shows the current next-session binding and library latest version. Fixed revisions remain fixed when a library's latest version advances; direct bindings override shadowed bundle bindings. Removed assets, unresolved profiles, and deleted profiles do not destroy the old capture.
 
-Pending changes require a new session and native adapter validation. Reading a report or resuming a conversation never applies them to old inputs. This is a per-session comparison; a library-wide list of affected profiles/sessions during asset editing remains subsequent B6 work. Native configuration import, full per-field external override provenance, credential-value rotation metadata, and complete runtime capability reporting also remain open.
+Pending changes require a new session and native adapter validation. Reading a report or resuming a conversation never applies them to old inputs. Library editors now offer a separate [impact preview](library-impact.md) of affected profiles and retained conversations before saving. Native configuration import, full per-field external override provenance, credential-value rotation metadata, and complete runtime capability reporting also remain open.
 
 ## Data boundaries and validation
 

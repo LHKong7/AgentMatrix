@@ -1,3 +1,8 @@
+import {
+  libraryImpactQuerySchema,
+  type LibraryImpact,
+  type LibraryImpactQuery,
+} from '../../shared/engines/impact'
 import { createHash, randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import { appError } from '../../shared/errors'
@@ -34,6 +39,7 @@ export interface SessionRuntimeFactory {
   create(sessionId: string, command: CreateCommand): Promise<Identity>
   /** Restore only the supplied native ID when status is resuming. Failed connection owns cleanup. */
   connect(snapshot: SessionSnapshot, signal: AbortSignal): Promise<RuntimeSession>
+  impact?(query: LibraryImpactQuery, snapshots: SessionSnapshot[]): Promise<LibraryImpact>
   configuration?(snapshot: SessionSnapshot): Promise<ConfigurationReport>
 }
 interface PendingInteraction {
@@ -77,6 +83,11 @@ const failureOf = (error: unknown): Failure => ({
 
 /** Serialize durable decisions per session; never hold that queue while waiting for native work. */
 export class SessionCoordinator {
+  async impact(input: unknown): Promise<LibraryImpact> {
+    const query = libraryImpactQuerySchema.parse(input)
+    if (!this.factory.impact) throw appError('error.runtimeUnsupported')
+    return this.factory.impact(query, await this.list())
+  }
   async configuration(input: unknown): Promise<ConfigurationReport> {
     const query = sessionQuerySchema.parse(input)
     if (!this.factory.configuration) throw appError('error.runtimeUnsupported')

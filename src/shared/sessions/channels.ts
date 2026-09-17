@@ -1,4 +1,5 @@
 export const sessionChannels = {
+  impact: 'sessions:impact',
   configuration: 'sessions:configuration',
   command: 'sessions:command',
   get: 'sessions:get',

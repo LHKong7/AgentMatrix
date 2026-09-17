@@ -1,3 +1,4 @@
+import { prepareLibraryImpact } from '../../../shared/engines/impact'
 import { appError } from '../../../shared/errors'
 import { getInitialLocale } from '../i18n/preferences'
 import type { AgentMatrixApi } from '../../../shared/api'
@@ -9,6 +10,18 @@ const browserApi: AgentMatrixApi = {
     throw appError('error.runtimeDesktopOnly')
   },
   sessions: {
+    async impact(input) {
+      const workspace = new BrowserWorkspaceStore(localStorage, getInitialLocale()).load()
+      const { profiles } = prepareLibraryImpact(workspace, input)
+      return {
+        revision: workspace.revision,
+        profiles,
+        sessions: [],
+        sessionScope: 'browser',
+        scannedSessions: 0,
+        nextSessionId: null,
+      }
+    },
     async configuration() {
       throw appError('error.runtimeDesktopOnly')
     },

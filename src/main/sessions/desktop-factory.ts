@@ -1,3 +1,5 @@
+import { previewLibraryImpact } from '../engines/library-impact'
+import type { LibraryImpactQuery } from '../../shared/engines/impact'
 import { createHash } from 'node:crypto'
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm } from 'node:fs/promises'
 import { homedir, userInfo } from 'node:os'
@@ -246,6 +248,14 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
         getErrorKey(error)?.startsWith('error.credential') ? 'credentials' : 'configuration',
       )
     }
+  }
+  async impact(query: LibraryImpactQuery, snapshots: SessionSnapshot[]) {
+    return previewLibraryImpact(
+      query,
+      snapshots,
+      this.dependencies.workspace,
+      this.dependencies.runs,
+    )
   }
   async configuration(snapshot: SessionSnapshot) {
     const { runs, workspace } = this.dependencies

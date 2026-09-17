@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { LibraryImpactPreview } from './LibraryImpactPreview'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
 import { formatError } from '../../../shared/errors'
 import type { CredentialMetadata } from '../../../shared/credentials'
@@ -60,6 +61,21 @@ export function ResourceEditor({
   const [credentials, setCredentials] = useState<CredentialMetadata[]>([])
   const [importing, setImporting] = useState(false)
   const isNew = !workspace[kind].some((item) => item.id === resource.id)
+  const candidate = useMemo(() => {
+    let candidate = draft
+    if ('purpose' in draft)
+      candidate = isNew
+        ? { ...draft, versions: [{ version: 1, content }] }
+        : revisePrompt(draft, content)
+    if (
+      'sourcePath' in draft &&
+      draft.versions.find((item) => item.version === draft.currentVersion)?.kind === 'markdown'
+    )
+      candidate = isNew
+        ? { ...draft, versions: [{ version: 1, kind: 'markdown', content }] }
+        : reviseMarkdownSkill(draft, content)
+    return candidate
+  }, [draft, content, isNew])
   useEffect(() => {
     let mounted = true
     void api
@@ -87,18 +103,6 @@ export function ResourceEditor({
     event.preventDefault()
     setError(null)
     try {
-      let candidate = draft
-      if ('purpose' in draft)
-        candidate = isNew
-          ? { ...draft, versions: [{ version: 1, content }] }
-          : revisePrompt(draft, content)
-      if (
-        'sourcePath' in draft &&
-        draft.versions.find((item) => item.version === draft.currentVersion)?.kind === 'markdown'
-      )
-        candidate = isNew
-          ? { ...draft, versions: [{ version: 1, kind: 'markdown', content }] }
-          : reviseMarkdownSkill(draft, content)
       await onSave(candidate)
     } catch (failure) {
       setError(failure)
@@ -698,6 +702,7 @@ export function ResourceEditor({
                 {t('resourceEditor.enable')}
               </label>
             )}
+            <LibraryImpactPreview candidate={candidate} kind={kind} revision={workspace.revision} />
           </div>
           {error != null && (
             <p className="form-error" role="alert">

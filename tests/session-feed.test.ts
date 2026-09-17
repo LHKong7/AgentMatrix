@@ -38,6 +38,7 @@ function fixture() {
   const unsubscribe = vi.fn(async () => {})
   const api = {
     configuration: vi.fn(),
+    impact: vi.fn(),
     command: vi.fn(),
     list: vi.fn(),
     get: vi.fn(async () => stream.snapshot()),

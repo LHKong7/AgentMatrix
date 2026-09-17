@@ -1,0 +1,39 @@
+{
+  "checkedAt": "2026-09-17T21:30:28.081Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "dsh",
+  "version": "0.1.5-rc.2",
+  "route": "Local Chat Completions protocol fixture",
+  "externalProviderCalls": false,
+  "desktopVersionProbe": true,
+  "profileToSession": true,
+  "permissionReply": true,
+  "toolResult": true,
+  "rendererReloadWithoutResubmit": true,
+  "streamingCancellation": true,
+  "messageDelivery": "Committed semantic messages",
+  "configurationReport": {
+    "nativeEvidence": true,
+    "persistedAfterRestart": true,
+    "pendingAssetVersions": true,
+    "englishAndChinese": true,
+    "sensitiveValuesOmitted": true
+  },
+  "permissionCancellation": true,
+  "sharedPromptOldAndNewSnapshots": true,
+  "libraryImpact": {
+    "beforeSave": true,
+    "unchangedAfterRevert": true,
+    "retainedAndProposedVersions": true,
+    "alreadyPending": true,
+    "noWorkspaceOrSessionWrites": true,
+    "englishAndChinese": true
+  },
+  "appQuitAndRestart": true,
+  "nativeResume": true,
+  "confirmedClose": true,
+  "englishAndChinese": true,
+  "journalCredentialRedaction": true,
+  "untrustedTextEscaped": true
+}
