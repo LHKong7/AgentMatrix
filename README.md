@@ -59,7 +59,7 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run test:smoke`    | Build and test a real Electron window, including language switching and persistence                   |
 | `npm run test:sessions` | Build and test desktop sessions with an explicitly selected OpenCode CLI and a local provider fixture |
 | `npm run probe:dsh`     | Opt-in installed DSH ACP lifecycle through native DeepSeek and pi-ai local provider fixtures          |
-| `npm run probe:pi`      | Opt-in installed Pi RPC lifecycle against an isolated local provider fixture                          |
+| `npm run probe:pi`      | Opt-in installed Pi RPC lifecycle and saved-profile configuration with local fixtures                 |
 | `npm run probe:acp`     | Opt-in installed OpenCode/DSH handshake through the application ACP client                            |
 | `npm run format`        | Format source and documentation                                                                       |
 | `npm run format:check`  | Check formatting                                                                                      |

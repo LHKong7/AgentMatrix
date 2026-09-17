@@ -89,6 +89,14 @@ export const configurationEn = {
     'The adapter must verify that the engine can enforce the requested policy. Pi core does not provide universal per-tool approval.',
   'config.opencodeAgent': 'OpenCode agent name',
   'config.thinking': 'Pi thinking level',
+  'config.piTrust': 'Pi project files',
+  'config.piTrust.deny': 'Ignore project settings and executable resources',
+  'config.piTrust.trust-once': 'Trust project settings for each launch',
+  'config.piContext': 'Pi context files',
+  'config.piContext.inherit': 'Include ancestor AGENTS / CLAUDE files',
+  'config.piContext.ignore': 'Skip native context files',
+  'config.piTrustHint':
+    'Project trust does not approve tools. Context files are controlled separately. Shared Skills are loaded explicitly; discovered extensions stay disabled.',
   'config.dshProfile': 'DSH profile',
   'config.dshHint':
     'The initial integration targets a pinned ACP composition. SDK profiles remain unsupported by the planned runtime.',
@@ -122,6 +130,8 @@ export const configurationEn = {
   'error.runPath': 'Run inputs contain an unsafe or conflicting path.',
   'error.openCodeConfiguration':
     'This OpenCode configuration cannot be mapped by the current adapter: {feature}.',
+  'error.piConfiguration':
+    'This Pi configuration cannot be mapped by the current adapter: {feature}.',
   'error.runIntegrity':
     'The saved run inputs are missing or have changed. The original snapshot was preserved.',
   'error.runConfiguration':

@@ -179,7 +179,14 @@ export const referenceIds = z
 
 export const engineOptionsSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('opencode'), agent: z.string().min(1).max(100) }).strict(),
-  z.object({ kind: z.literal('pi'), thinkingLevel: z.string().max(100).optional() }).strict(),
+  z
+    .object({
+      kind: z.literal('pi'),
+      thinkingLevel: z.string().max(100).optional(),
+      projectTrust: z.enum(['deny', 'trust-once']).optional(),
+      contextFiles: z.enum(['inherit', 'ignore']).optional(),
+    })
+    .strict(),
   z
     .object({
       kind: z.literal('deepseek-harness'),

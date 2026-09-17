@@ -38,7 +38,7 @@ The script resolves OpenCode from `PATH`, or accepts `--opencode=/absolute/path`
 
 ## Remaining evidence
 
-- V1: version/entry-point discovery is partial; native source precedence, prompt mappings, and directories still need adapter-specific probes.
+- V1: version/entry-point discovery is partial. OpenCode and [Pi configuration mappings](pi-configuration.md) now have local native evidence; complete discovery/provenance and DSH adapter work remain open.
 - V2: awaiting the selected service/model and local credential reference for actual streaming/tool calls. Synthetic or local protocol fixtures cannot pass this gate.
 - V3: macOS process startup/cleanup and credential encryption observed; descendant cleanup under active work and execution boundaries remain open. Other platforms are untested.
 - V4: SDK limitations are established and the selected ACP route now passes two local provider lifecycle fixtures. [DSH evidence](dsh-acp.md); configuration/runtime adapters, desktop integration, and external-service acceptance remain open.

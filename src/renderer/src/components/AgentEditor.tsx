@@ -237,15 +237,54 @@ export function AgentEditor({
                   />
                 )}
                 {draft.engineOptions?.kind === 'pi' && (
-                  <TextField
-                    label={t('config.thinking')}
-                    value={draft.engineOptions.thinkingLevel ?? ''}
-                    onChange={(thinkingLevel) =>
-                      patch({
-                        engineOptions: { kind: 'pi', thinkingLevel: thinkingLevel || undefined },
-                      })
-                    }
-                  />
+                  <>
+                    <TextField
+                      label={t('config.thinking')}
+                      value={draft.engineOptions.thinkingLevel ?? ''}
+                      onChange={(thinkingLevel) =>
+                        patch({
+                          engineOptions: {
+                            ...draft.engineOptions,
+                            kind: 'pi',
+                            thinkingLevel: thinkingLevel || undefined,
+                          },
+                        })
+                      }
+                    />
+                    <SelectField
+                      label={t('config.piTrust')}
+                      value={draft.engineOptions.projectTrust ?? 'deny'}
+                      onChange={(value) =>
+                        patch({
+                          engineOptions: {
+                            ...draft.engineOptions,
+                            kind: 'pi',
+                            projectTrust: value as 'deny' | 'trust-once',
+                          },
+                        })
+                      }
+                    >
+                      <option value="deny">{t('config.piTrust.deny')}</option>
+                      <option value="trust-once">{t('config.piTrust.trust-once')}</option>
+                    </SelectField>
+                    <SelectField
+                      label={t('config.piContext')}
+                      value={draft.engineOptions.contextFiles ?? 'inherit'}
+                      onChange={(value) =>
+                        patch({
+                          engineOptions: {
+                            ...draft.engineOptions,
+                            kind: 'pi',
+                            contextFiles: value as 'inherit' | 'ignore',
+                          },
+                        })
+                      }
+                    >
+                      <option value="inherit">{t('config.piContext.inherit')}</option>
+                      <option value="ignore">{t('config.piContext.ignore')}</option>
+                    </SelectField>
+                    <p className="hint">{t('config.piTrustHint')}</p>
+                  </>
                 )}
                 {draft.engineOptions?.kind === 'deepseek-harness' && (
                   <>
