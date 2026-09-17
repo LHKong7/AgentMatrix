@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { channels, type AppInfo } from '../shared/api'
 import { WorkspaceStore } from './workspace-store'
+import { CredentialVault } from './credentials/vault'
+import { electronCipher } from './credentials/electron-cipher'
 
 app.setName('AgentMatrix')
 if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
@@ -69,6 +71,10 @@ if (!app.requestSingleInstanceLock()) {
       join(app.getPath('userData'), 'workspace.json'),
       resolveLocale([app.getLocale()]),
     )
+    const vault = new CredentialVault(
+      join(app.getPath('userData'), 'credentials', 'vault.json'),
+      electronCipher,
+    )
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
       callback(false),
     )
@@ -89,6 +95,18 @@ if (!app.requestSingleInstanceLock()) {
         configPath: store.filePath,
         storage: 'desktop',
       }
+    })
+    ipcMain.handle(channels.credentialStatus, (event) => {
+      verifySender(event)
+      return vault.status()
+    })
+    ipcMain.handle(channels.credentialSet, (event, input: unknown) => {
+      verifySender(event)
+      return vault.set(input)
+    })
+    ipcMain.handle(channels.credentialDelete, (event, input: unknown) => {
+      verifySender(event)
+      return vault.remove(input)
     })
     createWindow()
     app.on('activate', () => {

@@ -1,5 +1,6 @@
 import { useI18n } from './i18n'
 import { LanguageSelect } from './components/LanguageSelect'
+import { CredentialPanel } from './components/CredentialPanel'
 import { appError } from '../../shared/errors'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -533,6 +534,7 @@ export function App() {
                     <LanguageSelect />
                     <p className="hint">{t('settings.languageHint')}</p>
                   </section>
+                  <CredentialPanel />
                   <section className="settings-panel">
                     <h2>
                       <ShieldCheck size={20} />

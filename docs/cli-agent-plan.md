@@ -10,7 +10,7 @@ The research is documentary evidence: the nine engines were not installed, launc
 
 ## 1. Delivery scope
 
-The application currently provides configuration CRUD and three invoke methods: `loadWorkspace`, `saveWorkspace`, and `getAppInfo` ([API contract](../src/shared/api.ts)). There is no agent subprocess, credential vault, session command API, or event stream. Integration requires schema v2, a configuration resolver, and a session runtime with a desktop UI.
+At the planning baseline, the application provided configuration CRUD and three invoke methods: `loadWorkspace`, `saveWorkspace`, and `getAppInfo` ([API contract](../src/shared/api.ts)). At that baseline there was no agent subprocess, credential vault, session command API, or event stream. See the status record for implemented additions. Integration requires schema v2, a configuration resolver, and a session runtime with a desktop UI.
 
 | Engine                 | Initial runtime route                                               | Required integration focus                                                                                                           | Explicit boundary                                                                                                                            |
 | ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |

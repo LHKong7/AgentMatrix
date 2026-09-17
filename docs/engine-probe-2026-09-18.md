@@ -12,7 +12,7 @@ These checks made **no model calls**, received no provider keys, and do not esta
 | Pi               | Official npm `@earendil-works/pi-coding-agent@0.85.1`, installed under `/private/tmp/agentmatrix-engine-probes` with lifecycle scripts disabled | RPC `get_state`, `new_session`, and idle `abort` returned success. No provider/model was configured; its placeholder model is unknown                                                    | Streaming, tool execution, cancellation during a turn, saved-session restoration, trust/resource loading, and actual model calls |
 | DeepSeek Harness | Official npm `@deepseek-ai/dsh@0.1.5-rc.2`, same isolated installation                                                                          | SDK initialized as `deepseek-harness-sdk-runtime` wire version **0.0.1**; ACP v1 also initialized. SDK rejected cancel and resume methods; ACP advertises close/list/resume and HTTP MCP | Runtime turns, permission flow, cancellation in flight, persistence, profile/patch precedence, MCP/Skills, and provider routes   |
 
-The OpenCode ACP process starts a local service. A sandboxed launch failed with `ServeError`; a launch permitted to bind its local port succeeded. This is a host execution restriction, not evidence that OpenCode lacks ACP. Windows and Linux were not probed. Credential encryption and actual filesystem/network sandbox enforcement have not been verified.
+The OpenCode ACP process starts a local service. A sandboxed launch failed with `ServeError`; a launch permitted to bind its local port succeeded. This is a host execution restriction, not evidence that OpenCode lacks ACP. Windows and Linux were not probed. Credential encryption was subsequently verified on this macOS host as recorded below. Actual filesystem/network sandbox enforcement remains unverified.
 
 ## DSH transport decision
 
@@ -40,8 +40,12 @@ The script resolves OpenCode from `PATH`, or accepts `--opencode=/absolute/path`
 
 - V1: version/entry-point discovery is partial; native source precedence, prompt mappings, and directories still need adapter-specific probes.
 - V2: awaiting the selected service/model and local credential reference for actual streaming/tool calls. Synthetic or local protocol fixtures cannot pass this gate.
-- V3: macOS process startup/cleanup observed; secure storage, descendant cleanup under active work, and execution boundaries remain open. Other platforms are untested.
+- V3: macOS process startup/cleanup and credential encryption observed; descendant cleanup under active work and execution boundaries remain open. Other platforms are untested.
 - V4: SDK limitation and initial ACP selection established; DSH's full runtime acceptance remains open.
 - V5: Pi empty-session RPC observed; prompt/event/cancellation/persistence behavior still needs verification.
 
 Official entry points: [OpenCode ACP](https://opencode.ai/docs/acp/), [Pi repository](https://github.com/earendil-works/pi), and [DeepSeek Harness repository](https://github.com/deepseek-ai/deepseek-harness). Published package files were also inspected locally; repository descriptions alone were not used to mark runtime checks as passed.
+
+## Credential-storage follow-up
+
+The real Electron 44.4.1 smoke test passed on this macOS host using a temporary AgentMatrix data directory and synthetic secrets. `safeStorage` asynchronous encryption was available; vault bytes contained ciphertext, OS decryption recovered the synthetic value, metadata-only IPC omitted secret values, and restart/replacement/deletion passed. Backend failure and corrupt-storage preservation are covered by unit tests. This does not verify Windows/Linux credential backends or general agent sandbox enforcement.

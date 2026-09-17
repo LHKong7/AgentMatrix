@@ -7,6 +7,15 @@ const storageKey = 'agent-matrix:preview:v1'
 
 // Browser preview uses its own storage; it never reads desktop configuration files.
 const browserApi: AgentMatrixApi = {
+  async getCredentialStatus() {
+    return { available: false, credentials: [] }
+  },
+  async setCredential() {
+    throw appError('error.credentialsUnavailable')
+  },
+  async deleteCredential() {
+    throw appError('error.credentialsUnavailable')
+  },
   async loadWorkspace() {
     const saved = localStorage.getItem(storageKey)
     if (!saved) return createWorkspace(getInitialLocale())

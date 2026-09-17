@@ -33,6 +33,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **Plugin bundles:** combine existing MCP servers and Skills into reusable capabilities.
 - **Resource bindings:** bind resources directly or through plugins, deduplicate them, filter disabled resources, and clean references on deletion.
 - **Local persistence:** versioned JSON, Zod validation, atomic file replacement, serialized saves, and revision conflict checks.
+- **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Browser preview disables credential storage.
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
 This is a configuration management foundation. **Model requests, MCP connections, Skill file loading, and third-party plugin installation are not implemented.** Enabled means the configuration is available; it does not mean an agent or service is running. Plugins currently describe resource bundles and do not execute third-party code.
@@ -88,11 +89,11 @@ docs/                    Architecture, CLI research, and implementation plan
 
 Desktop configuration lives in Electron's `userData/workspace.json`; Settings shows its exact path. On macOS it is usually `~/Library/Application Support/AgentMatrix/workspace.json`. Development smoke tests use `AGENT_MATRIX_DATA_DIR` for isolation; packaged builds ignore that variable.
 
-Environment settings store **variable-name references**, such as `{"API_TOKEN":"MY_API_TOKEN"}`, for a future runtime to resolve. A credential vault is not implemented yet. Do not put keys into prompts, arguments, or ordinary configuration fields.
+Environment settings store **variable-name references**, such as `{"API_TOKEN":"MY_API_TOKEN"}`, for a future runtime to resolve. Settings now provides an encrypted credential vault at `userData/credentials/vault.json`; schema v2 connection bindings will reference its IDs. The current schema v1 agents do not call providers or consume these credentials yet. Do not put keys into prompts, arguments, or ordinary configuration fields.
 
 Unreadable or incompatible workspace files produce an error and are preserved. There is no silent reset. Exit the app and make a backup before editing its workspace file manually.
 
-The main process enables context isolation and renderer sandboxing, and disables Node integration. Preload exposes only workspace loading, workspace saving, and app information. IPC validates the sender. Production uses a restrictive CSP; development permits inline scripts for React Fast Refresh only. See [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) and [electron-vite development](https://electron-vite.org/guide/dev).
+The main process enables context isolation and renderer sandboxing, and disables Node integration. Preload exposes workspace loading/saving, app information, and credential metadata/set/delete operations. No plaintext credential read operation is exposed. IPC validates the sender. Production uses a restrictive CSP; development permits inline scripts for React Fast Refresh only. See [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) and [electron-vite development](https://electron-vite.org/guide/dev).
 
 ## Next stages
 

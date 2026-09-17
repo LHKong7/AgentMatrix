@@ -108,6 +108,24 @@ export const en = {
   'settings.pluginsTitle': 'Plugin ecosystem',
   'settings.pluginsBody': 'Plugin installation, SKILL.md discovery, and permissions.',
   'settings.language': 'Language',
+  'credentials.title': 'API credentials',
+  'credentials.hint':
+    'Store keys in encrypted desktop storage. Agents will reference them by ID; saved values are never returned to this screen.',
+  'credentials.unavailable':
+    'Secure desktop storage is unavailable. Use the desktop app with an available operating-system credential backend.',
+  'credentials.loading': 'Checking credential storage…',
+  'credentials.empty': 'No credentials saved.',
+  'credentials.name': 'Credential name',
+  'credentials.kind': 'Authentication type',
+  'credentials.value': 'Secret value',
+  'credentials.create': 'Save credential',
+  'credentials.replace': 'Replace secret',
+  'credentials.cancel': 'Cancel replacement',
+  'credentials.saved': 'Credential saved.',
+  'credentials.deleted': 'Credential deleted.',
+  'credentials.delete': 'Delete credential',
+  'credentials.confirmDelete':
+    'Delete “{name}”? Configurations referring to it will need another credential.',
   'settings.languageHint':
     'Choose English or Simplified Chinese. Your preference is saved on this device.',
   'agentEditor.subtitle': 'Define your agent’s role, model, and capabilities.',
@@ -169,6 +187,13 @@ export const en = {
   'error.failed': 'The operation failed. Please try again.',
   'error.invalidJson': 'Enter valid JSON for the environment references.',
   'error.invalidData': 'The workspace data is invalid. Check the configuration and try again.',
+  'error.credentialsUnavailable': 'Secure credential storage is unavailable.',
+  'error.credentialMissing': 'The required credential is missing.',
+  'error.credentialEncryption':
+    'The credential could not be encrypted. The previous value was preserved.',
+  'error.credentialDecryption': 'The credential could not be decrypted. Replace it to continue.',
+  'error.credentialStorage':
+    'Credential storage could not be read or saved. Existing data was preserved.',
   'validation.id': 'IDs may contain only letters, numbers, underscores, and hyphens.',
   'validation.name': 'Name is required.',
   'validation.duplicateRefs': 'References must not be duplicated.',

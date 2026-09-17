@@ -9,6 +9,8 @@ const runtimeErrors = []
 const env = { ...process.env, AGENT_MATRIX_DATA_DIR: dataDirectory }
 delete env.ELECTRON_RUN_AS_NODE
 let app
+let savedCredential
+const syntheticSecret = 'agentmatrix-synthetic-smoke-secret'
 async function launch() {
   app = await electron.launch({ args: ['.'], env, timeout: 30000 })
   const page = await app.firstWindow({ timeout: 30000 })
@@ -105,9 +107,70 @@ try {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 680))
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByRole('heading', { name: 'Language', exact: true }).waitFor()
+  const credentialStatus = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+  if (credentialStatus.available) {
+    await page.getByLabel('Credential name', { exact: true }).fill('Smoke credential')
+    await page.getByLabel('Secret value', { exact: true }).fill(syntheticSecret)
+    await page.getByRole('button', { name: 'Save credential', exact: true }).click()
+    await page.getByRole('status').filter({ hasText: 'Credential saved.' }).waitFor()
+    const status = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+    savedCredential = status.credentials[0]
+    assert.equal(savedCredential.name, 'Smoke credential')
+    assert.ok(!JSON.stringify(status).includes(syntheticSecret))
+    assert.equal(await page.getByLabel('Secret value', { exact: true }).inputValue(), '')
+    const bytes = await readFile(join(dataDirectory, 'credentials', 'vault.json'), 'utf8')
+    assert.ok(!bytes.includes(syntheticSecret))
+    const ciphertext = JSON.parse(bytes).entries[0].ciphertext
+    const decoded = await app.evaluate(
+      async ({ safeStorage }, encrypted) =>
+        (await safeStorage.decryptStringAsync(Buffer.from(encrypted, 'base64'))).result,
+      ciphertext,
+    )
+    assert.equal(decoded, syntheticSecret)
+    if (process.env.AGENT_MATRIX_CREDENTIAL_SCREENSHOT)
+      await page.screenshot({
+        path: process.env.AGENT_MATRIX_CREDENTIAL_SCREENSHOT,
+        fullPage: true,
+      })
+  } else {
+    await page
+      .getByRole('status')
+      .filter({ hasText: 'Secure desktop storage is unavailable.' })
+      .waitFor()
+    assert.equal(
+      await page.getByRole('button', { name: 'Save credential', exact: true }).isDisabled(),
+      true,
+    )
+  }
   await app.close()
   page = await launch()
   await page.getByRole('heading', { name: 'My Agents' }).waitFor()
+  if (savedCredential) {
+    const reopened = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+    assert.deepEqual(reopened.credentials, [savedCredential])
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page.getByRole('button', { name: 'Replace secret', exact: true }).click()
+    assert.equal(await page.getByLabel('Secret value', { exact: true }).inputValue(), '')
+    await page.getByLabel('Secret value', { exact: true }).fill('replacement-synthetic-secret')
+    await page
+      .locator('.credential-panel form')
+      .getByRole('button', { name: 'Replace secret', exact: true })
+      .click()
+    await page.getByRole('status').filter({ hasText: 'Credential saved.' }).waitFor()
+    const updated = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+    assert.equal(updated.credentials[0].revision, 2)
+    page.once('dialog', (dialog) => dialog.accept())
+    await page.getByRole('button', { name: 'Delete credential', exact: true }).click()
+    await page.getByRole('status').filter({ hasText: 'Credential deleted.' }).waitFor()
+    assert.deepEqual(
+      (await page.evaluate(() => window.agentMatrix.getCredentialStatus())).credentials,
+      [],
+    )
+    await page
+      .getByRole('navigation')
+      .getByRole('button', { name: /^My Agents/ })
+      .click()
+  }
   assert.equal(await page.locator('html').getAttribute('lang'), 'en')
   await setLanguage('zh-CN')
   await page.getByRole('heading', { name: 'Smoke Agent', exact: true }).waitFor()
@@ -127,7 +190,7 @@ try {
   assert.deepEqual(JSON.parse(await readFile(join(dataDirectory, 'workspace.json'), 'utf8')), state)
   assert.deepEqual(runtimeErrors, [])
   console.log(
-    'Desktop smoke passed: create/edit agents, prompts, MCP/Skills/plugins, bindings, reload, disable, deletion cleanup, IPC, sandbox, English/Chinese switching, localized errors, and language persistence.',
+    'Desktop smoke passed: create/edit agents, prompts, MCP/Skills/plugins, bindings, reload, disable, deletion cleanup, IPC, sandbox, English/Chinese switching, localized errors, language persistence, and secure credential storage/restart/replacement/deletion when the OS backend is available.',
   )
 } catch (error) {
   const page = app?.windows()[0]

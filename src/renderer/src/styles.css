@@ -1174,3 +1174,33 @@ input[type='checkbox'] {
     transition: none !important;
   }
 }
+
+.credential-panel .hint {
+  margin-bottom: 16px;
+}
+.credential-list {
+  padding: 0;
+  list-style: none;
+}
+.credential-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+.credential-list li > div:first-child {
+  min-width: 0;
+}
+.credential-list code {
+  display: block;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+.credential-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
