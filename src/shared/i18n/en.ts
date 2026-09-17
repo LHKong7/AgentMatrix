@@ -214,6 +214,14 @@ export const en = {
   'error.migrationBackup':
     'An existing migration backup conflicts with this workspace. Both files were preserved.',
   'error.schemaVersion': 'This workspace version cannot be migrated.',
+  'error.sessionState': 'This operation is unavailable in the current session state.',
+  'error.sessionStale':
+    'This control belongs to an earlier session, run, turn, or request. Refresh the session.',
+  'error.sessionExpired': 'This interaction request has expired.',
+  'error.sessionChoice': 'Choose a response offered by this interaction request.',
+  'error.sessionCursor':
+    'Session events are missing or the cursor is invalid. Reload the session state and history.',
+  'error.sessionOverflow': 'The session event or subscriber limit was exceeded.',
   'validation.min': 'The minimum allowed value or length is {limit}.',
   'validation.max': 'The maximum allowed value or length is {limit}.',
 } as const

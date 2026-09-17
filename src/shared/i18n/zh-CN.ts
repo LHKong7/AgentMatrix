@@ -199,6 +199,12 @@ export const zhCN = {
   'error.assetHistory': '不能修改或删除已保存的资产版本，请创建新版本。',
   'error.migrationBackup': '已有迁移备份与当前工作空间冲突，两个文件均已保留。',
   'error.schemaVersion': '无法迁移此版本的工作空间。',
+  'error.sessionState': '当前会话状态不支持此操作。',
+  'error.sessionStale': '此操作属于之前的会话、进程、回合或请求，请刷新会话。',
+  'error.sessionExpired': '此交互请求已过期。',
+  'error.sessionChoice': '请选择此交互请求提供的响应。',
+  'error.sessionCursor': '会话事件缺失或游标无效，请重新加载会话状态和历史。',
+  'error.sessionOverflow': '会话事件或订阅数量超出限制。',
   'validation.min': '最小允许值或长度为 {limit}。',
   'validation.max': '最大允许值或长度为 {limit}。',
 } satisfies Messages
