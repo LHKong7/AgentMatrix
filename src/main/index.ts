@@ -1,5 +1,5 @@
 import { appError } from '../shared/errors'
-import { resolveLocale } from '../shared/i18n'
+import { resolveLocale, translate } from '../shared/i18n'
 import { app, BrowserWindow, dialog, ipcMain, session, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -8,6 +8,12 @@ import { EngineWorkspaceStore } from './engine-workspace-store'
 import { CredentialVault } from './credentials/vault'
 import { electronCipher } from './credentials/electron-cipher'
 import { SkillDirectoryStore } from './assets/skill-directory-store'
+import { RunInputStore } from './engines/run-input-store'
+import { SessionJournal } from './sessions/journal'
+import { SessionCoordinator } from './sessions/coordinator'
+import { DesktopSessionFactory } from './sessions/desktop-factory'
+import { registerSessionIpc, safeSessionOperation, verifyRenderer } from './sessions/ipc'
+import { stopOwnedProcesses } from './engines/process/managed-process'
 
 app.setName('AgentMatrix')
 if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
@@ -15,6 +21,7 @@ if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
 }
 
 let mainWindow: BrowserWindow | null = null
+let sessionBridge: ReturnType<typeof registerSessionIpc> | undefined
 const rendererFile = join(__dirname, '../renderer/index.html')
 const rendererUrl = new URL(
   !app.isPackaged && process.env.ELECTRON_RENDERER_URL
@@ -23,14 +30,7 @@ const rendererUrl = new URL(
 ).href
 
 function verifySender(event: IpcMainInvokeEvent): void {
-  if (
-    !mainWindow ||
-    event.sender !== mainWindow.webContents ||
-    event.senderFrame !== mainWindow.webContents.mainFrame ||
-    event.senderFrame.url !== rendererUrl
-  ) {
-    throw appError('error.untrusted')
-  }
+  verifyRenderer(event, mainWindow?.webContents ?? null, rendererUrl)
 }
 
 function createWindow(): void {
@@ -50,6 +50,7 @@ function createWindow(): void {
     },
   })
   mainWindow.once('ready-to-show', () => mainWindow?.show())
+  sessionBridge?.attach(mainWindow.webContents)
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -80,6 +81,45 @@ if (!app.requestSingleInstanceLock()) {
       join(app.getPath('userData'), 'credentials', 'vault.json'),
       electronCipher,
     )
+    const factory = new DesktopSessionFactory({
+      workspace: store,
+      runs: new RunInputStore(join(app.getPath('userData'), 'runs'), skillDirectories),
+      skills: skillDirectories,
+      dataDirectory: app.getPath('userData'),
+      environment: process.env,
+      resolveSecret: (reference) => vault.resolve(reference, process.env),
+    })
+    const coordinator = new SessionCoordinator(
+      new SessionJournal(join(app.getPath('userData'), 'sessions')),
+      factory,
+    )
+    sessionBridge = registerSessionIpc(ipcMain, coordinator, verifySender)
+    ipcMain.handle(channels.engineProbe, (event, input: unknown) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        return factory.probe(input)
+      }),
+    )
+    let quitReady = false
+    let quitting = false
+    app.on('before-quit', (event) => {
+      if (quitReady) return
+      event.preventDefault()
+      if (quitting) return
+      quitting = true
+      void (async () => {
+        const stopped = await Promise.allSettled([coordinator.shutdown(), factory.shutdown()])
+        stopped.push(...(await Promise.allSettled([stopOwnedProcesses()])))
+        if (stopped.some((result) => result.status === 'rejected')) {
+          quitting = false
+          const locale = resolveLocale([app.getLocale()])
+          dialog.showErrorBox('AgentMatrix', translate(locale, 'error.runtimeShutdown'))
+          return
+        }
+        quitReady = true
+        app.quit()
+      })()
+    })
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
       callback(false),
     )
@@ -135,5 +175,5 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  app.quit()
 })

@@ -8,7 +8,10 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   { languageOptions: { globals: globals.node } },
-  { files: ['scripts/smoke.mjs'], languageOptions: { globals: globals.browser } },
+  {
+    files: ['scripts/smoke.mjs', 'scripts/session-smoke.mjs'],
+    languageOptions: { globals: globals.browser },
+  },
   {
     files: ['src/renderer/**/*.{ts,tsx}'],
     languageOptions: { globals: globals.browser },

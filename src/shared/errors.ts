@@ -4,6 +4,17 @@ import { isMessageKey, translate, type Locale, type MessageKey, type MessagePara
 type ErrorKey = Extract<MessageKey, `error.${string}`>
 const prefix = 'AGENT_MATRIX_ERROR:'
 
+export function getErrorKey(error: unknown): ErrorKey | null {
+  if (!(error instanceof Error) || !error.message.startsWith(prefix)) return null
+  try {
+    const value: unknown = JSON.parse(error.message.slice(prefix.length))
+    const { key } = z.object({ key: z.string() }).parse(value)
+    return isMessageKey(key) && key.startsWith('error.') ? (key as ErrorKey) : null
+  } catch {
+    return null
+  }
+}
+
 // Electron invoke preserves Error.message, but not custom Error properties.
 export function appError(key: ErrorKey, params: MessageParams = {}): Error {
   return new Error(`${prefix}${JSON.stringify({ key, params })}`)

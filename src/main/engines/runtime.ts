@@ -23,6 +23,7 @@ export class RuntimeFailure extends Error {
   constructor(
     readonly code:
       | 'configuration'
+      | 'credentials'
       | 'unsupported'
       | 'protocol'
       | 'timeout'

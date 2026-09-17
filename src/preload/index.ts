@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { channels, type AgentMatrixApi } from '../shared/api'
+import { sessionChannels } from '../shared/sessions/channels'
+import type { SessionDelivery } from '../shared/sessions/schema'
 
 const api: AgentMatrixApi = {
   loadWorkspace: () => ipcRenderer.invoke(channels.load),
@@ -9,6 +11,39 @@ const api: AgentMatrixApi = {
   setCredential: (input) => ipcRenderer.invoke(channels.credentialSet, input),
   deleteCredential: (input) => ipcRenderer.invoke(channels.credentialDelete, input),
   importSkillDirectory: () => ipcRenderer.invoke(channels.skillImport),
+  probeEngine: (input) => ipcRenderer.invoke(channels.engineProbe, input),
+  sessions: {
+    command: (input) => ipcRenderer.invoke(sessionChannels.command, input),
+    get: (input) => ipcRenderer.invoke(sessionChannels.get, input),
+    list: () => ipcRenderer.invoke(sessionChannels.list),
+    readEvents: (input) => ipcRenderer.invoke(sessionChannels.events, input),
+    async subscribe(input, receive) {
+      let active = true
+      const listener = (_event: Electron.IpcRendererEvent, delivery: SessionDelivery) => {
+        if (active && delivery.subscriptionId === input.subscriptionId) receive(delivery)
+      }
+      ipcRenderer.on(sessionChannels.delivery, listener)
+      try {
+        const { snapshot } = await ipcRenderer.invoke(sessionChannels.subscribe, input)
+        return {
+          snapshot,
+          unsubscribe: async () => {
+            if (!active) return
+            active = false
+            ipcRenderer.removeListener(sessionChannels.delivery, listener)
+            await ipcRenderer.invoke(sessionChannels.unsubscribe, {
+              sessionId: input.sessionId,
+              subscriptionId: input.subscriptionId,
+            })
+          },
+        }
+      } catch (error) {
+        active = false
+        ipcRenderer.removeListener(sessionChannels.delivery, listener)
+        throw error
+      }
+    },
+  },
 }
 
 contextBridge.exposeInMainWorld('agentMatrix', api)

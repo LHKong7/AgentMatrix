@@ -1,7 +1,9 @@
 import { configurationEn } from './configuration-en'
+import { sessionEn } from './session-en'
 
 export const en = {
   ...configurationEn,
+  ...sessionEn,
   'nav.agents': 'My Agents',
   'nav.mcpServers': 'MCP Servers',
   'nav.skills': 'Skills',
@@ -58,7 +60,7 @@ export const en = {
   'agents.guideBody': 'Define a system prompt → Add MCP and Skills → Combine capabilities.',
   'agents.manageSkills': 'Manage Skills',
   'agents.runtimeNote':
-    'Configuration workspace ready · Conversations and agent execution are planned',
+    'OpenCode sessions are available · Check the saved CLI in Engines before starting',
   'agents.deleteConfirm': 'Delete “{name}”? Shared resources will be kept.',
   'stats.mcp': 'Connect tools and data',
   'stats.skills': 'Reusable knowledge and instructions',

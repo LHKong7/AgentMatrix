@@ -26,6 +26,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 ## Current features
 
 - **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
+- **OpenCode desktop sessions:** explicitly check a saved installation, then start from a saved profile. Stream messages, inspect tools, answer native permission requests, cancel turns, reload history, and resume interrupted sessions. The current adapter is pinned to OpenCode 1.18.16; see [setup and verification](docs/desktop-sessions.md).
 - **Shared connections and models:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents.
 - **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit.
 - **Skill directory imports:** select a directory in the desktop editor to capture `SKILL.md`, scripts, and references with file digests. Reimport creates a new revision while retaining previous bytes; importing never executes scripts.
@@ -36,9 +37,9 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Browser preview disables credential storage.
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
-This is a configuration management foundation. **CLI execution, model requests, MCP connections, native configuration imports, and third-party plugin installation are not implemented.** Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
+OpenCode execution is connected to the desktop UI and verified on macOS against a local provider fixture. Pi and DeepSeek Harness remain configurable drafts without runtime adapters. External provider acceptance, complete configuration application reporting, native configuration import, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
 
-Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires a future adapter compatibility check before launch.
+Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires native adapter compatibility checks before launch.
 
 ## Language support
 
@@ -46,23 +47,24 @@ Use the language selector in the top bar or **Settings → Language**. On the fi
 
 Switching languages updates UI text, accessible labels, dialogs, validation messages, and number formatting. It also updates the document's `lang` attribute. Existing agent names, descriptions, prompts, Skill instructions, and resource data are user content and are never translated or overwritten. New agent drafts use the active language; the first desktop workspace uses the system language. If preference storage is unavailable, switching still works for the current window.
 
-Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `configuration-*.ts` catalogs. Use stable keys through `useI18n().t()` in React or `translate()` in shared code. Chinese entries must satisfy the English key schema; tests verify matching placeholders. Main-process application failures use stable serialized error codes so the renderer can translate them in the current language. Native OS diagnostics retain their technical details.
+Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `configuration-*.ts` and `session-*.ts` catalogs. Use stable keys through `useI18n().t()` in React or `translate()` in shared code. Chinese entries must satisfy the English key schema; tests verify matching placeholders. Main-process application failures use stable serialized error codes so the renderer can translate them in the current language. Native OS diagnostics retain their technical details.
 
 ## Commands
 
-| Command                | Purpose                                                                             |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `npm run dev`          | Start Electron with hot reload                                                      |
-| `npm run dev:web`      | Preview the UI in a browser                                                         |
-| `npm run check`        | Run ESLint, unit tests, TypeScript, and production builds                           |
-| `npm run test:smoke`   | Build and test a real Electron window, including language switching and persistence |
-| `npm run probe:acp`    | Opt-in installed OpenCode/DSH handshake through the application ACP client          |
-| `npm run format`       | Format source and documentation                                                     |
-| `npm run format:check` | Check formatting                                                                    |
-| `npm run build`        | Build into `out/`                                                                   |
-| `npm start`            | Run the existing production build                                                   |
-| `npm run package`      | Create an unsigned app directory for the current platform                           |
-| `npm run dist`         | Build platform distributables into `release/`                                       |
+| Command                 | Purpose                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- |
+| `npm run dev`           | Start Electron with hot reload                                                                        |
+| `npm run dev:web`       | Preview the UI in a browser                                                                           |
+| `npm run check`         | Run ESLint, unit tests, TypeScript, and production builds                                             |
+| `npm run test:smoke`    | Build and test a real Electron window, including language switching and persistence                   |
+| `npm run test:sessions` | Build and test desktop sessions with an explicitly selected OpenCode CLI and a local provider fixture |
+| `npm run probe:acp`     | Opt-in installed OpenCode/DSH handshake through the application ACP client                            |
+| `npm run format`        | Format source and documentation                                                                       |
+| `npm run format:check`  | Check formatting                                                                                      |
+| `npm run build`         | Build into `out/`                                                                                     |
+| `npm start`             | Run the existing production build                                                                     |
+| `npm run package`       | Create an unsigned app directory for the current platform                                             |
+| `npm run dist`          | Build platform distributables into `release/`                                                         |
 
 Desktop smoke tests use a temporary configuration directory and clean it up afterward. They require a desktop graphics environment. CI runs `check`, which does not require a display.
 
@@ -73,13 +75,13 @@ The ACP probe requires explicit executable-path environment variables; see [ACP 
 ```text
 src/
   main/                  Electron lifecycle, IPC boundaries, local storage
-  preload/               Explicit, typed configuration API only
+  preload/               Explicit, typed configuration and session APIs
   shared/                Schemas, domain types, composition rules, IPC contracts
     i18n/                Typed English and Simplified Chinese catalogs
     errors.ts            Localizable application error codes and formatting
   renderer/
     src/
-      components/        Agent, MCP, Skill, plugin, and language editors
+      components/        Configuration editors, language controls, and sessions
       i18n/              React translation context and language preferences
       lib/               Desktop API / browser preview adapter
       App.tsx            Workspace pages and navigation
@@ -94,7 +96,7 @@ docs/                    Architecture, CLI research, and implementation plan
 
 Desktop configuration lives in Electron's `userData/workspace.json`; Settings shows its exact path. On macOS it is usually `~/Library/Application Support/AgentMatrix/workspace.json`. Development smoke tests use `AGENT_MATRIX_DATA_DIR` for isolation; packaged builds ignore that variable.
 
-Connections and MCP definitions store **secret references**, either an environment variable name or a credential ID. Settings provides the encrypted credential vault at `userData/credentials/vault.json`; configuration editors can select saved credential metadata without reading plaintext values. Resolving these references for an actual CLI run remains runtime work. Do not put keys into prompts, arguments, or ordinary configuration fields.
+Connections and MCP definitions store **secret references**, either an environment variable name or a credential ID. Settings provides the encrypted credential vault at `userData/credentials/vault.json`; configuration editors can select saved credential metadata without reading plaintext values. The desktop runtime resolves only the captured references immediately before launching OpenCode. Do not put keys into prompts, arguments, or ordinary configuration fields.
 
 The active store uses schema v2. Before converting a v1 workspace, it preserves the original bytes as `workspace.json.v1.<sha256>.bak`; migration retains IDs and bindings and leaves unresolved engine choices editable. A fresh workspace has no assumed provider, model, installation, or sampling temperature. Browser preview writes `agent-matrix:preview:v2` and retains the old `agent-matrix:preview:v1` value when migrating.
 
@@ -102,12 +104,12 @@ Imported Skill files live under `userData/assets/skills/<digest>/`. The importer
 
 Unreadable or incompatible workspace files produce an error and are preserved. There is no silent reset. Exit the app and make a backup before editing its workspace file manually.
 
-The main process enables context isolation and renderer sandboxing, and disables Node integration. Preload exposes workspace loading/saving, app information, and credential metadata/set/delete operations. No plaintext credential read operation is exposed. IPC validates the sender. Production uses a restrictive CSP; development permits inline scripts for React Fast Refresh only. See [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) and [electron-vite development](https://electron-vite.org/guide/dev).
+The main process enables context isolation and renderer sandboxing, and disables Node integration. Preload exposes workspace loading/saving, app information, credential metadata/set/delete operations, explicit installation probing, and typed session commands/events. No plaintext credential read operation is exposed. IPC validates the sender. Production uses a restrictive CSP; development permits inline scripts for React Fast Refresh only. See [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) and [electron-vite development](https://electron-vite.org/guide/dev).
 
 ## Next stages
 
-1. Complete the remaining shared foundation for **OpenCode, Pi, and DeepSeek Harness**: probe configured installations, import native configuration read-only, generate immutable managed run inputs, and connect the session contract to typed IPC. Shared libraries, Skill directory capture, bilingual configuration editors, resolution diagnostics, credential references, and v2 migration are active.
-2. Deliver **OpenCode through ACP** as the first complete desktop workflow: configuration, streaming, tools, supported permissions, cancellation, history, immutable run inputs, and configuration application status. Shared prompt/Skill/MCP mappings are part of its acceptance gate.
+1. Complete configuration provenance and application reporting for **OpenCode, Pi, and DeepSeek Harness**. Shared libraries, Skill capture, bilingual editors, credentials, v2 migration, immutable run inputs, and typed session IPC are active. Automatic installation discovery and native configuration import remain open.
+2. Finish the **OpenCode ACP** acceptance gate: verify the intended external endpoint/model/auth route, complete effective configuration reporting, and collect early Pi/DSH lifecycle evidence. Streaming, tools, permissions, cancellation, history, and restart/resume now run through the bilingual desktop UI against a local fixture. Shared prompt/Skill/MCP mappings remain part of acceptance.
 3. Deliver **Pi through RPC**, then **DeepSeek Harness through ACP**, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
 4. After the initial three-engine milestone, expand to Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands, then later scheduling and collaboration. See the [implementation plan](docs/cli-agent-plan.md) and [nine-engine research](docs/cli-agent-research.md).
 

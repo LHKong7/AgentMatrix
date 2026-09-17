@@ -1,5 +1,259 @@
 @import url('./tokens.css');
 
+.session-create.settings-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 14px;
+  margin-bottom: 22px;
+  padding: 16px;
+}
+.session-page-heading {
+  margin-bottom: 20px;
+}
+.session-create > .hint {
+  margin: 0;
+}
+.session-create label {
+  display: grid;
+  gap: 8px;
+  min-width: 240px;
+}
+.session-create select,
+.composer textarea,
+.permission-card textarea {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: white;
+  color: var(--text);
+}
+.session-create > p,
+.session-diagnostics {
+  flex-basis: 100%;
+}
+.session-diagnostics {
+  display: grid;
+  gap: 6px;
+  color: #93602d;
+  font-size: 12px;
+}
+.sessions-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 235px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.session-list {
+  display: grid;
+  gap: 7px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.session-list > button {
+  display: flex;
+  text-align: left;
+  align-items: start;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  padding: 13px 10px;
+}
+.session-list > button.selected {
+  background: #edf4ef;
+  border-color: #cbdccd;
+}
+.session-list strong,
+.session-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.session-list small {
+  margin-top: 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #64766a;
+}
+.conversation {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: white;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 390px);
+  min-height: 500px;
+}
+.conversation-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.conversation-header small {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  color: #64766a;
+}
+.session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.session-actions .button {
+  font-size: 12px;
+  padding: 7px 9px;
+}
+.conversation .captured-hint {
+  padding: 12px 18px;
+  background: #f7faf7;
+  margin: 0;
+  flex-shrink: 0;
+}
+.transcript {
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: auto;
+}
+.message {
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: #f8faf8;
+}
+.message.user {
+  background: #edf4ef;
+  border-left: 3px solid #779b80;
+}
+.message.reasoning {
+  color: #68796e;
+  font-size: 12px;
+}
+.message > strong {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.message pre,
+.tool-event pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  line-height: 1.7;
+  font-size: 12px;
+  margin: 8px 0 0;
+}
+.tool-event {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+.tool-event summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.tool-event summary span {
+  color: #68846f;
+  margin-left: 10px;
+  font-size: 11px;
+}
+.turn-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px 15px;
+  font-size: 11px;
+  color: #738277;
+  padding: 2px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+.turn-result small {
+  flex-basis: 100%;
+}
+.permission-card {
+  margin: 12px 18px;
+  padding: 15px;
+  background: #fffbf0;
+  border: 1px solid #e8d7a8;
+  border-radius: 9px;
+  max-height: 250px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  flex-shrink: 0;
+}
+.permission-card > small {
+  display: block;
+  margin-top: 8px;
+  color: #887340;
+}
+.permission-context {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 11px/1.6 var(--font-mono);
+  max-height: 90px;
+  overflow-y: auto;
+  background: #fffdf8;
+  padding: 8px;
+  border-radius: 5px;
+}
+.permission-card fieldset {
+  border: 0;
+  margin: 13px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.permission-card fieldset > p,
+.permission-card textarea {
+  flex-basis: 100%;
+}
+.permission-card .button {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+}
+.permission-card .button small {
+  font-size: 10px;
+  color: #738277;
+}
+.composer {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.composer label {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.composer textarea {
+  width: 100%;
+  resize: vertical;
+}
+.composer button {
+  justify-self: end;
+}
+@media (max-width: 1150px) {
+  .sessions-layout {
+    grid-template-columns: minmax(150px, 190px) minmax(0, 1fr);
+    gap: 12px;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

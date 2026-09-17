@@ -1,8 +1,10 @@
 import type { Messages } from './en'
 import { configurationZh } from './configuration-zh-CN'
+import { sessionZhCN } from './session-zh-CN'
 
 export const zhCN = {
   ...configurationZh,
+  ...sessionZhCN,
   'nav.agents': '我的 Agents',
   'nav.mcpServers': 'MCP Servers',
   'nav.skills': 'Skills',
@@ -58,7 +60,7 @@ export const zhCN = {
   'agents.guideTitle': '从一个 Agent，开始你的工作流',
   'agents.guideBody': '定义 System Prompt → 添加 MCP 与 Skills → 组合专属能力。',
   'agents.manageSkills': '管理 Skills',
-  'agents.runtimeNote': '配置工作区已就绪 · 对话与 Agent 运行将在后续版本接入',
+  'agents.runtimeNote': 'OpenCode 会话已接入 · 启动前请在“引擎”中检查已保存的 CLI',
   'agents.deleteConfirm': '删除「{name}」？此操作不会删除共享资源。',
   'stats.mcp': '连接外部工具与数据',
   'stats.skills': '可复用的知识与指令',

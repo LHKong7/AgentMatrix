@@ -10,6 +10,7 @@ import {
   FolderOpen,
   Layers3,
   LoaderCircle,
+  MessageSquare,
   Plus,
   Puzzle,
   Search,
@@ -43,6 +44,7 @@ import { AgentEditor } from './components/AgentEditor'
 import { ResourceEditor } from './components/ResourceEditor'
 import { LanguageSelect } from './components/LanguageSelect'
 import { CredentialPanel } from './components/CredentialPanel'
+import { SessionsPanel } from './components/SessionsPanel'
 
 type Editor =
   | { kind: 'agents'; value: AgentProfile; isNew: boolean }
@@ -64,7 +66,8 @@ export function App() {
   const { t, locale, number } = useI18n()
   const [workspace, setWorkspace] = useState<EngineWorkspace | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
-  const [page, setPage] = useState<Collection | 'settings'>('agents')
+  const [page, setPage] = useState<Collection | 'settings' | 'sessions'>('agents')
+  const [sessionAgent, setSessionAgent] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<Editor | null>(null)
   const [error, setError] = useState<unknown>(null)
@@ -110,7 +113,7 @@ export function App() {
       setError(failure)
     }
   }
-  function navigate(next: Collection | 'settings') {
+  function navigate(next: Collection | 'settings' | 'sessions') {
     setPage(next)
     setQuery('')
   }
@@ -138,7 +141,27 @@ export function App() {
     `${value.name} ${'description' in value ? value.description : ''}`
       .toLowerCase()
       .includes(query.toLowerCase())
-  const label = page === 'settings' ? t('nav.settings') : t(collectionLabels[page])
+  const label =
+    page === 'sessions'
+      ? t('nav.sessions')
+      : page === 'settings'
+        ? t('nav.settings')
+        : t(collectionLabels[page])
+  async function probe(installationId: string) {
+    if (saveLock.current) return
+    saveLock.current = true
+    setSaving(true)
+    setError(null)
+    try {
+      setWorkspace(await api.probeEngine({ installationId }))
+      setNotice(true)
+    } catch (failure) {
+      setError(failure)
+    } finally {
+      saveLock.current = false
+      setSaving(false)
+    }
+  }
   function summary(entry: LibraryEntry): string {
     if ('executable' in entry) return `${entry.kind} · ${entry.version ?? t('config.unprobed')}`
     if ('protocol' in entry) return `${entry.protocol ?? t('config.choose')} · ${entry.baseUrl}`
@@ -171,6 +194,16 @@ export function App() {
         </div>
         <span className="nav-caption">{t('workspace.title')}</span>
         <nav aria-label={t('nav.main')}>
+          <button
+            className={`nav-item ${page === 'sessions' ? 'active' : ''}`}
+            onClick={() => {
+              setSessionAgent(null)
+              navigate('sessions')
+            }}
+          >
+            <MessageSquare size={19} />
+            <span>{t('nav.sessions')}</span>
+          </button>
           {collections.map((kind) => {
             const Icon = icons[kind]
             return (
@@ -227,6 +260,12 @@ export function App() {
               <LoaderCircle className="spin" size={28} />
               <p>{t(error ? 'common.loadFailed' : 'common.loading')}</p>
             </div>
+          ) : page === 'sessions' ? (
+            <SessionsPanel
+              workspace={workspace}
+              desktop={info?.storage === 'desktop'}
+              initialAgent={sessionAgent}
+            />
           ) : (
             <>
               <div className="page-heading">
@@ -337,6 +376,17 @@ export function App() {
                           <div className="card-footer">
                             <button
                               className="text-button"
+                              disabled={saving || !agent.enabled}
+                              onClick={() => {
+                                setSessionAgent(agent.id)
+                                navigate('sessions')
+                              }}
+                            >
+                              <MessageSquare size={15} />
+                              {t('sessions.open')}
+                            </button>
+                            <button
+                              className="text-button"
                               aria-label={t('common.editNamed', { name: agent.name })}
                               disabled={saving}
                               onClick={() =>
@@ -403,6 +453,19 @@ export function App() {
                           )}
                           <code>{summary(entry)}</code>
                         </div>
+                        {page === 'installations' && (
+                          <button
+                            className="button secondary"
+                            disabled={
+                              saving ||
+                              info?.storage !== 'desktop' ||
+                              ('kind' in entry && entry.kind !== 'opencode')
+                            }
+                            onClick={() => void probe(entry.id)}
+                          >
+                            {t('sessions.probe')}
+                          </button>
+                        )}
                         <button
                           className="button secondary"
                           aria-label={t('common.editNamed', { name: entry.name })}

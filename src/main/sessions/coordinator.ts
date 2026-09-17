@@ -315,6 +315,9 @@ export class SessionCoordinator {
       if ([...(await firstStops), ...results].some((result) => result.status === 'rejected'))
         throw appError('error.sessionStorage')
     })()
+    void this.shutdownTask.catch(() => {
+      this.shutdownTask = undefined
+    })
     return this.shutdownTask
   }
 

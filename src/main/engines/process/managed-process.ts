@@ -32,6 +32,16 @@ interface ProcessLimits {
   stopTimeoutMs: number
 }
 
+const ownedProcesses = new Set<ManagedProcess>()
+/** Also retains failed-start/readback processes whose immediate caller timed out during cleanup. */
+export async function stopOwnedProcesses(): Promise<void> {
+  const results = await Promise.allSettled(
+    [...ownedProcesses].map((process) => process.terminate()),
+  )
+  if (ownedProcesses.size || results.some((result) => result.status === 'rejected'))
+    throw new ProcessFailure('cleanup-timeout')
+}
+
 /** Copy a small OS environment baseline. Provider keys and loader options are never inherited. */
 export function baseProcessEnvironment(source: NodeJS.ProcessEnv): Record<string, string> {
   const environment: Record<string, string> = {}
@@ -105,6 +115,8 @@ export class ManagedProcess {
       shell: false,
       detached: true,
     })
+    ownedProcesses.add(this)
+    void this.closed.then(() => ownedProcesses.delete(this))
     this.stdout = Readable.toWeb(this.child.stdout, {
       strategy: { highWaterMark: 65_536, size: (chunk: Uint8Array) => chunk.byteLength },
     }) as ReadableStream<Uint8Array>

@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { ManagedProcess, baseProcessEnvironment } from '../src/main/engines/process/managed-process'
+import {
+  ManagedProcess,
+  baseProcessEnvironment,
+  stopOwnedProcesses,
+} from '../src/main/engines/process/managed-process'
 import { RedactedTail } from '../src/main/engines/process/redacted-tail'
 import { attachAcpProcess } from '../src/main/engines/acp/attachment'
 
@@ -76,6 +80,15 @@ describe('bounded streaming diagnostic redaction', () => {
 })
 
 describe.skipIf(process.platform === 'win32')('owned POSIX process groups', () => {
+  it('retains all owned commands for application-level cleanup', async () => {
+    const first = fixture('setInterval(()=>{},1000)')
+    const second = fixture('setInterval(()=>{},1000)')
+    await Promise.all([first.ready, second.ready])
+    await stopOwnedProcesses()
+    expect(first.done && second.done).toBe(true)
+    expect(exists(first.pid!) || exists(second.pid!)).toBe(false)
+    await stopOwnedProcesses()
+  })
   it('automatically disposes a live process after malformed ACP output', async () => {
     const attachment = await attachAcpProcess(
       {

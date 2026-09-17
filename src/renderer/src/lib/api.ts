@@ -5,6 +5,26 @@ import { BrowserWorkspaceStore } from '../../../shared/engines/browser-store'
 
 // Browser preview never reads desktop files or stores plaintext credentials.
 const browserApi: AgentMatrixApi = {
+  async probeEngine() {
+    throw appError('error.runtimeDesktopOnly')
+  },
+  sessions: {
+    async list() {
+      return []
+    },
+    async command() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async get() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async readEvents() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async subscribe() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+  },
   async importSkillDirectory() {
     throw appError('error.skillDesktopOnly')
   },
