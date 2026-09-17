@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n'
 export function ResourcePicker({
   title,
   items,
@@ -9,14 +10,15 @@ export function ResourcePicker({
   selected: string[]
   onChange: (ids: string[]) => void
 }) {
+  const { t, number } = useI18n()
   return (
     <section className="resource-picker">
       <div className="section-heading">
         <h3>{title}</h3>
-        <span>{selected.length} 个已选择</span>
+        <span>{t('picker.selected', { count: number(selected.length) })}</span>
       </div>
       {items.length === 0 ? (
-        <p className="field-empty">资源库中还没有 {title}，可以先保存，再前往对应页面添加。</p>
+        <p className="field-empty">{t('picker.empty', { resource: title })}</p>
       ) : (
         items.map((item) => (
           <label className="selection-row" key={item.id}>
@@ -33,9 +35,9 @@ export function ResourcePicker({
             />
             <span>
               <strong>{item.name}</strong>
-              <small>{item.description || '未填写描述'}</small>
+              <small>{item.description || t('common.noDescription')}</small>
             </span>
-            {!item.enabled && <span className="tag">已停用</span>}
+            {!item.enabled && <span className="tag">{t('common.disabled')}</span>}
           </label>
         ))
       )}

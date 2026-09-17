@@ -17,7 +17,7 @@ async function launch() {
   page.on('console', (message) => {
     if (message.type() === 'error') runtimeErrors.push(message.text())
   })
-  await page.getByRole('heading', { name: '我的 Agents' }).waitFor()
+  await page.locator('.card-grid').waitFor()
   assert.equal(
     await page.evaluate(() => window.agentMatrix.getAppInfo().then((info) => info.storage)),
     'desktop',
@@ -37,6 +37,25 @@ async function addResource(page, nav, title, fill) {
 
 try {
   let page = await launch()
+  const setLanguage = async (locale) => {
+    await page.locator('.language-select select').first().selectOption(locale)
+    await page.waitForFunction((expected) => document.documentElement.lang === expected, locale)
+  }
+  await setLanguage('en')
+  await page.getByRole('heading', { name: 'My Agents' }).waitFor()
+  const original = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  await page.getByRole('button', { name: 'Create Agent', exact: true }).click()
+  await page.getByLabel('Name', { exact: true }).fill('')
+  await page.getByRole('button', { name: 'Save Agent', exact: true }).click()
+  await page.getByRole('alert').filter({ hasText: 'Name is required.' }).waitFor()
+  page.once('dialog', (dialog) => {
+    assert.equal(dialog.message(), 'Discard your unsaved changes?')
+    return dialog.accept()
+  })
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await setLanguage('zh-CN')
+  assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), original)
+  await page.getByRole('heading', { name: '我的 Agents' }).waitFor()
   await addResource(page, 'MCP Servers', 'MCP Server', async (dialog) => {
     await dialog.getByLabel('名称', { exact: true }).fill('Smoke MCP')
     await dialog.getByLabel('启动命令', { exact: true }).fill('example-mcp')
@@ -76,8 +95,21 @@ try {
   if (process.env.AGENT_MATRIX_SCREENSHOT)
     await page.screenshot({ path: process.env.AGENT_MATRIX_SCREENSHOT, fullPage: true })
 
+  await setLanguage('en')
+  await page.reload()
+  await page.getByRole('heading', { name: 'My Agents' }).waitFor()
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en')
+  assert.equal(await page.locator('.language-select select').inputValue(), 'en')
+  await page.getByRole('navigation').getByRole('button', { name: 'Plugins' }).click()
+  await page.getByRole('button', { name: 'Edit Smoke Plugin' }).waitFor()
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1000, 680))
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('heading', { name: 'Language', exact: true }).waitFor()
   await app.close()
   page = await launch()
+  await page.getByRole('heading', { name: 'My Agents' }).waitFor()
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en')
+  await setLanguage('zh-CN')
   await page.getByRole('heading', { name: 'Smoke Agent', exact: true }).waitFor()
   await page.getByRole('button', { name: '编辑 Smoke Agent' }).click()
   await page.getByLabel('名称', { exact: true }).fill('Updated Agent')
@@ -95,7 +127,7 @@ try {
   assert.deepEqual(JSON.parse(await readFile(join(dataDirectory, 'workspace.json'), 'utf8')), state)
   assert.deepEqual(runtimeErrors, [])
   console.log(
-    'Desktop smoke passed: create/edit agents, prompts, MCP/Skills/plugins, bindings, reload, disable, deletion cleanup, IPC and sandbox.',
+    'Desktop smoke passed: create/edit agents, prompts, MCP/Skills/plugins, bindings, reload, disable, deletion cleanup, IPC, sandbox, English/Chinese switching, localized errors, and language persistence.',
   )
 } catch (error) {
   const page = app?.windows()[0]

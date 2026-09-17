@@ -17,6 +17,24 @@ textarea,
 select {
   font: inherit;
 }
+.language-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+}
+.language-select select {
+  padding: 7px 25px 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: white;
+  color: var(--text);
+  cursor: pointer;
+  max-width: 150px;
+}
+.language-settings .hint {
+  margin-top: 14px;
+}
 button {
   cursor: pointer;
 }
@@ -61,6 +79,7 @@ p {
 .sidebar {
   width: 236px;
   flex-shrink: 0;
+  overflow-y: auto;
   position: fixed;
   inset: 0 auto 0 0;
   background: #f1f5f3;
@@ -1096,6 +1115,11 @@ input[type='checkbox'] {
   }
   .toast {
     left: calc(50% + 105px);
+  }
+}
+@media (max-height: 780px) {
+  .sidebar-note {
+    display: none;
   }
 }
 @media (max-width: 800px) {

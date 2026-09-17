@@ -1,3 +1,5 @@
+import { appError } from '../shared/errors'
+import { resolveLocale } from '../shared/i18n'
 import { app, BrowserWindow, ipcMain, session, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -24,7 +26,7 @@ function verifySender(event: IpcMainInvokeEvent): void {
     event.senderFrame !== mainWindow.webContents.mainFrame ||
     event.senderFrame.url !== rendererUrl
   ) {
-    throw new Error('不受信任的配置访问请求')
+    throw appError('error.untrusted')
   }
 }
 
@@ -63,7 +65,10 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   void app.whenReady().then(() => {
-    const store = new WorkspaceStore(join(app.getPath('userData'), 'workspace.json'))
+    const store = new WorkspaceStore(
+      join(app.getPath('userData'), 'workspace.json'),
+      resolveLocale([app.getLocale()]),
+    )
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) =>
       callback(false),
     )

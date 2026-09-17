@@ -1,3 +1,5 @@
+import { appError } from '../../../shared/errors'
+import { getInitialLocale } from '../i18n/preferences'
 import type { AgentMatrixApi } from '../../../shared/api'
 import { createWorkspace, workspaceSchema } from '../../../shared/workspace'
 
@@ -7,12 +9,17 @@ const storageKey = 'agent-matrix:preview:v1'
 const browserApi: AgentMatrixApi = {
   async loadWorkspace() {
     const saved = localStorage.getItem(storageKey)
-    return saved ? workspaceSchema.parse(JSON.parse(saved)) : createWorkspace()
+    if (!saved) return createWorkspace(getInitialLocale())
+    try {
+      return workspaceSchema.parse(JSON.parse(saved))
+    } catch {
+      throw appError('error.unreadable', { path: 'localStorage' })
+    }
   },
   async saveWorkspace(input) {
     const workspace = workspaceSchema.parse(input)
     const current = await this.loadWorkspace()
-    if (current.revision !== workspace.revision) throw new Error('配置已被更新，请刷新后重试。')
+    if (current.revision !== workspace.revision) throw appError('error.conflict')
     const next = { ...workspace, revision: current.revision + 1 }
     localStorage.setItem(storageKey, JSON.stringify(next))
     return next
@@ -21,7 +28,7 @@ const browserApi: AgentMatrixApi = {
     return {
       version: '0.1.0',
       platform: 'browser',
-      configPath: '当前浏览器的 localStorage',
+      configPath: 'localStorage',
       storage: 'browser',
     }
   },

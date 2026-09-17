@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 
@@ -14,6 +15,7 @@ export function Modal({
   onClose: () => void
   busy?: boolean
 }) {
+  const { t } = useI18n()
   const ref = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const dialog = ref.current
@@ -36,7 +38,12 @@ export function Modal({
           <h2 id="modal-title">{title}</h2>
           <p>{subtitle}</p>
         </div>
-        <button className="icon-button" aria-label="关闭" onClick={onClose} disabled={busy}>
+        <button
+          className="icon-button"
+          aria-label={t('common.close')}
+          onClick={onClose}
+          disabled={busy}
+        >
           <X size={20} />
         </button>
       </div>

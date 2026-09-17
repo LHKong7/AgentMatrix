@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n'
 import { useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
 import {
@@ -12,7 +13,11 @@ import {
 import { Modal } from './Modal'
 import { ResourcePicker } from './ResourcePicker'
 
-export const resourceLabels = { mcpServers: 'MCP Server', skills: 'Skill', plugins: '插件' }
+export const resourceLabels = {
+  mcpServers: 'resources.mcpServers',
+  skills: 'resources.skills',
+  plugins: 'resources.plugins',
+} as const
 
 export function ResourceEditor({
   resource,
@@ -29,22 +34,23 @@ export function ResourceEditor({
   onSave: (resource: Resource) => Promise<void>
   onClose: () => void
 }) {
+  const { t, locale } = useI18n()
   const [draft, setDraft] = useState(resource)
   const initialArgs = 'args' in resource ? resource.args.join('\n') : ''
   const initialEnv = JSON.stringify('envRefs' in resource ? resource.envRefs : {}, null, 2)
   const [args, setArgs] = useState(initialArgs)
   const [env, setEnv] = useState(initialEnv)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<unknown>(null)
   const close = () => {
     const dirty =
       JSON.stringify(draft) !== JSON.stringify(resource) ||
       args !== initialArgs ||
       env !== initialEnv
-    if (!dirty || window.confirm('有未保存的修改，确定放弃吗？')) onClose()
+    if (!dirty || window.confirm(t('common.unsaved'))) onClose()
   }
   async function submit(event: FormEvent) {
     event.preventDefault()
-    setError('')
+    setError(null)
     try {
       let candidate = draft
       if ('transport' in draft && draft.transport === 'stdio') {
@@ -59,14 +65,16 @@ export function ResourceEditor({
       ]
       await onSave(schema.parse(candidate))
     } catch (failure) {
-      setError(formatError(failure))
+      setError(failure)
     }
   }
 
   return (
     <Modal
-      title={`${resource.name ? '编辑' : '添加'} ${resourceLabels[kind]}`}
-      subtitle="维护一次配置，供多个 Agent 复用。"
+      title={t(resource.name ? 'resources.edit' : 'resources.add', {
+        resource: t(resourceLabels[kind]),
+      })}
+      subtitle={t('resourceEditor.subtitle')}
       onClose={close}
       busy={busy}
     >
@@ -74,7 +82,7 @@ export function ResourceEditor({
         <fieldset disabled={busy}>
           <div className="modal-body">
             <label className="field">
-              名称
+              {t('common.name')}
               <input
                 autoFocus
                 value={draft.name}
@@ -83,7 +91,7 @@ export function ResourceEditor({
               />
             </label>
             <label className="field">
-              描述
+              {t('common.description')}
               <input
                 value={draft.description}
                 onChange={(event) => setDraft({ ...draft, description: event.target.value })}
@@ -93,7 +101,7 @@ export function ResourceEditor({
             {'transport' in draft && (
               <>
                 <label className="field">
-                  传输方式
+                  {t('resourceEditor.transport')}
                   <select
                     value={draft.transport}
                     onChange={(event) => {
@@ -110,23 +118,24 @@ export function ResourceEditor({
                       )
                     }}
                   >
-                    <option value="stdio">stdio · 本地进程</option>
-                    <option value="streamable-http">Streamable HTTP · 远程服务</option>
+                    <option value="stdio">{t('resourceEditor.stdio')}</option>
+                    <option value="streamable-http">{t('resourceEditor.http')}</option>
                   </select>
                 </label>
                 {draft.transport === 'stdio' ? (
                   <>
                     <label className="field">
-                      启动命令
+                      {t('resourceEditor.command')}
                       <input
                         className="code-input"
                         value={draft.command}
-                        placeholder="例如 npx、uvx 或可执行文件路径"
+                        placeholder={t('resourceEditor.commandPlaceholder')}
                         onChange={(event) => setDraft({ ...draft, command: event.target.value })}
                       />
                     </label>
                     <label className="field">
-                      参数 <span className="optional">每行一个参数，无需 shell 引号</span>
+                      {t('resourceEditor.args')}{' '}
+                      <span className="optional">{t('resourceEditor.argsHint')}</span>
                       <textarea
                         className="code-input"
                         rows={3}
@@ -136,7 +145,8 @@ export function ResourceEditor({
                       />
                     </label>
                     <label className="field">
-                      环境变量引用 <span className="optional">JSON：子进程变量名 → 系统变量名</span>
+                      {t('resourceEditor.env')}{' '}
+                      <span className="optional">{t('resourceEditor.envHint')}</span>
                       <textarea
                         className="code-input"
                         rows={3}
@@ -145,13 +155,13 @@ export function ResourceEditor({
                       />
                     </label>
                     <p className="hint">
-                      例如 {`{"API_TOKEN": "MY_API_TOKEN"}`}，填写变量名，无需填写密钥。
+                      {t('resourceEditor.envExample', { example: '{"API_TOKEN": "MY_API_TOKEN"}' })}
                     </p>
                   </>
                 ) : (
                   <>
                     <label className="field">
-                      服务 URL
+                      {t('resourceEditor.url')}
                       <input
                         value={draft.url}
                         placeholder="https://example.com/mcp"
@@ -159,7 +169,8 @@ export function ResourceEditor({
                       />
                     </label>
                     <label className="field">
-                      Bearer Token 环境变量 <span className="optional">可选</span>
+                      {t('resourceEditor.token')}{' '}
+                      <span className="optional">{t('common.optional')}</span>
                       <input
                         value={draft.bearerTokenEnv}
                         placeholder="MY_MCP_TOKEN"
@@ -170,13 +181,14 @@ export function ResourceEditor({
                     </label>
                   </>
                 )}
-                <p className="hint">保存服务配置；连接与工具调用将在运行时接入后提供。</p>
+                <p className="hint">{t('resourceEditor.runtimeHint')}</p>
               </>
             )}
             {'instructions' in draft && (
               <>
                 <label className="field">
-                  来源路径 <span className="optional">可选 · 仅记录来源，不自动读取</span>
+                  {t('resourceEditor.source')}{' '}
+                  <span className="optional">{t('resourceEditor.sourceHint')}</span>
                   <input
                     value={draft.sourcePath}
                     placeholder="/path/to/SKILL.md"
@@ -184,13 +196,13 @@ export function ResourceEditor({
                   />
                 </label>
                 <div className="field">
-                  <label htmlFor="skill-instructions">Skill 指令</label>
+                  <label htmlFor="skill-instructions">{t('resourceEditor.instructions')}</label>
                   <textarea
                     id="skill-instructions"
                     className="code-input"
                     rows={10}
                     value={draft.instructions}
-                    placeholder="粘贴或编写可复用的 Markdown 指令…"
+                    placeholder={t('resourceEditor.instructionsPlaceholder')}
                     onChange={(event) => setDraft({ ...draft, instructions: event.target.value })}
                   />
                 </div>
@@ -199,14 +211,14 @@ export function ResourceEditor({
             {'version' in draft && (
               <>
                 <label className="field">
-                  版本
+                  {t('resourceEditor.version')}
                   <input
                     value={draft.version}
                     placeholder="1.0.0"
                     onChange={(event) => setDraft({ ...draft, version: event.target.value })}
                   />
                 </label>
-                <p className="hint">插件是可复用的能力集合，将 MCP 和 Skills 打包绑定给 Agent。</p>
+                <p className="hint">{t('resourceEditor.pluginHint')}</p>
                 <ResourcePicker
                   title="MCP Servers"
                   items={workspace.mcpServers}
@@ -227,21 +239,21 @@ export function ResourceEditor({
                 checked={draft.enabled}
                 onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
               />
-              启用此配置
+              {t('resourceEditor.enable')}
             </label>
           </div>
-          {error && (
+          {error != null && (
             <p className="form-error" role="alert">
-              {error}
+              {formatError(error, locale)}
             </p>
           )}
           <div className="modal-footer">
             <button type="button" className="button secondary" onClick={close}>
-              取消
+              {t('common.cancel')}
             </button>
             <button type="submit" className="button primary">
               <Save size={16} />
-              {busy ? '保存中…' : '保存配置'}
+              {busy ? t('common.saving') : t('common.saveConfig')}
             </button>
           </div>
         </fieldset>

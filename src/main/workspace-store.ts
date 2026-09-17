@@ -1,3 +1,5 @@
+import { appError } from '../shared/errors'
+import type { Locale } from '../shared/i18n'
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -6,7 +8,10 @@ import { createWorkspace, workspaceSchema, type Workspace } from '../shared/work
 export class WorkspaceStore {
   private queue: Promise<unknown> = Promise.resolve()
 
-  constructor(readonly filePath: string) {}
+  constructor(
+    readonly filePath: string,
+    private readonly initialLocale: Locale = 'en',
+  ) {}
 
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.queue.then(operation)
@@ -20,10 +25,12 @@ export class WorkspaceStore {
 
   save(input: unknown): Promise<Workspace> {
     return this.enqueue(async () => {
-      const workspace = workspaceSchema.parse(input)
+      const parsed = workspaceSchema.safeParse(input)
+      if (!parsed.success) throw appError('error.invalidData')
+      const workspace = parsed.data
       const current = await this.read()
       if (workspace.revision !== current.revision) {
-        throw new Error('配置已被更新，请重新加载后再保存。')
+        throw appError('error.conflict')
       }
       const next = { ...workspace, revision: current.revision + 1 }
       await this.write(next)
@@ -37,7 +44,7 @@ export class WorkspaceStore {
       contents = await readFile(this.filePath, 'utf8')
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      const initial = createWorkspace()
+      const initial = createWorkspace(this.initialLocale)
       await this.write(initial)
       return initial
     }
@@ -45,9 +52,7 @@ export class WorkspaceStore {
       return workspaceSchema.parse(JSON.parse(contents))
     } catch {
       // Preserve the original file so invalid or newer configurations can be recovered.
-      throw new Error(
-        `配置文件无法读取，原文件已保留。请检查格式与 schemaVersion：${this.filePath}`,
-      )
+      throw appError('error.unreadable', { path: this.filePath })
     }
   }
 

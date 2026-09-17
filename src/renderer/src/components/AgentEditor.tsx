@@ -1,3 +1,4 @@
+import { useI18n } from '../i18n'
 import { useState, type FormEvent } from 'react'
 import { Save } from 'lucide-react'
 import { agentSchema, formatError, type Agent, type Workspace } from '../../../shared/workspace'
@@ -19,42 +20,40 @@ export function AgentEditor({
   onSave: (agent: Agent) => Promise<void>
   onClose: () => void
 }) {
+  const { t, locale, number } = useI18n()
   const [draft, setDraft] = useState(agent)
   const [tab, setTab] = useState<'general' | 'prompt' | 'resources'>('general')
-  const [error, setError] = useState('')
+  const [error, setError] = useState<unknown>(null)
   const patch = (changes: Partial<Agent>) => setDraft((current) => ({ ...current, ...changes }))
   const close = () => {
-    if (
-      JSON.stringify(draft) === JSON.stringify(agent) ||
-      window.confirm('有未保存的修改，确定放弃吗？')
-    )
+    if (JSON.stringify(draft) === JSON.stringify(agent) || window.confirm(t('common.unsaved')))
       onClose()
   }
   async function submit(event: FormEvent) {
     event.preventDefault()
-    setError('')
+    setError(null)
     try {
       await onSave(agentSchema.parse(draft))
     } catch (failure) {
-      setError(formatError(failure))
+      setError(failure)
     }
   }
 
   return (
     <Modal
-      title={isNew ? '创建 Agent' : '编辑 Agent'}
-      subtitle="为你的 Agent 定义角色、模型和能力。"
+      title={isNew ? t('agents.create') : t('agents.edit')}
+      subtitle={t('agentEditor.subtitle')}
       onClose={close}
       busy={busy}
     >
       <form onSubmit={submit}>
         <fieldset disabled={busy}>
-          <div className="tabs" role="tablist" aria-label="Agent 配置">
+          <div className="tabs" role="tablist" aria-label={t('agentEditor.tabs')}>
             {(
               [
-                ['general', '基本配置'],
+                ['general', t('agentEditor.general')],
                 ['prompt', 'System Prompt'],
-                ['resources', '能力与插件'],
+                ['resources', t('agentEditor.resources')],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -80,7 +79,7 @@ export function AgentEditor({
             {tab === 'general' && (
               <>
                 <label className="field">
-                  名称
+                  {t('common.name')}
                   <input
                     autoFocus
                     value={draft.name}
@@ -89,19 +88,19 @@ export function AgentEditor({
                   />
                 </label>
                 <div className="field">
-                  <label htmlFor="agent-description">描述</label>
+                  <label htmlFor="agent-description">{t('common.description')}</label>
                   <textarea
                     id="agent-description"
                     rows={2}
                     value={draft.description}
                     maxLength={500}
-                    placeholder="这个 Agent 擅长什么？"
+                    placeholder={t('agentEditor.descriptionPlaceholder')}
                     onChange={(event) => patch({ description: event.target.value })}
                   />
                 </div>
                 <div className="field-grid">
                   <label className="field">
-                    模型提供方
+                    {t('agentEditor.provider')}
                     <select
                       value={draft.provider}
                       onChange={(event) =>
@@ -110,20 +109,20 @@ export function AgentEditor({
                     >
                       <option value="openai-compatible">OpenAI Compatible</option>
                       <option value="anthropic">Anthropic</option>
-                      <option value="ollama">Ollama / 本地模型</option>
+                      <option value="ollama">{t('agentEditor.localModel')}</option>
                     </select>
                   </label>
                   <label className="field">
-                    模型 ID
+                    {t('agentEditor.model')}
                     <input
                       value={draft.model}
-                      placeholder="填写模型标识"
+                      placeholder={t('agentEditor.modelPlaceholder')}
                       onChange={(event) => patch({ model: event.target.value })}
                     />
                   </label>
                 </div>
                 <label className="field">
-                  API Base URL <span className="optional">可选</span>
+                  API Base URL <span className="optional">{t('common.optional')}</span>
                   <input
                     value={draft.baseUrl}
                     placeholder="https://api.example.com/v1"
@@ -131,7 +130,7 @@ export function AgentEditor({
                   />
                 </label>
                 <label className="field">
-                  Temperature <span className="optional">0–2 · 运行时需遵循所选模型范围</span>
+                  Temperature <span className="optional">{t('agentEditor.temperatureHint')}</span>
                   <input
                     type="number"
                     min="0"
@@ -147,33 +146,35 @@ export function AgentEditor({
                     checked={draft.enabled}
                     onChange={(event) => patch({ enabled: event.target.checked })}
                   />
-                  启用此 Agent 配置
+                  {t('agentEditor.enable')}
                 </label>
-                <p className="hint">当前版本用于配置管理，模型调用将在后续接入。</p>
+                <p className="hint">{t('agentEditor.runtimeHint')}</p>
               </>
             )}
             {tab === 'prompt' && (
               <>
                 <div className="field">
-                  <label htmlFor="agent-system-prompt">系统指令</label>
+                  <label htmlFor="agent-system-prompt">{t('agentEditor.instructions')}</label>
                   <textarea
                     id="agent-system-prompt"
                     className="code-input prompt-input"
                     rows={15}
                     value={draft.systemPrompt}
-                    placeholder="描述 Agent 的角色、行为准则和输出要求…"
+                    placeholder={t('agentEditor.promptPlaceholder')}
                     onChange={(event) => patch({ systemPrompt: event.target.value })}
                   />
                 </div>
                 <div className="field-footer">
-                  <span>定义角色与边界，让每次协作保持一致。</span>
-                  <span>{draft.systemPrompt.length.toLocaleString()} 字符</span>
+                  <span>{t('agentEditor.promptHint')}</span>
+                  <span>
+                    {t('agentEditor.characters', { count: number(draft.systemPrompt.length) })}
+                  </span>
                 </div>
               </>
             )}
             {tab === 'resources' && (
               <>
-                <p className="hint">组合所需能力。插件内的资源会合并去重，已停用的资源不会生效。</p>
+                <p className="hint">{t('agentEditor.resourcesHint')}</p>
                 <ResourcePicker
                   title="MCP Servers"
                   items={workspace.mcpServers}
@@ -187,7 +188,7 @@ export function AgentEditor({
                   onChange={(skillIds) => patch({ skillIds })}
                 />
                 <ResourcePicker
-                  title="插件"
+                  title={t('nav.plugins')}
                   items={workspace.plugins}
                   selected={draft.pluginIds}
                   onChange={(pluginIds) => patch({ pluginIds })}
@@ -195,18 +196,18 @@ export function AgentEditor({
               </>
             )}
           </div>
-          {error && (
+          {error != null && (
             <p className="form-error" role="alert">
-              {error}
+              {formatError(error, locale)}
             </p>
           )}
           <div className="modal-footer">
             <button type="button" className="button secondary" onClick={close}>
-              取消
+              {t('common.cancel')}
             </button>
             <button className="button primary" type="submit">
               <Save size={16} />
-              {busy ? '保存中…' : '保存 Agent'}
+              {busy ? t('common.saving') : t('agentEditor.save')}
             </button>
           </div>
         </fieldset>
