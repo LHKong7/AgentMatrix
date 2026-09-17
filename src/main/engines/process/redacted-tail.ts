@@ -53,7 +53,7 @@ export class RedactedTail {
     ].sort((left, right) => right.length - left.length)
     this.carry = Math.max(0, ...this.variants.map((secret) => secret.length - 1))
   }
-  private consume(final: boolean): void {
+  private consume(final: boolean): string {
     let boundary = final ? this.pending.length : Math.max(0, this.pending.length - this.carry)
     if (final) {
       for (const secret of this.variants) {
@@ -84,19 +84,21 @@ export class RedactedTail {
       parts.push('[redacted]')
       cursor = this.pending.length
     }
-    this.output = (this.output + parts.join('')).slice(-this.limit)
+    const emitted = parts.join('')
+    this.output = (this.output + emitted).slice(-this.limit)
     this.pending = this.pending.slice(cursor)
+    return emitted
   }
-  push(bytes: Buffer): void {
-    if (this.ended) return
+  push(bytes: Buffer): string {
+    if (this.ended) return ''
     this.pending += this.decoder.write(bytes)
-    this.consume(false)
+    return this.consume(false)
   }
-  finish(): void {
-    if (this.ended) return
+  finish(): string {
+    if (this.ended) return ''
     this.ended = true
     this.pending += this.decoder.end()
-    this.consume(true)
+    return this.consume(true)
   }
   get text(): string {
     return this.output

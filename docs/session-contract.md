@@ -1,6 +1,6 @@
 # Session contract and lifecycle
 
-The initial runtime shares application commands and state across OpenCode ACP, Pi RPC, and DeepSeek Harness ACP. Their native protocols, capability checks, and permission behavior remain separate. The shared schemas and state projection are implemented in `src/shared/sessions/`; the bounded recent-event stream and durable journal are in `src/main/sessions/`. These modules are not yet connected to Electron IPC or production CLI adapters.
+The initial runtime shares application commands and state across OpenCode ACP, Pi RPC, and DeepSeek Harness ACP. Their native protocols, capability checks, and permission behavior remain separate. The shared schemas and state projection are implemented in `src/shared/sessions/`; the bounded recent-event stream and durable journal are in `src/main/sessions/`. The OpenCode runtime adapter emits shared turn payloads, but session coordination and Electron IPC are not connected yet.
 
 ## Identity and commands
 
@@ -25,6 +25,8 @@ Process loss clears pending interactions, ends an active turn as interrupted/fai
 ## Events and renderer reconnection
 
 Events carry a monotonically increasing session cursor and the relevant run/turn IDs. The projection ignores overlapping replay deliveries, rejects cursor gaps, and rejects new events from stale attachments or turns. Message deltas, tool updates, interactions, turn results, and process transitions use bounded, validated payloads. Interaction responses are not copied into the event journal.
+
+Usage may include `scope: turn` or `scope: session`; absent scope in older records means unspecified and must not be assumed to be per-turn usage. ACP reports cumulative session totals. Tool updates may include `contentTruncated` so capped native content is not displayed as complete. Both fields are optional to preserve existing journal compatibility.
 
 `SessionEventStream` retains a bounded recent window for fast reattachment and paginated reads. Replay capture and subscriber registration happen synchronously. Delivery occurs asynchronously in cursor order, with independent payload copies. Slow subscribers and expired cursors receive `reset-required`; they must fetch a current snapshot and durable history. The buffer does not silently remove part of a transcript and present it as complete.
 

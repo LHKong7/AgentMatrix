@@ -9,8 +9,13 @@ import { inspectOpenCodeSources } from '../src/main/engines/adapters/opencode/so
 import { RunInputStore } from '../src/main/engines/run-input-store'
 import { prepareRunLaunch } from '../src/main/engines/run-launch'
 import { ManagedProcess, type ProcessLaunch } from '../src/main/engines/process/managed-process'
-import { attachAcpProcess } from '../src/main/engines/acp/attachment'
-import type { SessionNotification } from '@agentclientprotocol/sdk'
+import { connectOpenCode } from '../src/main/engines/adapters/opencode/runtime'
+import { verifyOpenCodeReadback } from '../src/main/engines/adapters/opencode/readback'
+import type {
+  RuntimeOutput,
+  RuntimeSession,
+  RuntimeTurnHandlers,
+} from '../src/main/engines/runtime'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
 
 async function capture(launch: ProcessLaunch, args: string[]): Promise<string> {
@@ -83,6 +88,8 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       hasSkillResult: boolean
     }[] = []
     let mainRequests = 0
+    let phase: 'tools' | 'stream' | 'permission' | 'resume' = 'tools'
+    let streaming = () => {}
     const server = createServer(async (request, response) => {
       try {
         let body = ''
@@ -151,7 +158,12 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
           response.write(
             `data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', created: 1, model: input.model, choices: [{ index: 0, delta, finish_reason }] })}\n\n`,
           )
-        if (main && !hasToolResult && mainRequests < 4) {
+        if (main && phase === 'stream') {
+          chunk({ role: 'assistant', content: 'Streaming cancellation marker '.repeat(10) })
+          streaming()
+          return
+        }
+        if (main && (phase === 'permission' || (!hasToolResult && mainRequests < 4))) {
           chunk({
             role: 'assistant',
             tool_calls: [
@@ -195,7 +207,13 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
           chunk({}, 'tool_calls')
         } else {
           chunk({ role: 'assistant', content: 'Verified ' })
-          chunk({ content: main ? 'TOOL_RESULT_MARKER' : 'probe title' })
+          chunk({
+            content: main
+              ? phase === 'resume'
+                ? 'RESUMED_MARKER'
+                : 'TOOL_RESULT_MARKER'
+              : 'probe title',
+          })
           chunk({}, 'stop')
         }
         response.end('data: [DONE]\n\n')
@@ -210,7 +228,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     })
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Missing fixture address')
-    let attachment: Awaited<ReturnType<typeof attachAcpProcess>> | undefined
+    let runtime: RuntimeSession | undefined
     try {
       const workspace = openCodeWorkspace(executable, cwd)
       workspace.connections[0]!.baseUrl = `http://127.0.0.1:${address.port}/v1`
@@ -254,15 +272,30 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       })
       const store = new RunInputStore(join(root, 'runs'), captures)
       const sources = await inspectOpenCodeSources(cwd, { home, configHome })
-      const manifest = await store.create('native', workspace, 'reviewer', (configuration, paths) =>
-        planOpenCode(configuration, paths, {
-          configHome,
-          sources,
-          readSkillEntry: async (skill) => {
-            if (skill.revision.kind !== 'directory') throw new Error('Unexpected Markdown lookup')
-            return readFile(join(await captures.verify(skill.revision), 'SKILL.md'), 'utf8')
-          },
-        }),
+      const manifest = await store.create(
+        'native',
+        workspace,
+        'reviewer',
+        async (configuration, paths) => {
+          const plan = await planOpenCode(configuration, paths, {
+            configHome,
+            sources,
+            readSkillEntry: async (skill) => {
+              if (skill.revision.kind !== 'directory') throw new Error('Unexpected Markdown lookup')
+              return readFile(join(await captures.verify(skill.revision), 'SKILL.md'), 'utf8')
+            },
+          })
+          for (const [name, value] of Object.entries({
+            OPENCODE_TEST_HOME: home,
+            OPENCODE_PURE: 'true',
+            OPENCODE_DISABLE_MODELS_FETCH: 'true',
+            OPENCODE_DISABLE_DEFAULT_PLUGINS: 'true',
+            OPENCODE_DISABLE_CLAUDE_CODE: 'true',
+            OPENCODE_DISABLE_EXTERNAL_SKILLS: 'true',
+          }))
+            plan.launch.environment[name] = { kind: 'literal', value }
+          return plan
+        },
       )
       const { launch } = await prepareRunLaunch(store, 'native', async () => key, {
         ...process.env,
@@ -294,35 +327,28 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       await rm(skillSource, { recursive: true })
       await rm(captures.root, { recursive: true })
       expect(await store.read('native')).toEqual(manifest)
-      const updates: SessionNotification[] = []
+      const updates: RuntimeOutput[] = []
       let permissions = 0
-      attachment = await attachAcpProcess(
-        { ...launch, args: [...launch.args, '--pure'] },
-        {
-          update: async (notification) => {
-            updates.push(notification)
-          },
-          permission: async (request) => {
-            permissions++
-            const option = request.options.find((candidate) => candidate.kind === 'allow_once')
-            return option
-              ? { outcome: { outcome: 'selected', optionId: option.optionId } }
-              : { outcome: { outcome: 'cancelled' } }
-          },
+      const controller = new AbortController()
+      const connectOptions = {
+        store,
+        snapshotId: 'native',
+        resolveSecret: async () => key,
+        environment: { ...process.env, HOME: home },
+        signal: controller.signal,
+      }
+      runtime = await connectOpenCode(connectOptions)
+      const handlers: RuntimeTurnHandlers = {
+        output: async (event) => {
+          updates.push(event)
         },
-        { requestTimeoutMs: 30_000 },
-      )
-      const initialized = await attachment.client.initialize('0.1.0')
-      expect(initialized.agentInfo?.version).toBe(version)
-      const session = await attachment.client.newSession({ cwd, mcpServers: [] })
-      const response = await attachment.client.prompt(
-        {
-          sessionId: session.sessionId,
-          prompt: [{ type: 'text', text: 'Read fixture.txt, then report its marker.' }],
+        permission: async (request) => {
+          permissions++
+          return request.options.find((candidate) => candidate.kind === 'allow_once')?.id ?? null
         },
-        45_000,
-      )
-      expect(response.stopReason).toBe('end_turn')
+      }
+      const response = await runtime.send('Read fixture.txt, then report its marker.', handlers)
+      expect(response.nativeStopReason).toBe('end_turn')
       expect(requests.length).toBeGreaterThanOrEqual(4)
       expect(
         requests.every(
@@ -338,22 +364,74 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       expect(requests.some((request) => request.hasSkillResult)).toBe(true)
       expect(permissions).toBeGreaterThanOrEqual(3)
       expect(
-        updates.some(
-          (notification) =>
-            notification.update.sessionUpdate === 'tool_call_update' &&
-            notification.update.status === 'completed',
-        ),
+        updates.some((event) => event.kind === 'tool.updated' && event.status === 'completed'),
       ).toBe(true)
       const text = updates
-        .flatMap((notification) =>
-          notification.update.sessionUpdate === 'agent_message_chunk' &&
-          notification.update.content.type === 'text'
-            ? [notification.update.content.text]
-            : [],
+        .flatMap((event) =>
+          event.kind === 'message.delta' && event.channel === 'assistant' ? [event.text] : [],
         )
         .join('')
       expect(text).toContain('Verified TOOL_RESULT_MARKER')
-      await attachment.close()
+      phase = 'stream'
+      const streamStarted = new Promise<void>((resolve) => {
+        streaming = resolve
+      })
+      const streamingTurn = runtime.send('Stream until cancelled.', handlers)
+      await streamStarted
+      await runtime.cancel()
+      expect((await streamingTurn).outcome).toBe('cancelled')
+      phase = 'permission'
+      let permissionArrived = () => {}
+      const waiting = new Promise<void>((resolve) => {
+        permissionArrived = resolve
+      })
+      let permissionAborted = false
+      const pendingTurn = runtime.send('Read fixture.txt again.', {
+        ...handlers,
+        permission: async (_request, signal) =>
+          new Promise<null>((resolve) => {
+            signal.addEventListener(
+              'abort',
+              () => {
+                permissionAborted = true
+                resolve(null)
+              },
+              { once: true },
+            )
+            permissionArrived()
+          }),
+      })
+      await waiting
+      await runtime.cancel()
+      expect((await pendingTurn).outcome).toBe('cancelled')
+      expect(permissionAborted).toBe(true)
+      const previousNativeSessionId = runtime.nativeSessionId
+      await runtime.dispose()
+      phase = 'resume'
+      runtime = await connectOpenCode({ ...connectOptions, previousNativeSessionId })
+      expect(runtime.nativeSessionId).toBe(previousNativeSessionId)
+      updates.length = 0
+      const resumed = await runtime.send('Report the retained context.', handlers)
+      expect(resumed.outcome).toBe('completed')
+      expect(requests.at(-1)).toMatchObject({
+        hasToolResult: true,
+        hasMcpResult: true,
+        hasSkillResult: true,
+      })
+      expect(
+        updates.flatMap((event) => (event.kind === 'message.delta' ? [event.text] : [])).join(''),
+      ).toContain('RESUMED_MARKER')
+      phase = 'permission'
+      await expect(
+        runtime.send('Read fixture.txt once more.', {
+          ...handlers,
+          permission: async () => {
+            throw new Error('Private persistence failure')
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'storage' })
+      await runtime.closed
+      await runtime.dispose()
       expect(await store.verifyForReuse('native')).toEqual(manifest)
       const nativePath = join(cwd, 'opencode.jsonc')
       const nativeContents =
@@ -363,6 +441,9 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       expect(overridden.agent.build.prompt).toBe('NATIVE_OVERRIDE_MARKER')
       expect(overridden.compaction.auto).toBe(false)
       expect(await readFile(nativePath, 'utf8')).toBe(nativeContents)
+      await expect(
+        verifyOpenCodeReadback(manifest, store.paths('native'), launch, controller.signal),
+      ).rejects.toMatchObject({ code: 'configuration', field: 'native.override' })
       await expect(
         prepareRunLaunch(store, 'native', async () => key, { HOME: home }),
       ).rejects.toThrow('error.runSourceChanged')
@@ -390,17 +471,22 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
               mcpStdioRoundTrip: true,
               mcpCwdAndSecretEnvironment: true,
               credentialInterpolation: true,
-              nativeResume: 'not tested',
+              cancellationDuringStreaming: true,
+              cancellationDuringPermission: true,
+              permissionPersistenceFailureClosesRuntime: true,
+              nativeResume:
+                'Same native session ID and retained file/Skill/MCP history after process restart',
               nativeOverrides:
-                'Project prompt override observed; native file preserved; changed source blocks snapshot reuse',
-              productionRuntime: 'not connected',
+                'Project prompt override rejected by readback; native file preserved; changed source blocks snapshot reuse',
+              productionRuntime:
+                'OpenCode runtime adapter exercised; session coordinator, IPC, and UI are not connected',
             },
             null,
             2,
           ) + '\n',
         )
     } finally {
-      await attachment?.close()
+      await runtime?.dispose()
       server.closeAllConnections()
       await new Promise<void>((resolve) => server.close(() => resolve()))
       await rm(root, { recursive: true, force: true })

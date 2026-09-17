@@ -1,5 +1,5 @@
 {
-  "checkedAt": "2026-09-17T18:47:31.225Z",
+  "checkedAt": "2026-09-17T19:02:54.398Z",
   "engine": "opencode",
   "engineVersion": "1.18.16",
   "platform": "darwin",
@@ -17,7 +17,10 @@
   "mcpStdioRoundTrip": true,
   "mcpCwdAndSecretEnvironment": true,
   "credentialInterpolation": true,
-  "nativeResume": "not tested",
-  "nativeOverrides": "Project prompt override observed; native file preserved; changed source blocks snapshot reuse",
-  "productionRuntime": "not connected"
+  "cancellationDuringStreaming": true,
+  "cancellationDuringPermission": true,
+  "permissionPersistenceFailureClosesRuntime": true,
+  "nativeResume": "Same native session ID and retained file/Skill/MCP history after process restart",
+  "nativeOverrides": "Project prompt override rejected by readback; native file preserved; changed source blocks snapshot reuse",
+  "productionRuntime": "OpenCode runtime adapter exercised; session coordinator, IPC, and UI are not connected"
 }

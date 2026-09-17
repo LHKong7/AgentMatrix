@@ -192,6 +192,7 @@ export type SessionStatus = SessionSnapshot['status']
 
 const usageSchema = z
   .object({
+    scope: z.enum(['turn', 'session']).optional(),
     inputTokens: z.number().int().nonnegative().nullable(),
     outputTokens: z.number().int().nonnegative().nullable(),
     cost: z
@@ -222,6 +223,7 @@ export const sessionEventDataSchema = z
         title: z.string().max(1000),
         status: z.enum(['pending', 'running', 'completed', 'failed']),
         content: text.nullable(),
+        contentTruncated: z.boolean().optional(),
       })
       .strict(),
     z
