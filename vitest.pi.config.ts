@@ -4,7 +4,11 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['tests/pi-installed.probe.ts', 'tests/pi-configuration-installed.probe.ts'],
+    include: [
+      'tests/pi-installed.probe.ts',
+      'tests/pi-configuration-installed.probe.ts',
+      'tests/pi-runtime-installed.probe.ts',
+    ],
     testTimeout: 120_000,
   },
 })

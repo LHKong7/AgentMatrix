@@ -42,9 +42,10 @@ export function SessionsPanel({
   const state = view.snapshot?.id === selected ? view.snapshot : null
   const blocked = busy || view.loading || view.unavailable
   const profile = workspace.agents.find((agent) => agent.id === agentId)
-  const supported =
-    workspace.installations.find((engine) => engine.id === profile?.engineInstallationId)?.kind ===
-    'opencode'
+  const supported = ['opencode', 'pi'].includes(
+    workspace.installations.find((engine) => engine.id === profile?.engineInstallationId)?.kind ??
+      '',
+  )
   const resolution = profile ? resolveAgentProfile(workspace, profile.id) : null
 
   useEffect(() => {
@@ -439,7 +440,7 @@ export function SessionsPanel({
                           aria-label={request.title}
                           placeholder={request.placeholder}
                           rows={request.multiline ? 3 : 1}
-                          value={answers[request.id] ?? ''}
+                          value={answers[request.id] ?? request.initialValue ?? ''}
                           onChange={(event) =>
                             setAnswers((values) => ({
                               ...values,
@@ -450,7 +451,10 @@ export function SessionsPanel({
                         <button
                           className="button primary"
                           onClick={() =>
-                            respond(request, { kind: 'input', value: answers[request.id] ?? '' })
+                            respond(request, {
+                              kind: 'input',
+                              value: answers[request.id] ?? request.initialValue ?? '',
+                            })
                           }
                         >
                           {t('sessions.respond')}
@@ -535,12 +539,23 @@ function Transcript({ events }: { events: SessionEvent[] }) {
           positions.set(id, output.length)
           output.push({ id, data: { ...data } })
         }
-      } else if (data.kind === 'turn.started' || data.kind === 'turn.finished')
+      } else if (
+        data.kind === 'turn.started' ||
+        data.kind === 'turn.finished' ||
+        data.kind === 'engine.notice'
+      )
         output.push({ id: String(event.cursor), data })
     }
     return output
   }, [events])
   return rows.map(({ id, data }) => {
+    if (data.kind === 'engine.notice')
+      return (
+        <article className="message" key={id}>
+          <strong>{t(`sessions.notice.${data.code}`)}</strong>
+          {data.text && <pre>{data.text}</pre>}
+        </article>
+      )
     if (data.kind === 'turn.started' || data.kind === 'message.delta') {
       const channel = data.kind === 'turn.started' ? 'user' : data.channel
       return (

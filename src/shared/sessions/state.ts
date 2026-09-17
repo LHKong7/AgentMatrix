@@ -123,6 +123,7 @@ export function applySessionEvent(previous: SessionSnapshot, input: SessionEvent
     data.kind.startsWith('turn.') ||
     data.kind === 'message.delta' ||
     data.kind === 'tool.updated' ||
+    data.kind === 'engine.notice' ||
     data.kind.startsWith('interaction.')
   if (turnEvent && data.kind !== 'turn.started') requireTurn(state, event.turnId)
   if (!turnEvent && event.turnId !== null) throw appError('error.sessionStale')
@@ -163,6 +164,7 @@ export function applySessionEvent(previous: SessionSnapshot, input: SessionEvent
       break
     case 'message.delta':
     case 'tool.updated':
+    case 'engine.notice':
       requireStatus(state, ['running', 'waiting', 'cancelling', 'closing'])
       break
     case 'interaction.requested':

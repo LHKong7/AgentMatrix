@@ -60,6 +60,7 @@ export const interactionRequestSchema = z
         message: text,
         placeholder: z.string().max(1000),
         multiline: z.boolean(),
+        initialValue: text.optional(),
       })
       .strict(),
   ])
@@ -78,6 +79,7 @@ export const interactionResponseSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('input'), value: text }).strict(),
   z.object({ kind: z.literal('cancelled') }).strict(),
 ])
+export type InteractionResponse = z.infer<typeof interactionResponseSchema>
 
 const addressed = { commandId: entityId, sessionId: entityId }
 const attached = { ...addressed, runId: entityId }
@@ -217,6 +219,14 @@ export const sessionEventDataSchema = z
     z.object({ kind: z.literal('run.resuming') }).strict(),
     z.object({ kind: z.literal('run.ready'), nativeSessionId: nativeId }).strict(),
     z.object({ kind: z.literal('turn.started'), messageId: entityId, text }).strict(),
+    z
+      .object({
+        kind: z.literal('engine.notice'),
+        code: z.enum(['retry', 'compaction', 'extension', 'notification', 'unsupported-output']),
+        nativeType: z.string().min(1).max(100),
+        text,
+      })
+      .strict(),
     z
       .object({
         kind: z.literal('message.delta'),

@@ -1,11 +1,18 @@
-import type { InteractionRequest, SessionEventData } from '../../shared/sessions/schema'
+import type {
+  InteractionRequest,
+  InteractionResponse,
+  SessionEventData,
+} from '../../shared/sessions/schema'
 import type { ProcessResult } from './process/managed-process'
 
-export type RuntimeOutput = Extract<SessionEventData, { kind: 'message.delta' | 'tool.updated' }>
+export type RuntimeOutput = Extract<
+  SessionEventData,
+  { kind: 'message.delta' | 'tool.updated' | 'engine.notice' }
+>
 export type RuntimePermission = Extract<InteractionRequest, { kind: 'permission' }>
 export interface RuntimeTurnHandlers {
   output(event: RuntimeOutput): Promise<void>
-  permission(request: RuntimePermission, signal: AbortSignal): Promise<string | null>
+  interaction(request: InteractionRequest, signal: AbortSignal): Promise<InteractionResponse>
 }
 export type RuntimeTurnResult = Pick<
   Extract<SessionEventData, { kind: 'turn.finished' }>,

@@ -1,6 +1,6 @@
 # Pi RPC transport and lifecycle evidence
 
-The application includes a main-process RPC client for **Pi 0.85.1** and an opt-in installed-CLI lifecycle probe. The native probe passes on macOS arm64 using `@earendil-works/pi-coding-agent@0.85.1` installed separately from application dependencies. This completes the local V5 probe; it does not enable Pi in the desktop UI or pass the C4 delivery gate.
+The application includes a main-process RPC client for **Pi 0.85.1** and an opt-in installed-CLI lifecycle probe. The native probe passes on macOS arm64 using `@earendil-works/pi-coding-agent@0.85.1` installed separately from application dependencies. This completes the local V5 probe. The separate [runtime and desktop integration](pi-runtime.md) now enables saved-profile sessions; the C4 delivery gate remains open.
 
 ## Transport behavior
 
@@ -46,4 +46,4 @@ npm run probe:pi
 
 The [recorded result](probes/2026-09-18-pi-rpc.json) uses a loopback HTTP fixture, synthetic credentials, private temporary home/config/session directories, and a temporary test project. It makes no external model calls. The test exercises the application RPC client and process supervisor, actual Pi tools, session files, extension dialogs, and trust behavior. It removes fixture state after confirmed cleanup. Report output is optional. Regular `npm run test` runs deterministic transport tests without executing the installed CLI.
 
-The [configuration adapter and actual directory Skill invocation](pi-configuration.md) now pass their local native fixture. Remaining work includes native event-to-session mapping, saved-profile desktop launch, bilingual session acceptance, intended external endpoint/model/auth verification, retry/compaction handling, and other platforms. The existing shared runtime permission callback is not sufficient for Pi's select/confirm/input interactions; extend that boundary explicitly when connecting the adapter.
+The [configuration adapter and actual directory Skill invocation](pi-configuration.md) now pass their local native fixture. Native event-to-session mapping, saved-profile launch, and bilingual desktop sessions now pass [additional fixtures](pi-runtime.md). The shared runtime callback preserves select/confirm/input responses separately from ACP permissions. The pinned runtime disables automatic retry/compaction and retains their native notices; it does not expose manual retry/compaction commands. External endpoint/model/auth verification, complete application reporting, and other platforms remain open.

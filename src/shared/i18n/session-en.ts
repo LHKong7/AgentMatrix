@@ -7,7 +7,7 @@ export const sessionEn = {
   'sessions.agent': 'Agent configuration',
   'sessions.choose': 'Choose an agent',
   'sessions.support':
-    'OpenCode 1.18.16 is available on the desktop. Pi and DeepSeek Harness runtime support is in progress.',
+    'OpenCode 1.18.16 and Pi 0.85.1 are available on the desktop. DeepSeek Harness runtime support is in progress.',
   'sessions.probe': 'Check installation',
   'sessions.probeHint':
     'Check the saved CLI in Engines before starting. This executes its version command.',
@@ -46,6 +46,11 @@ export const sessionEn = {
   'sessions.usage.turn': 'this turn',
   'sessions.usage.unknown': 'scope unspecified',
   'sessions.unknown': 'Not reported',
+  'sessions.notice.retry': 'Agent retry',
+  'sessions.notice.compaction': 'Context compaction',
+  'sessions.notice.extension': 'Extension error',
+  'sessions.notice.notification': 'Agent notification',
+  'sessions.notice.unsupported-output': 'Content is unavailable in this view',
   'sessions.cost': 'Cost',
   'sessions.stopReason': 'Native stop reason',
   'sessions.status.created': 'Not started',
@@ -81,7 +86,7 @@ export const sessionEn = {
     'Session history is unavailable. Execution and permission controls have been stopped.',
   'sessions.failure.engine': 'The engine could not complete the operation.',
   'error.runtimeUnsupported':
-    'Runtime execution is currently available for OpenCode 1.18.16 on macOS/Linux only.',
+    'Runtime execution is currently available for OpenCode 1.18.16 and Pi 0.85.1 on macOS/Linux only.',
   'error.runtimeProbe':
     'The CLI version check failed. Check its executable path and prefix arguments.',
   'error.runtimeCwd': 'Choose an existing absolute working directory in the Agent configuration.',

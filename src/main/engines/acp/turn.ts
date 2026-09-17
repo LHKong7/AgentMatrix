@@ -6,7 +6,11 @@ import type {
   SessionNotification,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk'
-import { sessionEventDataSchema, interactionRequestSchema } from '../../../shared/sessions/schema'
+import {
+  sessionEventDataSchema,
+  interactionRequestSchema,
+  type InteractionResponse,
+} from '../../../shared/sessions/schema'
 import { RedactedTail } from '../process/redacted-tail'
 import {
   RuntimeFailure,
@@ -144,11 +148,11 @@ export class AcpTurn {
     if (mapped.kind !== 'permission') throw new RuntimeFailure('protocol')
     const lifetime = AbortSignal.any([signal, this.lifecycle.signal])
     let abort = () => {}
-    let answer: string | null
+    let answer: InteractionResponse | null
     try {
       answer = await Promise.race([
         Promise.resolve().then(() =>
-          lifetime.aborted ? null : this.handlers.permission(mapped, lifetime),
+          lifetime.aborted ? null : this.handlers.interaction(mapped, lifetime),
         ),
         new Promise<null>((resolve) => {
           abort = () => resolve(null)
@@ -161,8 +165,8 @@ export class AcpTurn {
     } finally {
       lifetime.removeEventListener('abort', abort)
     }
-    if (this.ended || lifetime.aborted || answer === null) return cancelled()
-    const index = choices.findIndex((choice) => choice.id === answer)
+    if (this.ended || lifetime.aborted || answer?.kind !== 'choice') return cancelled()
+    const index = choices.findIndex((choice) => choice.id === answer.optionId)
     return index < 0
       ? cancelled()
       : { outcome: { outcome: 'selected', optionId: request.options[index]!.optionId } }

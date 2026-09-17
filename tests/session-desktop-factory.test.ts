@@ -6,20 +6,21 @@ import { DesktopSessionFactory } from '../src/main/sessions/desktop-factory'
 import { RunInputStore } from '../src/main/engines/run-input-store'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
+import { piWorkspace } from './helpers/pi-fixture'
 import { createSessionSnapshot } from '../src/shared/sessions/state'
 import { appError } from '../src/shared/errors'
 
 const cleanup: { root: string; factory: DesktopSessionFactory }[] = []
-async function fixture(version = '1.18.16') {
+async function fixture(version = '1.18.16', kind: 'opencode' | 'pi' = 'opencode') {
   const root = await mkdtemp(join(tmpdir(), 'agentmatrix-desktop-factory-'))
   const cwd = join(root, 'project'),
     home = join(root, 'home'),
-    executable = join(root, 'opencode')
+    executable = join(root, kind)
   await mkdir(join(cwd, '.git'), { recursive: true })
   await mkdir(home)
   await writeFile(executable, `#!/bin/sh\nprintf '%s\\n' '${version}'\n`)
   await chmod(executable, 0o700)
-  let state = openCodeWorkspace(executable, cwd)
+  let state = kind === 'pi' ? piWorkspace(executable, cwd) : openCodeWorkspace(executable, cwd)
   state.installations[0]!.version = null
   state.installations[0]!.probedAt = null
   state.installations[0]!.modes = []
@@ -109,7 +110,7 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
     await expect(
       f.factory.create('session-a', { kind: 'create', commandId: 'create', agentId: 'reviewer' }),
     ).rejects.toThrow()
-    state.installations[0]!.kind = 'pi'
+    state.installations[0]!.kind = 'deepseek-harness'
     await f.workspace.save(state)
     await expect(f.factory.probe({ installationId: 'oc' })).rejects.toThrow('runtimeUnsupported')
     await expect(
@@ -123,6 +124,29 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
     expect((await f.workspace.load()).installations[0]!.version).toBeNull()
     await f.factory.shutdown()
     await expect(f.factory.probe({ installationId: 'oc' })).rejects.toThrow('sessionStopping')
+    expect(await readdir(join(f.root, 'probes'))).toEqual([])
+  })
+  it('probes Pi and captures its native inputs without relaxing unsupported approval policy', async () => {
+    const f = await fixture('0.85.1', 'pi')
+    const command = { kind: 'create' as const, commandId: 'create', agentId: 'reviewer' }
+    await expect(f.factory.create('pi-unprobed', command)).rejects.toThrow()
+    expect((await f.factory.probe({ installationId: 'pi' })).installations[0]).toMatchObject({
+      version: '0.85.1',
+      modes: ['pi-rpc'],
+    })
+    const identity = await f.factory.create('pi-session', command)
+    expect(identity.mode).toBe('pi-rpc')
+    expect(await f.runs.read(identity.snapshotId)).toMatchObject({
+      installation: { kind: 'pi' },
+      adapter: { id: 'pi-rpc', version: '1' },
+    })
+    const edited = await f.workspace.load()
+    edited.agents[0]!.execution.approval = 'ask'
+    await f.workspace.save(edited)
+    await expect(f.factory.create('pi-approval', command)).rejects.toThrow('piConfiguration')
+    expect((await f.workspace.load()).agents[0]!.execution.approval).toBe('ask')
+    expect(await f.factory.create('pi-session', command)).toEqual(identity)
+    expect(f.resolveSecret).not.toHaveBeenCalled()
     expect(await readdir(join(f.root, 'probes'))).toEqual([])
   })
 })

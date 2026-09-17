@@ -1,6 +1,6 @@
 # Session contract and lifecycle
 
-The initial runtime shares application commands and state across OpenCode ACP, Pi RPC, and DeepSeek Harness ACP. Their native protocols, capability checks, and permission behavior remain separate. The shared schemas and state projection are implemented in `src/shared/sessions/`; the coordinator, bounded recent-event stream, and durable journal are in `src/main/sessions/`. The coordinator is tested with the production OpenCode runtime. The desktop factory, sender-checked Electron IPC, and bilingual session controls now use this path; Pi and DSH runtime adapters remain unimplemented.
+The initial runtime shares application commands and state across OpenCode ACP, Pi RPC, and DeepSeek Harness ACP. Their native protocols, capability checks, and permission behavior remain separate. The shared schemas and state projection are implemented in `src/shared/sessions/`; the coordinator, bounded recent-event stream, and durable journal are in `src/main/sessions/`. The coordinator is tested with the production OpenCode and Pi runtimes. The desktop factory, sender-checked Electron IPC, and bilingual session controls now use this path; DSH desktop runtime integration remains open.
 
 ## Identity and commands
 
@@ -10,7 +10,7 @@ The initial runtime shares application commands and state across OpenCode ACP, P
 - An **interaction request** identifies one pending permission or extension dialog within a turn. Native request IDs are mapped inside adapters; the renderer receives an application request ID.
 - A **command ID** identifies a UI operation. The coordinator stores a receipt before its side effect and deduplicates retries within that session, including after restart.
 
-Commands cover create, start, send, respond, cancel, resume, and close. Create accepts a saved agent ID and optional cwd, not an executable or arbitrary process arguments. Responses include the session, run, turn, and request IDs. Choices must match options actually offered by the request; expired, settled, cancelled, or foreign requests reject later responses. Permission choices and Pi-style input/select/confirm dialogs have distinct schemas.
+Commands cover create, start, send, respond, cancel, resume, and close. Create accepts a saved agent ID and optional cwd, not an executable or arbitrary process arguments. Responses include the session, run, turn, and request IDs. Choices must match options actually offered by the request; expired, settled, cancelled, or foreign requests reject later responses. Permission choices and Pi-style input/select/confirm dialogs have distinct schemas and typed runtime responses. Pi editor dialogs use multiline input with an optional initial value; the UI retains that value unless the user edits it.
 
 The state validator checks addresses and lifecycle. The runtime must additionally check the selected engine's verified capabilities, configuration, credentials, and native-session compatibility. Exposing a permission request type does not establish that Pi can enforce approval for all tools.
 
@@ -26,9 +26,9 @@ Process loss clears pending interactions, ends an active turn as interrupted/fai
 
 ## Events and renderer reconnection
 
-Events carry a monotonically increasing session cursor and the relevant run/turn IDs. The projection ignores overlapping replay deliveries, rejects cursor gaps, and rejects new events from stale attachments or turns. Message deltas, tool updates, interactions, turn results, and process transitions use bounded, validated payloads. Interaction responses are not copied into the event journal.
+Events carry a monotonically increasing session cursor and the relevant run/turn IDs. The projection ignores overlapping replay deliveries, rejects cursor gaps, and rejects new events from stale attachments or turns. Message deltas, tool updates, native notices, interactions, turn results, and process transitions use bounded, validated payloads. Interaction responses are not copied into the event journal.
 
-Usage may include `scope: turn` or `scope: session`; absent scope in older records means unspecified and must not be assumed to be per-turn usage. ACP reports cumulative session totals. Tool updates may include `contentTruncated` so capped native content is not displayed as complete. Both fields are optional to preserve existing journal compatibility.
+Usage may include `scope: turn` or `scope: session`; absent scope in older records means unspecified and must not be assumed to be per-turn usage. OpenCode ACP reports cumulative session totals; the Pi adapter sums final assistant-message usage within the turn and leaves missing or zero-filled provider usage unknown. Tool updates may include `contentTruncated` so capped native content is not displayed as complete. Both fields are optional to preserve existing journal compatibility.
 
 `SessionEventStream` retains a bounded recent window for fast reattachment and paginated reads. Replay capture and subscriber registration happen synchronously. Delivery occurs asynchronously in cursor order, with independent payload copies. Slow subscribers and expired cursors receive `reset-required`; they must fetch a current snapshot and durable history. The buffer does not silently remove part of a transcript and present it as complete.
 
@@ -42,7 +42,7 @@ Each accepted state-changing command stores `{ id, digest }` in the same durable
 
 This prevents automatic replay of accepted work; it is not an exactly-once guarantee for an external provider. A crash after persisting intent and before submitting it can leave an interrupted turn that never reached the engine. Recovery does not resubmit it. A new turn or explicit native resume is a separate user operation.
 
-The coordinator serializes decisions per session while native connection and turn work run outside the decision queue. One waiting permission does not prevent cancel/close or work in another session. Permission resolution is flushed before the selected option is returned to the adapter. Expired, aborted, cancelled, or old-run callbacks cannot authorize a later request. Known launch secrets are redacted from journaled user messages using the runtime's in-memory filter; the original message is submitted to the native engine. Arbitrary user text and engine-owned native persistence are not automatically classified as secret.
+The coordinator serializes decisions per session while native connection and turn work run outside the decision queue. One waiting permission does not prevent cancel/close or work in another session. Interaction resolution is flushed before the typed response is returned to the adapter. Expired, aborted, cancelled, or old-run callbacks cannot authorize a later request. Known launch secrets are redacted from journaled user messages using the runtime's in-memory filter; the original message is submitted to the native engine. Arbitrary user text and engine-owned native persistence are not automatically classified as secret.
 
 `shutdown()` rejects new commands, aborts and disposes owned attachments, and records resumable interruptions. Electron invokes it on quit, including closure of the final window on macOS. Shutdown also aborts installation probes and stops every owned process, including failed-start/readback handles. Unconfirmed cleanup prevents quit, shows a localized error, and permits a later cleanup retry. Native resume receives the original snapshot/native ID and a new run ID. An adapter returning a different native ID fails and is disposed.
 

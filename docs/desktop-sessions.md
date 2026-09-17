@@ -1,20 +1,20 @@
-# Desktop OpenCode sessions
+# Desktop agent sessions
 
-The desktop app connects saved Agent profiles to **OpenCode 1.18.16 over ACP**. The complete UI path is verified on macOS arm64 with the installed CLI and a local Chat Completions protocol fixture. Pi and DeepSeek Harness remain editable configurations without runtime adapters. Browser preview has no CLI runtime.
+The desktop app connects saved Agent profiles to **OpenCode 1.18.16 over ACP** and **Pi 0.85.1 over RPC**. Both UI paths are verified on macOS arm64 with installed CLIs and local Chat Completions protocol fixtures. DeepSeek Harness remains an editable configuration without a desktop runtime adapter. Browser preview has no CLI runtime.
 
 ## Start a session
 
-1. In **Engines**, save an OpenCode installation with an absolute executable path and the current platform. Use **Check installation** to run its version command. Saving a path alone never executes it. Only the pinned version records a supported ACP mode; another version remains visible but cannot launch through this adapter.
+1. In **Engines**, save an OpenCode or Pi installation with an absolute executable path and the current platform. Use **Check installation** to run its version command. Saving a path alone never executes it. Only the pinned version records its supported ACP or Pi RPC mode; another version remains visible but cannot launch through this adapter.
 2. Create a shared connection and model. Select the intended API protocol, endpoint, native model ID, and a credential or environment reference. Environment references resolve from the desktop process environment; a GUI launch may have a different environment from a shell. Existing native engine-login stores are not imported.
-3. Save an enabled Agent profile with that installation, model, and working directory. Select shared Prompt, Skill, and MCP bindings as needed. Resolve missing configuration and review the engine-specific settings. Native plugins are not supported by this adapter revision.
-4. Open **Sessions**, choose the saved profile, and start a new session. The main process captures immutable inputs, resolves credentials, checks the native version/configuration, and connects ACP. The conversation becomes ready only after the native model, agent, and session identity pass verification.
-5. Send a message. Inspect streamed text and tool details; permission controls show the native choices with localized action labels and available tool arguments. Cancellation invalidates pending controls and waits for a terminal native result or confirmed cleanup.
+3. Save an enabled Agent profile with that installation, model, and working directory. Select shared Prompt, Skill, and MCP bindings as needed. Resolve missing configuration and review the engine-specific settings. Native plugins are not supported by these adapter revisions. Pi additionally rejects MCP bindings and the shared `ask` execution policy. Select no-tools or unrestricted tools explicitly; project trust is a separate Pi option.
+4. Open **Sessions**, choose the saved profile, and start a new session. The main process captures immutable inputs, resolves credentials, checks the native version/configuration, and connects the native protocol. The conversation becomes ready only after the applicable native model, agent or Skill settings, and session identity pass verification.
+5. Send a message. Inspect streamed text and tool details; OpenCode permission controls show the native choices with localized action labels and available tool arguments. Cancellation invalidates pending controls and waits for a terminal native result or confirmed cleanup.
 
-The working directory currently comes from the saved profile. The session API also accepts an explicit cwd override; the UI does not yet expose a separate per-launch picker. A complete shared preview is only a planned configuration, not proof of applied native settings. Native project/global/managed configuration remains relevant; readback conflicts stop startup.
+The working directory currently comes from the saved profile. The session API also accepts an explicit cwd override; the UI does not yet expose a separate per-launch picker. A complete shared preview is only a planned configuration, not proof of applied native settings. OpenCode project/global/managed configuration remains relevant; readback conflicts stop startup. Pi uses a private native home and explicit project trust/context settings, with observed sources checked before reuse. See the [Pi configuration boundaries](pi-configuration.md).
 
 ## History, configuration changes, and recovery
 
-Each session retains the configuration captured at creation. Editing a shared Prompt or other asset affects new sessions; it does not rewrite an existing session's inputs. Resume verifies the captured inputs and observed native sources before restoring the same native conversation. Incompatible or failed restoration is reported without creating a replacement conversation.
+Each session retains the configuration captured at creation. Editing a shared Prompt or other asset affects new sessions; it does not rewrite an existing session's inputs. Resume verifies the captured inputs and observed native sources before restoring the same native conversation. Incompatible or failed restoration is reported without creating a replacement conversation. Pi may not persist an empty native conversation until a model turn writes history, so a never-used Pi conversation is not guaranteed to resume.
 
 Switching pages or reloading the renderer attaches to durable history and current events without resubmitting messages. The UI retains up to 1,000 recent events / approximately 4 MiB and shows a notice when history is capped. Full durable history is preserved; export and browsing older pages are not exposed yet. Native output is rendered as literal text, including HTML-like content. Tool truncation and unknown usage/cost remain explicit.
 
@@ -37,8 +37,19 @@ AGENT_MATRIX_SESSION_SCREENSHOT=/absolute/path/to/session.png \
 npm run test:sessions
 ```
 
-The script requires a desktop graphics environment. It creates isolated application/home/config/project directories, uses synthetic credentials and native pure mode, and binds an HTTP fixture on loopback. It does not use the user's workspace or call an external model provider. Successful runs remove temporary fixture state; failed runs retain it for diagnosis. Report and screenshot output paths are optional.
+For Pi, select its fixture explicitly:
 
-The [recorded macOS result](probes/2026-09-18-desktop-sessions.json) covers explicit UI version probing, saved-profile launch, permission replies, native file tools, escaped output, reload without duplicate submission, streaming and permission cancellation, a shared-Prompt edit with old/new session inputs, app quit/restart, native resume, confirmed close, both languages, and application-journal credential redaction. Unit tests separately cover factory capture/retry/revision behavior, IPC ownership, renderer cursor recovery, and the owned-process cleanup registry.
+```sh
+AGENT_MATRIX_SESSION_ENGINE=pi \
+AGENT_MATRIX_TEST_PI=/absolute/path/to/pi \
+AGENT_MATRIX_SESSION_REPORT=/absolute/path/to/pi-report.json \
+npm run test:sessions
+```
 
-The [lower-level OpenCode fixture](opencode-configuration.md) additionally covers directory Skills and stdio MCP mapping. These results do not pass the external-provider or three-engine delivery gates. The intended endpoint/model/auth route, complete effective configuration reporting, full Pi/DSH adapters, other platforms, remote MCP/OAuth, and plugin activation remain open.
+The script requires a desktop graphics environment. It creates isolated application/home/config/project directories, uses synthetic credentials and engine-specific isolation (OpenCode pure mode or a private Pi home), and binds an HTTP fixture on loopback. It does not use the user's workspace or call an external model provider. Successful runs remove temporary fixture state; failed runs retain it for diagnosis. Report and screenshot output paths are optional.
+
+The [recorded OpenCode macOS result](probes/2026-09-18-desktop-sessions.json) covers explicit UI version probing, saved-profile launch, permission replies, native file tools, escaped output, reload without duplicate submission, streaming and permission cancellation, a shared-Prompt edit with old/new session inputs, app quit/restart, native resume, confirmed close, both languages, and application-journal credential redaction. Unit tests separately cover factory capture/retry/revision behavior, IPC ownership, renderer cursor recovery, and the owned-process cleanup registry.
+
+The [Pi desktop record](probes/2026-09-18-pi-desktop-sessions.json) covers the same saved-profile, text/tool, streaming cancellation, snapshot, reload, restart/resume, close, and bilingual paths. Universal tool approval and permission cancellation are explicitly unsupported for Pi. Its [runtime fixture](pi-runtime.md) additionally checks native restoration with retained tool context and provider errors after acceptance.
+
+The [lower-level OpenCode fixture](opencode-configuration.md) additionally covers directory Skills and stdio MCP mapping; the [Pi configuration fixture](pi-configuration.md) covers directory Skills and reference files. These results do not pass the external-provider or three-engine delivery gates. The intended endpoint/model/auth route, complete effective configuration reporting, DSH desktop integration, other platforms, remote MCP/OAuth, and plugin activation remain open.

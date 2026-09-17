@@ -15,6 +15,10 @@ import {
   type OpenCodeNativeLocations,
 } from '../engines/adapters/opencode/sources'
 import { connectOpenCode } from '../engines/adapters/opencode/runtime'
+import { planPi, piContract } from '../engines/adapters/pi/configuration'
+import { inspectPiSources } from '../engines/adapters/pi/sources'
+import { connectPi } from '../engines/adapters/pi/runtime'
+import type { ResolvedSkill } from '../../shared/engines/resolution'
 import { baseProcessEnvironment } from '../engines/process/managed-process'
 import { captureCommand } from '../engines/process/capture-command'
 import { RuntimeFailure } from '../engines/runtime'
@@ -74,14 +78,14 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
     const installation = state.installations.find((item) => item.id === installationId)
     if (
       !installation ||
-      installation.kind !== 'opencode' ||
+      !['opencode', 'pi'].includes(installation.kind) ||
       installation.platform !== process.platform ||
       !['darwin', 'linux'].includes(process.platform)
     )
       throw appError('error.runtimeUnsupported')
     const parent = join(dataDirectory, 'probes')
     await mkdir(parent, { recursive: true, mode: 0o700 })
-    const root = await mkdtemp(join(parent, 'opencode-'))
+    const root = await mkdtemp(join(parent, `${installation.kind}-`))
     try {
       const version = (
         await captureCommand(
@@ -96,6 +100,7 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
               XDG_CACHE_HOME: join(root, 'cache'),
               XDG_STATE_HOME: join(root, 'state'),
               OPENCODE_DISABLE_AUTOUPDATE: 'true',
+              PI_CODING_AGENT_DIR: join(root, 'pi'),
             },
           },
           this.lifetime.signal,
@@ -104,7 +109,14 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
       if (!/^[0-9][0-9A-Za-z.+-]{0,99}$/.test(version)) throw appError('error.runtimeProbe')
       installation.version = version
       installation.probedAt = new Date().toISOString()
-      installation.modes = version === openCodeContract.engineVersion ? ['acp'] : []
+      installation.modes =
+        installation.kind === 'opencode'
+          ? version === openCodeContract.engineVersion
+            ? ['acp']
+            : []
+          : version === piContract.engineVersion
+            ? ['pi-rpc']
+            : []
       // Optimistic workspace revision prevents overwriting edits made during the probe.
       return await workspace.save(state)
     } catch (error) {
@@ -137,24 +149,33 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
         (item) => item.id === profile?.engineInstallationId,
       )
       if (!profile) throw appError('error.runConfiguration')
-      if (installation?.kind !== 'opencode') throw appError('error.runtimeUnsupported')
+      if (!installation || !['opencode', 'pi'].includes(installation.kind))
+        throw appError('error.runtimeUnsupported')
       if (command.cwd) profile.execution.cwd = command.cwd
       if (!profile.execution.cwd) throw appError('error.runtimeCwd')
       const cwd = await realpath(profile.execution.cwd).catch(() => {
         throw appError('error.runtimeCwd')
       })
-      const locations = openCodeNativeLocations(environment)
-      const sources = await inspectOpenCodeSources(cwd, locations)
-      manifest = await runs.create(snapshotId, state, profile.id, (configuration, paths) =>
-        planOpenCode(configuration, paths, {
-          configHome: locations.configHome,
-          sources,
-          readSkillEntry: async (skill) => {
-            if (skill.revision.kind !== 'directory') throw appError('error.skillCaptureInvalid')
-            return readFile(join(await skills.verify(skill.revision), 'SKILL.md'), 'utf8')
-          },
-        }),
-      )
+      const readSkillEntry = async (skill: ResolvedSkill) => {
+        if (skill.revision.kind !== 'directory') throw appError('error.skillCaptureInvalid')
+        return readFile(join(await skills.verify(skill.revision), 'SKILL.md'), 'utf8')
+      }
+      if (installation.kind === 'pi') {
+        const sources = await inspectPiSources(cwd)
+        manifest = await runs.create(snapshotId, state, profile.id, (configuration, paths) =>
+          planPi(configuration, paths, { sources, readSkillEntry }),
+        )
+      } else {
+        const locations = openCodeNativeLocations(environment)
+        const sources = await inspectOpenCodeSources(cwd, locations)
+        manifest = await runs.create(snapshotId, state, profile.id, (configuration, paths) =>
+          planOpenCode(configuration, paths, {
+            configHome: locations.configHome,
+            sources,
+            readSkillEntry,
+          }),
+        )
+      }
     }
     if (
       manifest.agent.id !== command.agentId ||
@@ -185,7 +206,14 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
         manifest.launch.mode !== snapshot.mode
       )
         throw new RuntimeFailure('configuration')
-      return await connectOpenCode({
+      const connect =
+        manifest.installation.kind === 'pi'
+          ? connectPi
+          : manifest.installation.kind === 'opencode'
+            ? connectOpenCode
+            : null
+      if (!connect) throw new RuntimeFailure('unsupported')
+      return await connect({
         store: runs,
         snapshotId: snapshot.snapshotId,
         environment,

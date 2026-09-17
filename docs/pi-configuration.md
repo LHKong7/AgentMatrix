@@ -1,6 +1,6 @@
 # Pi configuration adapter
 
-AgentMatrix now translates resolved agent profiles into captured inputs for **Pi 0.85.1 / RPC**. A native fixture passes on macOS arm64 using the installed CLI, the application configuration adapter, process supervisor, and RPC client. This completes a usable configuration foundation for C1; Pi session coordination and desktop execution remain pending. The configuration editor already exposes the additional options in English and Chinese.
+AgentMatrix now translates resolved agent profiles into captured inputs for **Pi 0.85.1 / RPC**. A native fixture passes on macOS arm64 using the installed CLI, the application configuration adapter, process supervisor, and RPC client. This completes a usable configuration foundation for C1; [Pi session coordination and desktop execution](pi-runtime.md) now also pass local fixtures. The configuration editor already exposes the additional options in English and Chinese.
 
 ## Connections and native readback
 
@@ -13,7 +13,7 @@ Each snapshot selects a private provider named `agentmatrix-<connectionId>` and 
 | Anthropic Messages      | `anthropic-messages`   | `x-api-key` reference      | Explicit sampling currently rejected                   |
 | Gemini                  | `google-generative-ai` | `x-goog-api-key` reference | Explicit sampling currently rejected                   |
 
-Only the Chat Completions row has native provider-call evidence in this fixture. The other rows have mapping tests, not endpoint acceptance. OAuth, keyless routes, arbitrary authentication headers, and other APIs fail with a configuration diagnostic. No API translation is performed. Model context limits and cost metadata currently use Pi's native custom-model defaults; these defaults are not verified model capacity or billable pricing. The future runtime must leave unverified cost unknown.
+Only the Chat Completions row has native provider-call evidence in this fixture. The other rows have mapping tests, not endpoint acceptance. OAuth, keyless routes, arbitrary authentication headers, and other APIs fail with a configuration diagnostic. No API translation is performed. Model context limits and cost metadata currently use Pi's native custom-model defaults; these defaults are not verified model capacity or billable pricing. The runtime leaves unverified cost unknown.
 
 Saved files contain environment references for credentials and secret headers. Main-process launch preparation resolves those references and passes their values in the child environment. Keys never enter generated files or command arguments. Pi's leading `!` command syntax and `$` interpolation are escaped in ordinary header values; the real fixture verifies literal values and synthetic secret headers on the wire.
 
@@ -48,4 +48,4 @@ AGENT_MATRIX_PI_CONFIGURATION_REPORT=/absolute/path/to/configuration-report.json
 npm run probe:pi
 ```
 
-The command now runs both Pi fixtures. Report output is optional. Each fixture uses synthetic credentials, temporary data, and a local provider. Normal unit tests do not launch an installed CLI. The Electron configuration smoke additionally verifies saved trust/context/thinking choices after restart in Chinese, following English editing. Shared runtime event/interaction normalization, desktop session launch, external-service acceptance, and other platforms are still open.
+The command runs transport, configuration, and coordinated-runtime fixtures. Report output is optional. Each fixture uses synthetic credentials, temporary data, and a local provider. Normal unit tests do not launch an installed CLI. The Electron configuration smoke additionally verifies saved trust/context/thinking choices after restart in Chinese, following English editing. Shared runtime normalization and desktop launch are covered by the [runtime evidence](pi-runtime.md). External-service acceptance, complete application reporting, and other platforms remain open.

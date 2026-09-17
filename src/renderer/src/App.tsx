@@ -459,7 +459,7 @@ export function App() {
                             disabled={
                               saving ||
                               info?.storage !== 'desktop' ||
-                              ('kind' in entry && entry.kind !== 'opencode')
+                              ('kind' in entry && !['opencode', 'pi'].includes(entry.kind))
                             }
                             onClick={() => void probe(entry.id)}
                           >

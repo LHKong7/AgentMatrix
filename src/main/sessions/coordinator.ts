@@ -12,6 +12,8 @@ import {
   type SessionEventData,
   type SessionEvent,
   sessionSubscriptionSchema,
+  type InteractionRequest,
+  type InteractionResponse,
 } from '../../shared/sessions/schema'
 import {
   createSessionSnapshot,
@@ -19,7 +21,7 @@ import {
   applySessionEvent,
   type SessionIdentity,
 } from '../../shared/sessions/state'
-import { RuntimeFailure, type RuntimeSession, type RuntimePermission } from '../engines/runtime'
+import { RuntimeFailure, type RuntimeSession } from '../engines/runtime'
 import { SessionJournal } from './journal'
 import { SessionEventStream } from './event-stream'
 
@@ -32,8 +34,8 @@ export interface SessionRuntimeFactory {
   /** Restore only the supplied native ID when status is resuming. Failed connection owns cleanup. */
   connect(snapshot: SessionSnapshot, signal: AbortSignal): Promise<RuntimeSession>
 }
-interface PendingPermission {
-  resolve(answer: string | null): void
+interface PendingInteraction {
+  resolve(answer: InteractionResponse): void
   signal: AbortSignal
   clean(): void
 }
@@ -51,7 +53,7 @@ interface Attachment {
 interface Context {
   stream: SessionEventStream
   attachment?: Attachment
-  permissions: Map<string, PendingPermission>
+  interactions: Map<string, PendingInteraction>
   storageFailed: boolean
 }
 const appendSchema = sessionEventSchema.omit({ sessionId: true, cursor: true, timestamp: true })
@@ -127,7 +129,7 @@ export class SessionCoordinator {
         )
         this.contexts.set(id, {
           stream: new SessionEventStream(snapshot),
-          permissions: new Map(),
+          interactions: new Map(),
           storageFailed: false,
         })
         return snapshot
@@ -182,7 +184,7 @@ export class SessionCoordinator {
           break
         }
         case 'respond': {
-          const pending = context.permissions.get(command.requestId)
+          const pending = context.interactions.get(command.requestId)
           if (!pending || pending.signal.aborted) throw appError('error.sessionStale')
           await this.append(context, {
             runId: command.runId,
@@ -197,9 +199,7 @@ export class SessionCoordinator {
           this.settle(
             context,
             command.requestId,
-            !pending.signal.aborted && command.response.kind === 'choice'
-              ? command.response.optionId
-              : null,
+            pending.signal.aborted ? { kind: 'cancelled' } : command.response,
           )
           break
         }
@@ -335,7 +335,7 @@ export class SessionCoordinator {
     if (!context) {
       context = {
         stream: new SessionEventStream(await this.journal.get(id)),
-        permissions: new Map(),
+        interactions: new Map(),
         storageFailed: false,
       }
       this.contexts.set(id, context)
@@ -387,15 +387,15 @@ export class SessionCoordinator {
     if (context.attachment) void this.stop(context, context.attachment, 'storage').catch(() => {})
     throw appError('error.sessionStorage')
   }
-  private settle(context: Context, id: string, answer: string | null): void {
-    const pending = context.permissions.get(id)
+  private settle(context: Context, id: string, answer: InteractionResponse): void {
+    const pending = context.interactions.get(id)
     if (!pending) return
-    context.permissions.delete(id)
+    context.interactions.delete(id)
     pending.clean()
     pending.resolve(answer)
   }
   private settleAll(context: Context): void {
-    for (const id of context.permissions.keys()) this.settle(context, id, null)
+    for (const id of context.interactions.keys()) this.settle(context, id, { kind: 'cancelled' })
   }
   private clearCancel(attachment: Attachment): void {
     clearTimeout(attachment.cancelTimer)
@@ -444,8 +444,8 @@ export class SessionCoordinator {
             if (!this.active(context, attachment, turnId)) return
             await this.append(context, { runId: attachment.runId, turnId, data })
           }),
-        permission: (request, signal) =>
-          this.permission(context, attachment, turnId, request, signal),
+        interaction: (request, signal) =>
+          this.interaction(context, attachment, turnId, request, signal),
       })
       await this.serial(id, async () => {
         if (!this.active(context, attachment, turnId)) return
@@ -468,15 +468,15 @@ export class SessionCoordinator {
       }).catch(() => {})
     }
   }
-  private async permission(
+  private async interaction(
     context: Context,
     attachment: Attachment,
     turnId: string,
-    request: RuntimePermission,
+    request: InteractionRequest,
     signal: AbortSignal,
-  ): Promise<string | null> {
-    let resolve!: (answer: string | null) => void
-    const answer = new Promise<string | null>((done) => {
+  ): Promise<InteractionResponse> {
+    let resolve!: (answer: InteractionResponse) => void
+    const answer = new Promise<InteractionResponse>((done) => {
       resolve = done
     })
     const id = context.stream.snapshot().id
@@ -496,7 +496,7 @@ export class SessionCoordinator {
       let timer: ReturnType<typeof setTimeout> | undefined
       const expire = (disposition: 'expired' | 'cancelled') => {
         void this.serial(id, async () => {
-          if (!context.permissions.has(request.id)) return
+          if (!context.interactions.has(request.id)) return
           if (
             this.active(context, attachment, turnId) &&
             context.stream.snapshot().pendingRequests.some((item) => item.id === request.id)
@@ -506,11 +506,11 @@ export class SessionCoordinator {
               turnId,
               data: { kind: 'interaction.resolved', requestId: request.id, disposition },
             })
-          this.settle(context, request.id, null)
-        }).catch(() => this.settle(context, request.id, null))
+          this.settle(context, request.id, { kind: 'cancelled' })
+        }).catch(() => this.settle(context, request.id, { kind: 'cancelled' }))
       }
       const abort = () => expire('cancelled')
-      context.permissions.set(request.id, {
+      context.interactions.set(request.id, {
         resolve,
         signal,
         clean: () => {
@@ -527,7 +527,7 @@ export class SessionCoordinator {
       if (signal.aborted) abort()
       return true
     })
-    return accepted ? answer : null
+    return accepted ? answer : { kind: 'cancelled' }
   }
   private async exited(context: Context, attachment: Attachment, cleaned: boolean): Promise<void> {
     await this.serial(context.stream.snapshot().id, async () => {

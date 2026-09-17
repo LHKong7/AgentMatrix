@@ -1,15 +1,26 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk'
 import { AcpTurn } from '../src/main/engines/acp/turn'
-import type { RuntimeOutput, RuntimeTurnHandlers } from '../src/main/engines/runtime'
+import type {
+  RuntimeOutput,
+  RuntimeTurnHandlers,
+  RuntimePermission,
+} from '../src/main/engines/runtime'
 
-function fixture(secrets: string[] = [], permission?: RuntimeTurnHandlers['permission']) {
+function fixture(
+  secrets: string[] = [],
+  permission?: (request: RuntimePermission, signal: AbortSignal) => Promise<string | null>,
+) {
   const events: RuntimeOutput[] = []
   const handlers: RuntimeTurnHandlers = {
     output: async (event) => {
       events.push(event)
     },
-    permission: permission ?? (async () => null),
+    interaction: async (request, signal) => {
+      if (request.kind !== 'permission') throw new Error('Unexpected interaction')
+      const optionId = await permission?.(request, signal)
+      return optionId ? { kind: 'choice', optionId } : { kind: 'cancelled' }
+    },
   }
   return { events, handlers, turn: new AcpTurn('native-session', secrets, handlers) }
 }

@@ -346,9 +346,11 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
         output: async (event) => {
           updates.push(event)
         },
-        permission: async (request) => {
+        interaction: async (request) => {
           permissions++
-          return request.options.find((candidate) => candidate.kind === 'allow_once')?.id ?? null
+          if (request.kind !== 'permission') throw new Error('Unexpected interaction')
+          const optionId = request.options.find((candidate) => candidate.kind === 'allow_once')?.id
+          return optionId ? { kind: 'choice', optionId } : { kind: 'cancelled' }
         },
       }
       const response = await runtime.send('Read fixture.txt, then report its marker.', handlers)
@@ -392,13 +394,13 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       let permissionAborted = false
       const pendingTurn = runtime.send('Read fixture.txt again.', {
         ...handlers,
-        permission: async (_request, signal) =>
-          new Promise<null>((resolve) => {
+        interaction: async (_request, signal) =>
+          new Promise<{ kind: 'cancelled' }>((resolve) => {
             signal.addEventListener(
               'abort',
               () => {
                 permissionAborted = true
-                resolve(null)
+                resolve({ kind: 'cancelled' })
               },
               { once: true },
             )
@@ -429,7 +431,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       await expect(
         runtime.send('Read fixture.txt once more.', {
           ...handlers,
-          permission: async () => {
+          interaction: async () => {
             throw new Error('Private persistence failure')
           },
         }),

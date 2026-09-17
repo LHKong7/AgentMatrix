@@ -6,8 +6,15 @@ import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
 
-const executable = process.env.AGENT_MATRIX_TEST_OPENCODE
-assert.ok(executable, 'Set AGENT_MATRIX_TEST_OPENCODE to the installed OpenCode 1.18.16 executable')
+const engine = process.env.AGENT_MATRIX_SESSION_ENGINE || 'opencode'
+assert.ok(['opencode', 'pi'].includes(engine), 'Select opencode or pi')
+const isPi = engine === 'pi'
+const version = isPi ? '0.85.1' : '1.18.16'
+const executable = isPi ? process.env.AGENT_MATRIX_TEST_PI : process.env.AGENT_MATRIX_TEST_OPENCODE
+assert.ok(
+  executable,
+  `Set AGENT_MATRIX_TEST_${isPi ? 'PI' : 'OPENCODE'} to the installed ${engine} ${version} executable`,
+)
 const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-desktop-session-')))
 const dataDirectory = join(root, 'data'),
   cwd = join(root, 'project'),
@@ -80,7 +87,7 @@ const server = createServer(async (request, response) => {
             type: 'function',
             function: {
               name: 'read',
-              arguments: JSON.stringify({ filePath: join(cwd, 'fixture.txt') }),
+              arguments: JSON.stringify({ [isPi ? 'path' : 'filePath']: join(cwd, 'fixture.txt') }),
             },
           },
         ],
@@ -104,7 +111,12 @@ await new Promise((resolve, reject) => {
 const address = server.address()
 assert.ok(address && typeof address !== 'string')
 const workspace = openCodeWorkspace(executable, cwd)
-workspace.installations[0].prefixArgs = ['--pure']
+if (isPi) {
+  workspace.installations[0].kind = 'pi'
+  workspace.installations[0].name = 'Pi'
+  workspace.agents[0].engineOptions = { kind: 'pi', projectTrust: 'deny', contextFiles: 'inherit' }
+  workspace.agents[0].execution.approval = 'unrestricted'
+} else workspace.installations[0].prefixArgs = ['--pure']
 workspace.installations[0].version = null
 workspace.installations[0].probedAt = null
 workspace.installations[0].modes = []
@@ -177,7 +189,9 @@ try {
   await navigate('Engines')
   await page.getByRole('button', { name: 'Check installation', exact: true }).click()
   await page.waitForFunction(
-    async () => (await window.agentMatrix.loadWorkspace()).installations[0].version === '1.18.16',
+    async (version) =>
+      (await window.agentMatrix.loadWorkspace()).installations[0].version === version,
+    version,
   )
   await navigate('Sessions')
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
@@ -185,12 +199,13 @@ try {
   const original = (await sessions())[0]
   assert.ok(original.nativeSessionId)
   await send(`Read fixture.txt. Synthetic key: ${secret}`)
-  await page.locator('.permission-card').waitFor()
+  if (!isPi) await page.locator('.permission-card').waitFor()
+  else await status('Ready')
   await language('zh-CN')
   await page.getByRole('heading', { name: '会话', exact: true }).waitFor()
   if (process.env.AGENT_MATRIX_SESSION_SCREENSHOT)
     await page.screenshot({ path: process.env.AGENT_MATRIX_SESSION_SCREENSHOT, fullPage: true })
-  await page.getByRole('button', { name: /^允许一次/ }).click()
+  if (!isPi) await page.getByRole('button', { name: /^允许一次/ }).click()
   await status('就绪')
   assert.equal(
     await page.locator('.message.assistant pre').textContent(),
@@ -219,12 +234,14 @@ try {
   assert.ok(streamStarted, 'The fixture did not receive the streaming turn')
   await page.getByRole('button', { name: 'Cancel turn', exact: true }).click()
   await status('Ready')
-  behavior = 'permission'
-  await send('Read fixture.txt again')
-  await page.locator('.permission-card').waitFor()
-  await page.getByRole('button', { name: 'Cancel turn', exact: true }).click()
-  await status('Ready')
-  assert.equal(await page.locator('.permission-card').count(), 0)
+  if (!isPi) {
+    behavior = 'permission'
+    await send('Read fixture.txt again')
+    await page.locator('.permission-card').waitFor()
+    await page.getByRole('button', { name: 'Cancel turn', exact: true }).click()
+    await status('Ready')
+    assert.equal(await page.locator('.permission-card').count(), 0)
+  }
   behavior = 'text'
   await navigate('Shared prompts')
   await page.getByRole('button', { name: 'Edit Role', exact: true }).click()
@@ -268,17 +285,17 @@ try {
     checkedAt: new Date().toISOString(),
     platform: process.platform,
     architecture: process.arch,
-    engine: 'opencode',
-    version: '1.18.16',
+    engine,
+    version,
     route: 'Local Chat Completions protocol fixture',
     externalProviderCalls: false,
     desktopVersionProbe: true,
     profileToSession: true,
-    permissionReply: true,
+    permissionReply: isPi ? 'unsupported: no universal per-tool approval' : true,
     toolResult: calls.some((call) => call.read),
     rendererReloadWithoutResubmit: true,
     streamingCancellation: true,
-    permissionCancellation: true,
+    permissionCancellation: isPi ? 'unsupported: no universal per-tool approval' : true,
     sharedPromptOldAndNewSnapshots: true,
     appQuitAndRestart: true,
     nativeResume: true,

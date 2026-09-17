@@ -16,6 +16,8 @@ import type {
   SessionSnapshot,
   SessionDelivery,
   SessionCommand,
+  InteractionRequest,
+  InteractionResponse,
 } from '../src/shared/sessions/schema'
 
 function deferred<T>() {
@@ -81,20 +83,22 @@ class FakeRuntime implements RuntimeSession {
   })
   ask(deadlineAt: string | null = null) {
     const turn = this.turns.at(-1)!
-    return turn.handlers.permission(
-      {
-        kind: 'permission',
-        id: 'approval',
-        title: 'Read file',
-        toolCallId: 'tool',
-        deadlineAt,
-        options: [
-          { id: 'yes', label: 'Allow once', kind: 'allow_once' },
-          { id: 'no', label: 'Reject once', kind: 'reject_once' },
-        ],
-      },
-      turn.signal.signal,
-    )
+    return turn.handlers
+      .interaction(
+        {
+          kind: 'permission',
+          id: 'approval',
+          title: 'Read file',
+          toolCallId: 'tool',
+          deadlineAt,
+          options: [
+            { id: 'yes', label: 'Allow once', kind: 'allow_once' },
+            { id: 'no', label: 'Reject once', kind: 'reject_once' },
+          ],
+        },
+        turn.signal.signal,
+      )
+      .then((answer) => (answer.kind === 'choice' ? answer.optionId : null))
   }
 }
 const roots: string[] = []
@@ -153,6 +157,66 @@ afterEach(async () => {
 })
 
 describe('durable session coordination', () => {
+  it.each([
+    [
+      { kind: 'select', options: [{ id: 'selected', label: 'Choose' }] },
+      { kind: 'choice', optionId: 'selected' },
+    ],
+    [
+      { kind: 'confirm', message: 'Continue?' },
+      { kind: 'confirm', accepted: false },
+    ],
+    [
+      {
+        kind: 'input',
+        message: 'Edit',
+        placeholder: '',
+        multiline: true,
+        initialValue: 'original',
+      },
+      { kind: 'input', value: 'private response text' },
+    ],
+  ] as const)(
+    'delivers a typed $0.kind answer only after recording its resolution',
+    async (shape, response) => {
+      const f = await fixture()
+      const { ready, runtime } = await f.start()
+      const running = await f.send(ready)
+      const request: InteractionRequest = {
+        id: 'dialog',
+        title: 'Extension request',
+        deadlineAt: null,
+        ...structuredClone(shape),
+      } as InteractionRequest
+      let received: InteractionResponse | undefined
+      const answer = runtime.turns[0]!.handlers.interaction(
+        request,
+        runtime.turns[0]!.signal.signal,
+      ).then((value) => {
+        received = value
+      })
+      await f.wait(ready.id, 'waiting')
+      const append = f.journal.append.bind(f.journal)
+      vi.spyOn(f.journal, 'append').mockImplementation(async (...args) => {
+        if (args[2].data.kind === 'interaction.resolved') expect(received).toBeUndefined()
+        return append(...args)
+      })
+      await f.coordinator.command({
+        kind: 'respond',
+        commandId: 'answer',
+        sessionId: ready.id,
+        runId: ready.runId!,
+        turnId: running.activeTurn!.id,
+        requestId: request.id,
+        response,
+      })
+      await answer
+      expect(received).toEqual(response)
+      expect(await readFile(join(f.root, `${ready.id}.jsonl`), 'utf8')).not.toContain(
+        'private response text',
+      )
+    },
+  )
   it('keeps sessions independent while permissions wait and shuts all attachments down', async () => {
     const f = await fixture()
     const first = await f.start('first'),
