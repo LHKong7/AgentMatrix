@@ -196,6 +196,8 @@ export const zhCN = {
   'validation.assetPaths': '资产文件路径不能重复，也不能仅大小写不同。',
   'validation.assetVersion': '资产版本不存在或重复。',
   'validation.environmentConflict': '同一个环境变量不能同时设置值和引用。',
+  'error.assetHistory': '不能修改或删除已保存的资产版本，请创建新版本。',
+  'error.migrationBackup': '已有迁移备份与当前工作空间冲突，两个文件均已保留。',
   'error.schemaVersion': '无法迁移此版本的工作空间。',
   'validation.min': '最小允许值或长度为 {limit}。',
   'validation.max': '最大允许值或长度为 {limit}。',

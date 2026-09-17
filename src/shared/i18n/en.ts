@@ -210,6 +210,9 @@ export const en = {
   'validation.assetVersion': 'An asset version is missing or duplicated.',
   'validation.environmentConflict':
     'An environment variable cannot have both a value and a reference.',
+  'error.assetHistory': 'Saved asset versions cannot be changed or removed. Create a new version.',
+  'error.migrationBackup':
+    'An existing migration backup conflicts with this workspace. Both files were preserved.',
   'error.schemaVersion': 'This workspace version cannot be migrated.',
   'validation.min': 'The minimum allowed value or length is {limit}.',
   'validation.max': 'The maximum allowed value or length is {limit}.',
