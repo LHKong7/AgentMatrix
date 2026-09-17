@@ -388,6 +388,8 @@ This revises the initial scaffolding roadmap: for a multi-CLI product, build **C
 
 This sequence follows the user's selected initial products and is not a ranking of model quality. OpenCode, Pi, and DSH require distinct configuration/runtime adapters even where ACP transport is shared; common provider code does not imply a shared session protocol. The first abstraction gate includes minimal Pi and DSH probes, and each engine has its own acceptance gate. Existing native configuration is initially imported read-only; native plugins are recognized/bound as installed assets, with a pinned DSH composition. General plugin installation and automatic upgrades are deferred.
 
+The implementation plan defines the [shared-versus-engine-specific configuration boundary](cli-agent-plan.md#11-shared-configuration-and-per-engine-settings) and [incremental delivery outcomes](cli-agent-plan.md#21-incremental-delivery). Each engine ships a complete desktop workflow at its own gate; Skill capture, applicable MCP mappings, and bilingual configuration/session controls are part of that gate. The nine-engine comparison remains a research reference, not a requirement to build nine sets of forms for the first release.
+
 ### 9.2 Acceptance checklist for every adapter
 
 1. Detect the actual installed version and diagnose missing executables, unknown versions, and old schemas.

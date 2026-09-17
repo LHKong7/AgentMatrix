@@ -97,9 +97,9 @@ The main process enables context isolation and renderer sandboxing, and disables
 
 ## Next stages
 
-1. Probe **OpenCode, Pi, and DeepSeek Harness**; separate engines, model connections, and shared assets, with credential storage and explicit draft-to-launch validation.
-2. Complete **OpenCode ACP → Pi RPC → DeepSeek Harness ACP** integrations, including session UI, supported native controls, immutable run inputs, and configuration application status. The initial DSH probe selected ACP because the installed SDK lacks cancel/resume; see the [probe report](docs/engine-probe-2026-09-18.md) and [implementation status](docs/implementation-status.md).
-3. Add complete Skill imports and MCP distribution. Start with read-only native configuration imports and managed output; recognize installed native plugins and pin DSH composition. Pi MCP requires a separately verified extension; general plugin installation and automatic upgrades are deferred.
+1. Complete the shared foundation for **OpenCode, Pi, and DeepSeek Harness**: versioned prompts and Skill imports, model connections, credential references, MCP definitions, resource bundles, migration, and bilingual editors with launch diagnostics. Import native configuration read-only and generate managed run inputs.
+2. Deliver **OpenCode through ACP** as the first complete desktop workflow: configuration, streaming, tools, supported permissions, cancellation, history, immutable run inputs, and configuration application status. Shared prompt/Skill/MCP mappings are part of its acceptance gate.
+3. Deliver **Pi through RPC**, then **DeepSeek Harness through ACP**, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
 4. After the initial three-engine milestone, expand to Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands, then later scheduling and collaboration. See the [implementation plan](docs/cli-agent-plan.md) and [nine-engine research](docs/cli-agent-research.md).
 
 Packaging targets are configured for macOS DMG, Windows NSIS, and Linux AppImage. Brand assets, signing, notarization, and platform verification remain release work.
