@@ -181,6 +181,7 @@ describe('ACP client lifecycle and requests', () => {
       'unsupported',
     )
     expect(() => peer.closeSession('s')).toThrow('unsupported')
+    expect(() => peer.listSessions({})).toThrow('unsupported')
     await expect(peer.initialize('0.1.0')).rejects.toThrow('invalid-state')
     native.send({
       jsonrpc: '2.0',
@@ -216,6 +217,38 @@ describe('ACP client lifecycle and requests', () => {
     native.reply(one, { sessionId: 'one' })
     expect(await first).toMatchObject({ sessionId: 'one' })
     expect(await second).toMatchObject({ sessionId: 'two' })
+  })
+  it('lists advertised sessions and forwards opaque configuration choices', async () => {
+    const { peer, native } = setup()
+    await native.initialize(peer, { sessionCapabilities: { list: {} } })
+    const listing = peer.listSessions({ cwd: '/workspace', cursor: 'next' })
+    const request = await native.take('session/list')
+    expect(request.params).toEqual({ cwd: '/workspace', cursor: 'next' })
+    native.reply(request, { sessions: [{ sessionId: 'native', cwd: '/workspace' }] })
+    expect(await listing).toMatchObject({ sessions: [{ sessionId: 'native' }] })
+    const selection = peer.setSessionConfigOption({
+      sessionId: 'native',
+      configId: 'model',
+      value: 'opaque-choice',
+    })
+    const changed = await native.take('session/set_config_option')
+    expect(changed.params).toEqual({
+      sessionId: 'native',
+      configId: 'model',
+      value: 'opaque-choice',
+    })
+    native.reply(changed, {
+      configOptions: [
+        {
+          id: 'model',
+          name: 'Model',
+          type: 'select',
+          currentValue: 'opaque-choice',
+          options: [{ value: 'opaque-choice', name: 'Model label' }],
+        },
+      ],
+    })
+    expect((await selection).configOptions[0]?.currentValue).toBe('opaque-choice')
   })
   it('waits for ordered update persistence before returning the prompt result', async () => {
     const started = deferred<void>()

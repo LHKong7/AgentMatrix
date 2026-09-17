@@ -58,6 +58,7 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run check`         | Run ESLint, unit tests, TypeScript, and production builds                                             |
 | `npm run test:smoke`    | Build and test a real Electron window, including language switching and persistence                   |
 | `npm run test:sessions` | Build and test desktop sessions with an explicitly selected OpenCode CLI and a local provider fixture |
+| `npm run probe:dsh`     | Opt-in installed DSH ACP lifecycle through native DeepSeek and pi-ai local provider fixtures          |
 | `npm run probe:pi`      | Opt-in installed Pi RPC lifecycle against an isolated local provider fixture                          |
 | `npm run probe:acp`     | Opt-in installed OpenCode/DSH handshake through the application ACP client                            |
 | `npm run format`        | Format source and documentation                                                                       |
@@ -110,7 +111,7 @@ The main process enables context isolation and renderer sandboxing, and disables
 ## Next stages
 
 1. Complete configuration provenance and application reporting for **OpenCode, Pi, and DeepSeek Harness**. Shared libraries, Skill capture, bilingual editors, credentials, v2 migration, immutable run inputs, and typed session IPC are active. Automatic installation discovery and native configuration import remain open.
-2. Finish the **OpenCode ACP** acceptance gate: verify the intended external endpoint/model/auth route, complete effective configuration reporting, and collect early DSH lifecycle evidence. Streaming, tools, permissions, cancellation, history, and restart/resume now run through the bilingual desktop UI against a local fixture. Shared prompt/Skill/MCP mappings remain part of acceptance.
+2. Finish the **OpenCode ACP** acceptance gate: verify the intended external endpoint/model/auth route, complete effective configuration reporting, and audit the remaining shared-configuration requirements. Early Pi and DSH lifecycle probes now pass against local fixtures. Streaming, tools, permissions, cancellation, history, and restart/resume now run through the bilingual desktop UI against a local fixture. Shared prompt/Skill/MCP mappings remain part of acceptance.
 3. Deliver **Pi through RPC**, then **DeepSeek Harness through ACP**, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
 4. After the initial three-engine milestone, expand to Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands, then later scheduling and collaboration. See the [implementation plan](docs/cli-agent-plan.md) and [nine-engine research](docs/cli-agent-research.md).
 

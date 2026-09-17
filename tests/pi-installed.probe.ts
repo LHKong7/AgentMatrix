@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { expect, it, vi } from 'vitest'
@@ -8,6 +8,7 @@ import { attachPiProcess, type PiAttachment } from '../src/main/engines/pi/attac
 import { type PiDialog, type PiDialogAnswer, type PiRecord } from '../src/main/engines/pi/protocol'
 import { baseProcessEnvironment } from '../src/main/engines/process/managed-process'
 import { captureCommand } from '../src/main/engines/process/capture-command'
+import { closeNativeFixture } from './helpers/close-native-fixture'
 
 const executable = process.env.AGENT_MATRIX_TEST_PI
 const stateSchema = z.looseObject({
@@ -449,12 +450,7 @@ it.runIf(Boolean(executable))(
       if (process.env.AGENT_MATRIX_PI_REPORT)
         await writeFile(process.env.AGENT_MATRIX_PI_REPORT, JSON.stringify(report, null, 2) + '\n')
     } finally {
-      const stopped = await Promise.allSettled(attachments.map((attachment) => attachment.close()))
-      server.closeAllConnections()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
-      if (stopped.some((result) => result.status === 'rejected'))
-        throw new Error('Pi fixture cleanup is unconfirmed; its isolated files were retained')
-      await rm(root, { recursive: true, force: true })
+      await closeNativeFixture(attachments, server, root)
     }
   },
 )

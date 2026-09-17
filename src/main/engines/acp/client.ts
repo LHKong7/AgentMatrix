@@ -143,6 +143,16 @@ export class AcpClient {
     this.ready()
     return this.request('session/new', params)
   }
+  listSessions(params: AgentRequestParamsByMethod['session/list']) {
+    this.ready()
+    if (!this.initialized?.agentCapabilities?.sessionCapabilities?.list)
+      throw new AcpFailure('unsupported')
+    return this.request('session/list', params)
+  }
+  setSessionConfigOption(params: AgentRequestParamsByMethod['session/set_config_option']) {
+    this.ready()
+    return this.request('session/set_config_option', params)
+  }
   async prompt(params: PromptRequest, timeoutMs: number) {
     this.ready()
     if (this.activePrompts.has(params.sessionId)) throw new AcpFailure('invalid-state')

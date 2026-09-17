@@ -1,0 +1,175 @@
+{
+  "checkedAt": "2026-09-17T19:58:24.460Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "externalProviderCalls": false,
+  "scope": "Installed DSH ACP lifecycle with two isolated local provider fixtures",
+  "routes": [
+    {
+      "route": "pi-ai",
+      "provider": "agentmatrix-gateway",
+      "model": "agentmatrix-dsh-fixture",
+      "engineVersion": "0.1.5-rc.2",
+      "acpAgentInfo": {
+        "name": "deepseek-harness-acp",
+        "version": "0.0.1"
+      },
+      "components": [
+        {
+          "name": "@deepseek-ai/dsh-base",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
+        },
+        {
+          "name": "@deepseek-ai/dsh-acp-app",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "814b0fe8f32468f50a24ef35bdf69a8399c6a6de2bb7750930497a8fa6fb9227"
+        },
+        {
+          "name": "@deepseek-ai/dsh-acp",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "dcfa3790c65b58280d812e656ac439fe40303bf9b2f3b45842bdfb2345899cde"
+        },
+        {
+          "name": "@deepseek-ai/dsh-llm-deepseek",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "b626da3d27cca74336f4980b5d99e1baf1e970c8f06c578b38d0494829641065"
+        },
+        {
+          "name": "@deepseek-ai/dsh-llm-pi-ai",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "1f787eb5cd3d0308e7a2563cdb2b8cc2c1fc153fe06b55d39439fb2446059483"
+        },
+        {
+          "name": "@deepseek-ai/dsh-system-prompt",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "c55121dd92e88783adc37a5f92e6c410304bae39796d1e67218b5fab8712bafc"
+        },
+        {
+          "name": "@deepseek-ai/dsh-session-persistence-jsonl",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "7d0640c9fc4be6c703b77605fdee6af519c542fae28a6cd4489353309812f062"
+        },
+        {
+          "name": "@deepseek-ai/dsh-tool-fs",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "7f6197ab6013f89f0848f548c8924b0d839a0d64b753381d54cd15fbeb9d6b7e"
+        },
+        {
+          "name": "@deepseek-ai/dsh-user-approval",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "fbd3f2e348358d27234739f8cbc4bdb2d6450b0a6b1b207572463977b14a5ecb"
+        }
+      ],
+      "applicationAcpClient": true,
+      "providerCalls": 11,
+      "customEndpointAndKey": true,
+      "personaPrefixAndSuffix": true,
+      "patchOverlayPrecedence": true,
+      "startupReloadPolicy": true,
+      "startupPatchChangesRequireRestart": true,
+      "wholeRowConfigReplacement": true,
+      "opaqueModelSelection": true,
+      "readTool": true,
+      "approvedWrite": true,
+      "permissionCancellation": true,
+      "providerStreamCancellation": true,
+      "partialProviderDeltasForwarded": false,
+      "nativeListAfterCloseAndRestart": true,
+      "nativeResumeWithToolContext": true,
+      "nativeTranscriptReplay": false,
+      "providerFailureRejected": true,
+      "promptUsageAbsent": true,
+      "contextUsageObserved": true,
+      "telemetryDisabled": true,
+      "cleanup": {
+        "scope": "posix-process-group",
+        "failure": null,
+        "forced": false
+      }
+    },
+    {
+      "route": "deepseek-native",
+      "provider": "deepseek-official",
+      "model": "agentmatrix-dsh-fixture",
+      "engineVersion": "0.1.5-rc.2",
+      "acpAgentInfo": {
+        "name": "deepseek-harness-acp",
+        "version": "0.0.1"
+      },
+      "components": [
+        {
+          "name": "@deepseek-ai/dsh-base",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
+        },
+        {
+          "name": "@deepseek-ai/dsh-acp-app",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "814b0fe8f32468f50a24ef35bdf69a8399c6a6de2bb7750930497a8fa6fb9227"
+        },
+        {
+          "name": "@deepseek-ai/dsh-acp",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "dcfa3790c65b58280d812e656ac439fe40303bf9b2f3b45842bdfb2345899cde"
+        },
+        {
+          "name": "@deepseek-ai/dsh-llm-deepseek",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "b626da3d27cca74336f4980b5d99e1baf1e970c8f06c578b38d0494829641065"
+        },
+        {
+          "name": "@deepseek-ai/dsh-llm-pi-ai",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "1f787eb5cd3d0308e7a2563cdb2b8cc2c1fc153fe06b55d39439fb2446059483"
+        },
+        {
+          "name": "@deepseek-ai/dsh-system-prompt",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "c55121dd92e88783adc37a5f92e6c410304bae39796d1e67218b5fab8712bafc"
+        },
+        {
+          "name": "@deepseek-ai/dsh-session-persistence-jsonl",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "7d0640c9fc4be6c703b77605fdee6af519c542fae28a6cd4489353309812f062"
+        },
+        {
+          "name": "@deepseek-ai/dsh-tool-fs",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "7f6197ab6013f89f0848f548c8924b0d839a0d64b753381d54cd15fbeb9d6b7e"
+        },
+        {
+          "name": "@deepseek-ai/dsh-user-approval",
+          "version": "0.1.5-rc.2",
+          "entryDigest": "fbd3f2e348358d27234739f8cbc4bdb2d6450b0a6b1b207572463977b14a5ecb"
+        }
+      ],
+      "applicationAcpClient": true,
+      "providerCalls": 11,
+      "customEndpointAndKey": true,
+      "personaPrefixAndSuffix": true,
+      "patchOverlayPrecedence": true,
+      "startupReloadPolicy": true,
+      "startupPatchChangesRequireRestart": true,
+      "wholeRowConfigReplacement": true,
+      "opaqueModelSelection": true,
+      "readTool": true,
+      "approvedWrite": true,
+      "permissionCancellation": true,
+      "providerStreamCancellation": true,
+      "partialProviderDeltasForwarded": false,
+      "nativeListAfterCloseAndRestart": true,
+      "nativeResumeWithToolContext": true,
+      "nativeTranscriptReplay": false,
+      "providerFailureRejected": true,
+      "promptUsageAbsent": true,
+      "contextUsageObserved": true,
+      "telemetryDisabled": true,
+      "cleanup": {
+        "scope": "posix-process-group",
+        "failure": null,
+        "forced": false
+      }
+    }
+  ]
+}

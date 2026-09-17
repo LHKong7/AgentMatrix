@@ -2,7 +2,7 @@
 
 The main-process client in `src/main/engines/acp/` uses the pinned official `@agentclientprotocol/sdk@1.4.0` for typed ACP requests, responses, and incoming method dispatch. AgentMatrix supports ACP v1 only in this module. The initialization response must select version 1; other versions close the connection. Client filesystem, terminal, terminal-authentication, and elicitation capabilities are omitted because their services are not implemented.
 
-These choices follow the official [ACP v1 transport](https://agentclientprotocol.com/protocol/v1/transports) and [initialization](https://agentclientprotocol.com/protocol/v1/initialization) contracts. Advertised agent capabilities enable a method to be attempted; they do not establish successful runtime behavior. OpenCode and DeepSeek Harness continue to need independent configuration adapters and behavioral evidence.
+These choices follow the official [ACP v1 transport](https://agentclientprotocol.com/protocol/v1/transports) and [initialization](https://agentclientprotocol.com/protocol/v1/initialization) contracts. Advertised agent capabilities enable a method to be attempted; they do not establish successful runtime behavior. OpenCode and DeepSeek Harness use independent behavioral evidence; sharing ACP does not establish matching provider, prompt, permission, or persistence semantics.
 
 ## Transport and ordering
 
@@ -18,7 +18,7 @@ Permission handling is scoped to an active prompt and native session ID. The tra
 
 Sending `session/cancel` invalidates pending permissions and sends the native notification. It does not mark the turn finished. Late output remains accepted until the engine's prompt response supplies the stop reason. The session coordinator still owns run/turn/request identities, persisted approval decisions, requested-policy mapping, and escalation when cancellation does not finish. ACP permissions do not by themselves provide a filesystem or network sandbox.
 
-Load, resume, and close operations require the corresponding advertised capability. Native resume remains distinct from application event replay. The client receives byte streams; its [attachment wrapper](process-lifecycle.md) owns the CLI process group. Renderer session APIs, provider injection, shared configuration translation, and native persistence verification remain open.
+Load, resume, list, and close operations require the corresponding advertised capability. Config-option changes pass opaque selections through typed requests; the adapter must use the native option state rather than inventing a value. Native resume remains distinct from application event replay. The client receives byte streams; its [attachment wrapper](process-lifecycle.md) owns the CLI process group. OpenCode connects these mechanics to saved profiles, provider injection, durable sessions, and the desktop UI. DSH still needs its own configuration/runtime adapter and desktop wiring.
 
 ## Verification
 
@@ -35,4 +35,4 @@ npm run probe:acp
 
 Omitted executable variables skip that engine. The normal unit test command never launches an installed CLI. The explicit probe preserves system `HOME`, uses engine-specific/XDG temporary storage, disables OpenCode providers/plugins/updates, declines permissions, and closes the owned process group after initialization. It now exercises the production supervisor; separate real-subprocess fixtures cover resistant descendants. No engine tool execution or active-turn acceptance is implied.
 
-On the development macOS arm64 host, application-client initialization passed for OpenCode 1.18.16 and the installed DeepSeek Harness 0.1.5-rc.2. DSH reports ACP component version 0.0.1; that is not its CLI package version. The [captured responses](probes/2026-09-18-application-acp.json) retain the distinction and record `modelCalls: false`. Real streamed turns, approvals during tools, cancellation under work, native recovery, and a selected custom provider route remain required acceptance checks.
+On the development macOS arm64 host, application-client initialization passed for OpenCode 1.18.16 and the installed DeepSeek Harness 0.1.5-rc.2. DSH reports ACP component version 0.0.1; that is not its CLI package version. The [captured responses](probes/2026-09-18-application-acp.json) retain the distinction and record `modelCalls: false`. Subsequent [OpenCode](opencode-configuration.md) and [DSH](dsh-acp.md) fixtures verify their distinct local provider turns, tools, permissions, cancellation, and native restoration. External endpoint/model/key acceptance remains open.

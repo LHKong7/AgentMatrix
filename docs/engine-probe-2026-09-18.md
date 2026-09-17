@@ -41,7 +41,7 @@ The script resolves OpenCode from `PATH`, or accepts `--opencode=/absolute/path`
 - V1: version/entry-point discovery is partial; native source precedence, prompt mappings, and directories still need adapter-specific probes.
 - V2: awaiting the selected service/model and local credential reference for actual streaming/tool calls. Synthetic or local protocol fixtures cannot pass this gate.
 - V3: macOS process startup/cleanup and credential encryption observed; descendant cleanup under active work and execution boundaries remain open. Other platforms are untested.
-- V4: SDK limitation and initial ACP selection established; DSH's full runtime acceptance remains open.
+- V4: SDK limitations are established and the selected ACP route now passes two local provider lifecycle fixtures. [DSH evidence](dsh-acp.md); configuration/runtime adapters, desktop integration, and external-service acceptance remain open.
 - V5: the later [Pi lifecycle fixture](pi-rpc.md) passes local prompt/event/cancellation/restoration and trust checks. Shared-runtime normalization, desktop behavior, and external-provider acceptance remain open.
 
 Official entry points: [OpenCode ACP](https://opencode.ai/docs/acp/), [Pi repository](https://github.com/earendil-works/pi), and [DeepSeek Harness repository](https://github.com/deepseek-ai/deepseek-harness). Published package files were also inspected locally; repository descriptions alone were not used to mark runtime checks as passed.
@@ -57,3 +57,7 @@ The application ACP client, using official SDK 1.4.0 and AgentMatrix's bounded f
 ## Pi lifecycle follow-up
 
 Pi 0.85.1 subsequently passed the application RPC client against a local Chat Completions fixture: streaming and file-tool calls, acceptance followed by provider failure, in-flight cancellation, process restart and restoration of the same native conversation, retained tool context in the next request, extension dialog replies/cancellation, and project-trust overrides. See the [recorded result](probes/2026-09-18-pi-rpc.json), [contract differences and reproduction](pi-rpc.md). This supplies the local V5 evidence. It does not pass the external-provider or Pi desktop gates; no MCP extension or universal tool approval is claimed.
+
+## DSH lifecycle follow-up
+
+The installed DSH 0.1.5-rc.2 ACP profile subsequently passed local provider calls through both `dsh-llm-pi-ai` and `dsh-llm-deepseek`, with file tools, one-shot approval, streaming and permission cancellation, prompt failure, close/list/restart/resume, retained tool context, patch replacement, and startup-only patch behavior. See the [recorded result](probes/2026-09-18-dsh-acp.json) and [version/protocol boundaries](dsh-acp.md). DSH forwards committed messages and context occupancy, with no native transcript replay; these differences constrain the shared runtime. Neither fixture contacts an external model provider.

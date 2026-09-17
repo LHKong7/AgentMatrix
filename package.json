@@ -23,6 +23,7 @@
     "probe:acp": "vitest run --config vitest.acp.config.ts",
     "probe:opencode": "vitest run --config vitest.opencode.config.ts",
     "probe:pi": "vitest run --config vitest.pi.config.ts",
+    "probe:dsh": "vitest run --config vitest.dsh.config.ts",
     "check": "npm run lint && npm run test && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
