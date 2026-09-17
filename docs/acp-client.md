@@ -18,7 +18,7 @@ Permission handling is scoped to an active prompt and native session ID. The tra
 
 Sending `session/cancel` invalidates pending permissions and sends the native notification. It does not mark the turn finished. Late output remains accepted until the engine's prompt response supplies the stop reason. The session coordinator still owns run/turn/request identities, persisted approval decisions, requested-policy mapping, and escalation when cancellation does not finish. ACP permissions do not by themselves provide a filesystem or network sandbox.
 
-Load, resume, and close operations require the corresponding advertised capability. Native resume remains distinct from application event replay. This module does not expose a renderer API, launch a process, inject credentials, translate shared configuration, or claim successful native persistence.
+Load, resume, and close operations require the corresponding advertised capability. Native resume remains distinct from application event replay. The client receives byte streams; its [attachment wrapper](process-lifecycle.md) owns the CLI process group. Renderer session APIs, provider injection, shared configuration translation, and native persistence verification remain open.
 
 ## Verification
 
@@ -33,6 +33,6 @@ AGENT_MATRIX_ACP_REPORT=/tmp/agentmatrix-application-acp.json \
 npm run probe:acp
 ```
 
-Omitted executable variables skip that engine. The normal unit test command never launches an installed CLI. The explicit probe preserves system `HOME`, uses engine-specific/XDG temporary storage, disables OpenCode providers/plugins/updates, declines permissions, and closes the process after initialization. It is a handshake check, not a production process supervisor or an active-descendant termination test.
+Omitted executable variables skip that engine. The normal unit test command never launches an installed CLI. The explicit probe preserves system `HOME`, uses engine-specific/XDG temporary storage, disables OpenCode providers/plugins/updates, declines permissions, and closes the owned process group after initialization. It now exercises the production supervisor; separate real-subprocess fixtures cover resistant descendants. No engine tool execution or active-turn acceptance is implied.
 
 On the development macOS arm64 host, application-client initialization passed for OpenCode 1.18.16 and the installed DeepSeek Harness 0.1.5-rc.2. DSH reports ACP component version 0.0.1; that is not its CLI package version. The [captured responses](probes/2026-09-18-application-acp.json) retain the distinction and record `modelCalls: false`. Real streamed turns, approvals during tools, cancellation under work, native recovery, and a selected custom provider route remain required acceptance checks.

@@ -1,0 +1,21 @@
+# CLI process ownership
+
+`ManagedProcess` starts an absolute executable with an argument array and `shell: false`. The supplied environment is copied explicitly. `baseProcessEnvironment` retains a small OS baseline and excludes inherited provider credentials, Node/Bun options, and loader injection variables; adapters must add only their intended engine settings and resolved secrets.
+
+On macOS and Linux, a detached child starts a separate process group. Cleanup addresses that owned group rather than only the CLI leader. A graceful termination is followed by forced termination if group members remain, even when the original leader already exited. The supervisor considers cleanup complete only after the leader exited, the group disappeared, and owned pipes closed. This follows Node's documented [detached process](https://nodejs.org/api/child_process.html#optionsdetached) and [signal](https://nodejs.org/api/process.html#processkillpid-signal) behavior.
+
+The supervisor bounds stdout buffering and exposes byte streams to a protocol client. Normal output has time to drain after exit. If a stalled consumer retains dead-process pipes, cleanup closes them and records `outputTruncated`; callers must not describe such output as complete. Termination has a bounded wait and reports `cleanup-timeout` if cleanup cannot be proved. The same process handle remains observable through `done` and `closed`; a timeout is not evidence that a process stopped. Repeated cleanup never signals a finished handle.
+
+`attachAcpProcess` couples the ACP connection and process lifetime. A malformed frame, protocol deadline, or closed connection triggers process-group cleanup. A process exit closes the ACP connection. Explicit close starts process cleanup before disposing protocol streams. The coordinator must still register active attachments, await shutdown, and report cleanup failures when the desktop app exits.
+
+## Diagnostics
+
+Stderr is drained into an 8 KiB diagnostic tail. Known secrets, their JSON-escaped form, and URL-encoded form are masked across chunk boundaries. Incomplete secret prefixes remain buffered and are masked at EOF. Replacement markers are never reprocessed. Limits bound secret count and aggregate length; suffix matching avoids quadratic scans for long keys. No plaintext launch environment or raw native exception is included in `ProcessFailure`.
+
+This is a known-value redactor, not a detector for every secret an engine may read independently. Adapters must supply every injected secret value, avoid secrets in arguments, and separately redact normalized stdout/events before journal storage. Native authentication sources that the app cannot inspect need their own diagnostic policy.
+
+## Verification and remaining boundaries
+
+Real subprocess tests verify literal arguments, environment isolation, spawn failure, resistant leaders, resistant descendants after leader exit, automatic cleanup after malformed ACP output, and bounded/redacted stderr. The installed OpenCode and DSH handshake probe now uses this supervisor and checks completed process-group cleanup. The [recorded macOS results](probes/2026-09-18-managed-acp.json) include termination outcomes and no model calls.
+
+Process-group cleanup is not an OS filesystem/network sandbox and cannot guarantee termination of a descendant that deliberately escapes into a different session/group. Windows process-tree supervision is not implemented; runtime startup reports an unsupported platform there. Linux behavior is implemented but has not passed platform acceptance on this development host. App-shutdown coordination, immutable launch snapshots, provider injection, and session UI integration remain separate work.

@@ -1,10 +1,9 @@
-import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
-import { Readable, Writable } from 'node:stream'
 import { afterAll, expect, it } from 'vitest'
-import { AcpClient } from '../src/main/engines/acp/client'
+import { attachAcpProcess } from '../src/main/engines/acp/attachment'
+import { baseProcessEnvironment } from '../src/main/engines/process/managed-process'
 
 const results: object[] = []
 const installations = [
@@ -19,19 +18,7 @@ for (const { kind, executable } of installations) {
       if (!executable || !isAbsolute(executable))
         throw new Error('An absolute CLI path is required')
       const root = await mkdtemp(join(tmpdir(), 'agentmatrix-acp-client-'))
-      const env: NodeJS.ProcessEnv = {}
-      for (const key of [
-        'HOME',
-        'USERPROFILE',
-        'SYSTEMROOT',
-        'WINDIR',
-        'PATH',
-        'TMPDIR',
-        'TEMP',
-        'TMP',
-      ]) {
-        if (process.env[key]) env[key] = process.env[key]
-      }
+      const env = baseProcessEnvironment(process.env)
       env.LANG = 'en_US.UTF-8'
       for (const key of ['XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME']) {
         env[key] = join(root, key)
@@ -51,55 +38,35 @@ for (const { kind, executable } of installations) {
         DSH_HOME: join(root, 'dsh-home'),
       })
       const args = kind === 'opencode' ? ['acp', '--pure', '--cwd', root] : ['--profile', 'acp']
-      const child = spawn(executable, args, {
-        cwd: root,
-        env,
-        stdio: 'pipe',
-        detached: process.platform !== 'win32',
-      })
-      const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-        (resolve) => {
-          child.once('close', (code, signal) => resolve({ code, signal }))
-        },
-      )
-      let processError: Error | undefined
-      child.on('error', (error) => {
-        processError = error
-      })
-      child.stdin.on('error', () => {})
-      child.stderr.resume()
-      const peer = new AcpClient(
-        Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>,
-        Writable.toWeb(child.stdin) as WritableStream<Uint8Array>,
+      const attachment = await attachAcpProcess(
+        { executable, args, cwd: root, environment: env },
         { update: async () => {}, permission: async () => ({ outcome: { outcome: 'cancelled' } }) },
         { requestTimeoutMs: 15_000 },
       )
-      const signal = (value: NodeJS.Signals) => {
-        try {
-          if (process.platform !== 'win32' && child.pid) process.kill(-child.pid, value)
-          else child.kill(value)
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error
-        }
-      }
       try {
-        const response = await peer.initialize('0.1.0')
-        expect(processError).toBeUndefined()
+        const response = await attachment.client.initialize('0.1.0')
         expect(response.protocolVersion).toBe(1)
         expect(response.agentInfo?.name).toBeTruthy()
+        const cleanup = await attachment.close()
+        expect(cleanup.cleanup).toBe('posix-process-group')
+        expect(cleanup.failure).toBeNull()
+        expect(attachment.process.done).toBe(true)
         results.push({
           kind,
           executable: executable.replace(process.env.HOME ?? '\0', '<user-home>'),
           response,
+          cleanup: {
+            code: cleanup.code,
+            signal: cleanup.signal,
+            forced: cleanup.forced,
+            scope: cleanup.cleanup,
+            outputTruncated: cleanup.outputTruncated,
+          },
         })
       } finally {
-        peer.close()
-        signal('SIGTERM')
-        const force = setTimeout(() => signal('SIGKILL'), 1500)
         try {
-          await exited
+          await attachment.close()
         } finally {
-          clearTimeout(force)
           await rm(root, { recursive: true, force: true })
         }
       }
@@ -118,7 +85,7 @@ afterAll(async () => {
           architecture: process.arch,
           sdkVersion: '1.4.0',
           modelCalls: false,
-          scope: 'Application ACP client initialization only',
+          scope: 'Application ACP initialization and owned process-group cleanup; no turns',
           engines: results,
         },
         null,
