@@ -196,6 +196,25 @@ try {
     join(pluginSource, 'dist', 'server.mjs'),
     `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(join(pluginSource, 'executed'))}, 'unexpected');\nthrow new Error('Do not execute while inspecting');\n`,
   )
+  // Seed saved probe metadata only; no real CLI compatibility is claimed by file inspection.
+  await page.evaluate(async () => {
+    const workspace = await window.agentMatrix.loadWorkspace()
+    const original = workspace.installations.find((item) => item.name === 'Smoke OpenCode')
+    for (const [id, name, version] of [
+      ['range-match', 'Matching range fixture', '1.18.16'],
+      ['range-mismatch', 'Mismatching range fixture', '2.0.0'],
+    ])
+      workspace.installations.push({
+        ...original,
+        id,
+        name,
+        version,
+        modes: ['acp'],
+        probedAt: '2026-09-18T00:00:00Z',
+      })
+    await window.agentMatrix.saveWorkspace(workspace)
+  })
+  await page.reload()
   await addResource('Native plugins', 'Smoke Plugin', async (dialog) => {
     await dialog
       .getByLabel('Engine installation', { exact: true })
@@ -210,6 +229,41 @@ try {
       .filter({ hasText: 'Files checked · Activation unverified' })
       .waitFor()
     await dialog.getByText('@agentmatrix/smoke-plugin', { exact: true }).waitFor()
+    await dialog
+      .getByText('Check the engine installation before comparing its version.', { exact: true })
+      .waitFor()
+    assert.equal(
+      await dialog.getByTestId('plugin-engine-range').getAttribute('data-range-status'),
+      'engine-unverified',
+    )
+    for (const [name, status, message] of [
+      [
+        'Matching range fixture',
+        'matched',
+        'The declared range includes saved OpenCode version 1.18.16.',
+      ],
+      [
+        'Mismatching range fixture',
+        'mismatched',
+        'The declared range excludes saved OpenCode version 2.0.0.',
+      ],
+    ]) {
+      await dialog.getByLabel('Engine installation', { exact: true }).selectOption({ label: name })
+      assert.equal(await dialog.getByTestId('plugin-engine-range').count(), 0)
+      await dialog.getByRole('button', { name: 'Inspect installed files', exact: true }).click()
+      await dialog.getByText(message, { exact: true }).waitFor()
+      assert.equal(
+        await dialog.getByTestId('plugin-engine-range').getAttribute('data-range-status'),
+        status,
+      )
+    }
+    await dialog
+      .getByLabel('Engine installation', { exact: true })
+      .selectOption({ label: 'Smoke OpenCode' })
+    await dialog.getByRole('button', { name: 'Inspect installed files', exact: true }).click()
+    await dialog
+      .getByText('Check the engine installation before comparing its version.', { exact: true })
+      .waitFor()
     await dialog
       .getByText(
         'The configured version differs from the installed package version. Review it before saving.',
@@ -238,6 +292,7 @@ try {
     path: pluginSource,
   })
   assert.equal(result.verification, 'files-only')
+  assert.equal(result.rangeStatus, 'engine-unverified')
   assert.ok(!JSON.stringify(result).includes(syntheticSecret))
   assert.deepEqual(await state(), workspaceBeforeInspection)
   assert.ok(!(await readdir(pluginSource)).includes('executed'))
@@ -248,6 +303,14 @@ try {
   assert.equal(await pluginDialog.locator('.plugin-inspection').getByRole('status').count(), 0)
   await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
   await pluginDialog.getByRole('status').filter({ hasText: '文件已检查 · 激活尚未验证' }).waitFor()
+  await pluginDialog.getByText('请先检查引擎安装，再比较版本。', { exact: true }).waitFor()
+  await pluginDialog
+    .getByLabel('引擎安装', { exact: true })
+    .selectOption({ label: 'Mismatching range fixture' })
+  await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
+  await pluginDialog
+    .getByText('声明的范围不包含已保存的 OpenCode 版本 2.0.0。', { exact: true })
+    .waitFor()
   if (process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT)
     await pluginDialog.screenshot({ path: `${process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT}.zh.png` })
   await pluginDialog.getByLabel('安装路径', { exact: true }).fill(join(pluginSource, 'missing'))
@@ -269,6 +332,14 @@ try {
   await pluginDialog.getByRole('button', { name: '取消', exact: true }).click()
   assert.deepEqual(await state(), workspaceBeforeInspection)
   await language('en')
+  await page.evaluate(async () => {
+    const workspace = await window.agentMatrix.loadWorkspace()
+    workspace.installations = workspace.installations.filter(
+      (item) => !['range-match', 'range-mismatch'].includes(item.id),
+    )
+    await window.agentMatrix.saveWorkspace(workspace)
+  })
+  await page.reload()
   await addResource('Connections', 'Smoke Connection', async (dialog) => {
     await dialog.getByLabel('API protocol', { exact: true }).selectOption('openai-chat-completions')
     await dialog.getByLabel('API Base URL', { exact: true }).fill('http://localhost:12345/v1')

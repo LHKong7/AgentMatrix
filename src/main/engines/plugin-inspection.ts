@@ -8,6 +8,7 @@ import {
 } from '../../shared/engines/plugin-inspection'
 import type { EngineWorkspace } from '../../shared/engines/workspace'
 import { inspectOpenCodePlugin } from './adapters/opencode/plugin-inspection'
+import { pluginEngineRangeStatus } from './plugin-engine-range'
 
 export async function inspectNativePlugin(
   workspace: EngineWorkspace,
@@ -25,5 +26,6 @@ export async function inspectNativePlugin(
     checkedAt: new Date().toISOString(),
     localSpecifier: pathToFileURL(files.selectedPath).href,
     verification: 'files-only',
+    rangeStatus: pluginEngineRangeStatus(files.package?.engineRange ?? null, installation),
   })
 }

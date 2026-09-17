@@ -80,9 +80,15 @@ export function NativePluginInspection({
           </dl>
           {result.package?.engineRange && (
             <p className="hint">
-              {t('plugin.range')}: {result.package.engineRange}. {t('plugin.rangeHint')}
+              {t('plugin.range')}: {result.package.engineRange}
             </p>
           )}
+          <p data-testid="plugin-engine-range" data-range-status={result.rangeStatus}>
+            {t(`plugin.range.${result.rangeStatus}`, {
+              version: result.engineVersion ?? t('plugin.unknown'),
+            })}
+          </p>
+          <p className="hint">{t('plugin.rangeHint')}</p>
           {result.package?.version && result.package.version !== version && (
             <>
               {version && <p className="hint">{t('plugin.versionMismatch')}</p>}

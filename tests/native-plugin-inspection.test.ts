@@ -56,6 +56,7 @@ describe('read-only installed OpenCode plugin inspection', () => {
       engineVersion: '1.18.16',
       resolverVersion: '1.18.16',
       verification: 'files-only',
+      rangeStatus: 'matched',
       selectedPath: plugin,
       localSpecifier: pathToFileURL(plugin).href,
       entryKind: 'server-export',

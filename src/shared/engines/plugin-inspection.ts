@@ -36,6 +36,14 @@ export const pluginInspectionSchema = z
       .strict()
       .nullable(),
     verification: z.literal('files-only'),
+    rangeStatus: z.enum([
+      'matched',
+      'mismatched',
+      'undeclared',
+      'invalid-range',
+      'engine-unverified',
+      'invalid-version',
+    ]),
   })
   .strict()
 
