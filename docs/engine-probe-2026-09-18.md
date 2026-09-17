@@ -42,7 +42,7 @@ The script resolves OpenCode from `PATH`, or accepts `--opencode=/absolute/path`
 - V2: awaiting the selected service/model and local credential reference for actual streaming/tool calls. Synthetic or local protocol fixtures cannot pass this gate.
 - V3: macOS process startup/cleanup and credential encryption observed; descendant cleanup under active work and execution boundaries remain open. Other platforms are untested.
 - V4: SDK limitation and initial ACP selection established; DSH's full runtime acceptance remains open.
-- V5: Pi empty-session RPC observed; prompt/event/cancellation/persistence behavior still needs verification.
+- V5: the later [Pi lifecycle fixture](pi-rpc.md) passes local prompt/event/cancellation/restoration and trust checks. Shared-runtime normalization, desktop behavior, and external-provider acceptance remain open.
 
 Official entry points: [OpenCode ACP](https://opencode.ai/docs/acp/), [Pi repository](https://github.com/earendil-works/pi), and [DeepSeek Harness repository](https://github.com/deepseek-ai/deepseek-harness). Published package files were also inspected locally; repository descriptions alone were not used to mark runtime checks as passed.
 
@@ -53,3 +53,7 @@ The real Electron 44.4.1 smoke test passed on this macOS host using a temporary 
 ## Application-client follow-up
 
 The application ACP client, using official SDK 1.4.0 and AgentMatrix's bounded framing/deadline layer, subsequently initialized both OpenCode and DSH successfully. See the [captured application-client handshakes](probes/2026-09-18-application-acp.json) and [reproduction command](acp-client.md#verification). This verifies interoperability beyond the original discovery script; it still makes no model calls and does not pass the streaming, tool, cancellation, or resume gates.
+
+## Pi lifecycle follow-up
+
+Pi 0.85.1 subsequently passed the application RPC client against a local Chat Completions fixture: streaming and file-tool calls, acceptance followed by provider failure, in-flight cancellation, process restart and restoration of the same native conversation, retained tool context in the next request, extension dialog replies/cancellation, and project-trust overrides. See the [recorded result](probes/2026-09-18-pi-rpc.json), [contract differences and reproduction](pi-rpc.md). This supplies the local V5 evidence. It does not pass the external-provider or Pi desktop gates; no MCP extension or universal tool approval is claimed.
