@@ -37,6 +37,8 @@ function fixture() {
   let listener: (delivery: SessionDelivery) => void = () => {}
   const unsubscribe = vi.fn(async () => {})
   const api = {
+    history: vi.fn(),
+    exportHistory: vi.fn(),
     configuration: vi.fn(),
     impact: vi.fn(),
     command: vi.fn(),

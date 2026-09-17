@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdtemp, mkdir, realpath, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
@@ -233,6 +233,185 @@ async function chooseWorkingDirectory(path) {
     }
   }, path)
 }
+async function chooseHistoryDestination(path) {
+  await app.evaluate(({ dialog }, selected) => {
+    const original = dialog.showSaveDialog
+    dialog.showSaveDialog = async () => {
+      dialog.showSaveDialog = original
+      return { canceled: selected === null, filePath: selected ?? undefined }
+    }
+  }, path)
+}
+async function historyPageReady(dialog, expectedFirst, expectedLast) {
+  await waitForIpc(async () => {
+    if ((await dialog.locator('.session-history').getAttribute('aria-busy')) !== 'false')
+      return false
+    const first = Number(await dialog.locator('.history-range').getAttribute('data-history-first'))
+    const last = Number(await dialog.locator('.history-range').getAttribute('data-history-last'))
+    return (
+      (expectedFirst === undefined || first === expectedFirst) &&
+      (expectedLast === undefined || last === expectedLast)
+    )
+  }, 'history page')
+}
+async function verifyLongHistory(sourceId) {
+  // A separate closed fixture exercises the renderer cap without issuing thousands of model turns.
+  // Its starting events come from the native run; added message fragments are explicitly synthetic.
+  const source = (await readFile(join(dataDirectory, 'sessions', `${sourceId}.jsonl`), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  const archiveId = 'history-fixture'
+  const records = [structuredClone(source[0])]
+  records[0].snapshot.id = archiveId
+  delete records[0].snapshot.creationReceipt
+  let inserted = false
+  for (const record of source.slice(1)) {
+    const event = { ...record.event, sessionId: archiveId, cursor: records.length }
+    delete event.receipt
+    records.push({ kind: 'event', event })
+    if (!inserted && event.data.kind === 'turn.started') {
+      inserted = true
+      for (let n = 0; n < 1005; n++)
+        records.push({
+          kind: 'event',
+          event: {
+            ...event,
+            cursor: records.length,
+            data: {
+              kind: 'message.delta',
+              messageId: 'long-history',
+              channel: 'assistant',
+              text: `历史片段-${n}\n`,
+            },
+          },
+        })
+    }
+  }
+  assert.ok(inserted)
+  const runId = records.at(-1).event.runId
+  for (const kind of ['session.closing', 'session.closed'])
+    records.push({
+      kind: 'event',
+      event: {
+        sessionId: archiveId,
+        cursor: records.length,
+        timestamp: new Date().toISOString(),
+        runId,
+        turnId: null,
+        data: { kind },
+      },
+    })
+  const throughCursor = records.length - 1
+  const archivePath = join(dataDirectory, 'sessions', `${archiveId}.jsonl`)
+  const archiveBytes = records.map((record) => JSON.stringify(record)).join('\n') + '\n'
+  await writeFile(archivePath, archiveBytes)
+  const beforeCalls = calls.length
+  await page.getByRole('button', { name: 'Refresh sessions', exact: true }).click()
+  await page.locator(`[data-session-list-id="${archiveId}"]`).click()
+  await status('Closed')
+  await page.getByText(/Showing the most recent .* events/).waitFor()
+  await page
+    .locator('.conversation-header')
+    .getByRole('button', { name: 'Session history', exact: true })
+    .click()
+  const dialog = page.getByRole('dialog')
+  await historyPageReady(dialog)
+  assert.ok(Number(await dialog.locator('.history-range').getAttribute('data-history-first')) > 1)
+  await dialog.getByRole('button', { name: 'Beginning', exact: true }).click()
+  await historyPageReady(dialog, 1)
+  await dialog
+    .getByText(/Already redacted|Synthetic key:/)
+    .first()
+    .waitFor()
+  assert.ok(!(await dialog.textContent()).includes(secret))
+  assert.equal(await dialog.locator('script').count(), 0)
+  assert.equal(await dialog.locator('.permission-card').count(), 0)
+  if (process.env.AGENT_MATRIX_HISTORY_SCREENSHOT)
+    await page.screenshot({ path: process.env.AGENT_MATRIX_HISTORY_SCREENSHOT, fullPage: true })
+  await dialog.getByRole('button', { name: 'Close', exact: true }).last().click()
+  await language('zh-CN')
+  await page
+    .locator('.conversation-header')
+    .getByRole('button', { name: '会话历史', exact: true })
+    .click()
+  await historyPageReady(dialog)
+  await dialog.getByRole('button', { name: '最早记录', exact: true }).click()
+  await historyPageReady(dialog, 1)
+  await dialog.getByRole('heading', { name: '会话历史', exact: true }).waitFor()
+  await dialog.getByRole('button', { name: '导出历史（JSONL）', exact: true }).waitFor()
+  if (process.env.AGENT_MATRIX_HISTORY_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.AGENT_MATRIX_HISTORY_SCREENSHOT + '.zh.png',
+      fullPage: true,
+    })
+  await dialog.getByRole('button', { name: '关闭', exact: true }).last().click()
+  await language('en')
+  await page
+    .locator('.conversation-header')
+    .getByRole('button', { name: 'Session history', exact: true })
+    .click()
+  await historyPageReady(dialog)
+  await dialog.getByRole('button', { name: 'Beginning', exact: true }).click()
+  await historyPageReady(dialog, 1)
+  let last = 0
+  while (last < throughCursor) {
+    const first = Number(await dialog.locator('.history-range').getAttribute('data-history-first'))
+    assert.equal(first, last + 1)
+    last = Number(await dialog.locator('.history-range').getAttribute('data-history-last'))
+    if (last < throughCursor) {
+      await dialog.getByRole('button', { name: 'Later', exact: true }).click()
+      await historyPageReady(dialog, last + 1)
+    }
+  }
+  const earlierEnd =
+    Number(await dialog.locator('.history-range').getAttribute('data-history-first')) - 1
+  await dialog.getByRole('button', { name: 'Earlier', exact: true }).click()
+  await historyPageReady(dialog, undefined, earlierEnd)
+  assert.ok(
+    Number(await dialog.locator('.history-range').getAttribute('data-history-last')) <
+      throughCursor,
+  )
+  await chooseHistoryDestination(null)
+  await dialog.getByRole('button', { name: 'Export history (JSONL)', exact: true }).click()
+  await historyPageReady(dialog)
+  assert.equal(await dialog.locator('.history-exported').count(), 0)
+  const target = join(root, 'exported-history.jsonl')
+  await writeFile(target, 'previous export')
+  await chooseHistoryDestination(target)
+  await dialog.getByRole('button', { name: 'Export history (JSONL)', exact: true }).click()
+  await dialog.locator('.history-exported').waitFor()
+  const exported = await readFile(target, 'utf8')
+  const output = exported
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+  assert.equal(output.length, throughCursor + 1)
+  assert.equal(output[0].throughCursor, throughCursor)
+  assert.ok(!exported.includes(secret))
+  assert.ok(!exported.includes('receipt'))
+  assert.equal(output[0].session.id, archiveId)
+  assert.deepEqual(output.slice(1), records.slice(1))
+  assert.equal(await readFile(archivePath, 'utf8'), archiveBytes)
+  assert.equal(calls.length, beforeCalls)
+  await dialog.getByRole('button', { name: 'Close', exact: true }).last().click()
+  await page.reload()
+  await page.locator('.card-grid').waitFor()
+  await navigate('Sessions')
+  await status('Closed')
+  await page
+    .locator('.conversation-header')
+    .getByRole('button', { name: 'Session history', exact: true })
+    .click()
+  await historyPageReady(page.getByRole('dialog'))
+  assert.equal(
+    Number(
+      await page.getByRole('dialog').locator('.history-range').getAttribute('data-history-through'),
+    ),
+    throughCursor,
+  )
+  await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).last().click()
+}
 async function configurationReport(title = 'Configuration report', close = 'Close') {
   await page.getByRole('button', { name: title, exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -396,6 +575,21 @@ try {
   await language('zh-CN')
   await page.getByRole('heading', { name: '会话', exact: true }).waitFor()
   await configurationReport('配置报告', '关闭')
+  // History remains read-only even while a native permission is waiting in the live conversation.
+  const beforeHistory = await page.evaluate(
+    (sessionId) => window.agentMatrix.sessions.get({ sessionId }),
+    original.id,
+  )
+  await page.getByRole('button', { name: '会话历史', exact: true }).click()
+  const liveHistory = page.getByRole('dialog')
+  await historyPageReady(liveHistory)
+  assert.equal(await liveHistory.getByRole('button', { name: /^允许/ }).count(), 0)
+  if (!isPi) await liveHistory.getByText('曾请求响应', { exact: true }).waitFor()
+  assert.deepEqual(
+    await page.evaluate((sessionId) => window.agentMatrix.sessions.get({ sessionId }), original.id),
+    beforeHistory,
+  )
+  await liveHistory.getByRole('button', { name: '关闭', exact: true }).last().click()
   if (process.env.AGENT_MATRIX_SESSION_SCREENSHOT)
     await page.screenshot({ path: process.env.AGENT_MATRIX_SESSION_SCREENSHOT, fullPage: true })
   if (!isPi) await page.getByRole('button', { name: /^允许一次/ }).click()
@@ -581,6 +775,7 @@ try {
   assert.equal(calls.at(-1).directoryRead, 'alternate')
   await page.getByRole('button', { name: 'Close session', exact: true }).click()
   await status('Closed')
+  await verifyLongHistory(original.id)
   assert.ok(
     calls.length > 5 && calls.every((call) => call.authenticated && call.model === 'fixture-model'),
   )
@@ -639,6 +834,16 @@ try {
     appQuitAndRestart: true,
     nativeResume: true,
     confirmedClose: true,
+    sessionHistory: {
+      nativeEventsReadOnly: true,
+      syntheticLongHistoryPagination: true,
+      completeJsonlExport: true,
+      selectedBoundary: true,
+      exportCancellation: true,
+      existingRedactionPreserved: true,
+      reloadWithoutExecution: true,
+      englishAndChinese: true,
+    },
     englishAndChinese: true,
     journalCredentialRedaction: true,
     untrustedTextEscaped: true,

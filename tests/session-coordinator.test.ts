@@ -569,6 +569,22 @@ describe('durable session coordination', () => {
     await expect(
       f.coordinator.readEvents({ sessionId: ready.id, afterCursor: ready.cursor + 100 }),
     ).rejects.toThrow('sessionCursor')
+    await expect(
+      f.coordinator.history({
+        sessionId: ready.id,
+        throughCursor: waiting.cursor + 100,
+        fromCursor: 1,
+        direction: 'forward',
+      }),
+    ).rejects.toThrow('sessionCursor')
+    const archived = await f.coordinator.history({
+      sessionId: ready.id,
+      throughCursor: waiting.cursor,
+      fromCursor: 1,
+      direction: 'forward',
+    })
+    expect(archived.events.some((event) => event.data.kind === 'interaction.requested')).toBe(true)
+    expect((await f.coordinator.get({ sessionId: ready.id })).status).toBe('waiting')
     expect(runtime.dispose).not.toHaveBeenCalled()
     await f.coordinator.subscribe(
       'frame',

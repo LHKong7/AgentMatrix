@@ -17,6 +17,8 @@ import { stopOwnedProcesses } from './engines/process/managed-process'
 import { z } from 'zod'
 import { absolutePath } from '../shared/engines/schema'
 import { resolveWorkingDirectory } from './sessions/working-directory'
+import { exportSessionHistory } from './sessions/history-export'
+import { sessionChannels, sessionExportQuerySchema } from '../shared/sessions/schema'
 
 app.setName('AgentMatrix')
 if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
@@ -92,11 +94,37 @@ if (!app.requestSingleInstanceLock()) {
       environment: process.env,
       resolveSecret: (reference) => vault.resolve(reference, process.env),
     })
-    const coordinator = new SessionCoordinator(
-      new SessionJournal(join(app.getPath('userData'), 'sessions')),
-      factory,
-    )
+    const journal = new SessionJournal(join(app.getPath('userData'), 'sessions'))
+    const coordinator = new SessionCoordinator(journal, factory)
     sessionBridge = registerSessionIpc(ipcMain, coordinator, verifySender)
+    let exportingHistory = false
+    ipcMain.handle(sessionChannels.exportHistory, (event, input: unknown) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        const query = sessionExportQuerySchema.parse(input)
+        if (exportingHistory) throw appError('error.historyExportBusy')
+        exportingHistory = true
+        try {
+          const snapshot = await coordinator.get({ sessionId: query.sessionId })
+          if (query.throughCursor > snapshot.cursor) throw appError('error.sessionCursor')
+          verifySender(event)
+          const result = await dialog.showSaveDialog(mainWindow!, {
+            defaultPath: `session-${query.sessionId}.jsonl`,
+            filters: [{ name: 'JSON Lines', extensions: ['jsonl'] }],
+          })
+          verifySender(event)
+          if (result.canceled || !result.filePath) return null
+          return await exportSessionHistory(
+            journal,
+            query,
+            result.filePath,
+            app.getPath('userData'),
+          )
+        } finally {
+          exportingHistory = false
+        }
+      }),
+    )
     ipcMain.handle(channels.engineProbe, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)

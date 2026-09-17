@@ -30,6 +30,7 @@ function fixture() {
     get: vi.fn(async () => snapshot),
     list: vi.fn(async () => [snapshot]),
     readEvents: vi.fn(),
+    history: vi.fn(),
     configuration: vi.fn(),
     impact: vi.fn(),
     removeOwner: vi.fn(),
@@ -64,6 +65,19 @@ function fixture() {
   }
 }
 describe('session IPC ownership', () => {
+  it('routes history pages through the same sender checks as live events', async () => {
+    const f = fixture()
+    const query = { sessionId: 's', throughCursor: 0, fromCursor: 0, direction: 'backward' }
+    await f.invoke(sessionChannels.history, query)
+    expect(f.coordinator.history).toHaveBeenCalledWith(query)
+    await expect(
+      f.invoke(sessionChannels.history, query, {
+        ...f.event,
+        senderFrame: { url },
+      } as IpcMainInvokeEvent),
+    ).rejects.toThrow('untrusted')
+    expect(f.coordinator.history).toHaveBeenCalledTimes(1)
+  })
   it('rejects a different window, subframe, and changed document URL before invoking the service', async () => {
     const f = fixture()
     for (const event of [

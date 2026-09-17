@@ -58,6 +58,7 @@ export function registerSessionIpc(
   handle(sessionChannels.get, (_event, input) => coordinator.get(input))
   handle(sessionChannels.list, () => coordinator.list())
   handle(sessionChannels.events, (_event, input) => coordinator.readEvents(input))
+  handle(sessionChannels.history, (_event, input) => coordinator.history(input))
   handle(sessionChannels.subscribe, async (event, input) => {
     const query = sessionSubscriptionSchema.parse(input)
     const identity = owner(event)

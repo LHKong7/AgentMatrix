@@ -1,0 +1,37 @@
+export const historyEn = {
+  'history.title': 'Session history',
+  'history.description': 'Browse the saved conversation and its activity.',
+  'history.boundary':
+    'Pages may begin or end within a message or turn. Historical requests are read-only; respond in the live conversation.',
+  'history.range': 'Events {first}–{last} of {total}',
+  'history.first': 'Beginning',
+  'history.earlier': 'Earlier',
+  'history.later': 'Later',
+  'history.latest': 'End of selection',
+  'history.refresh': 'Include latest events',
+  'history.newEvents': 'New events are available. Include the latest events to update this view.',
+  'history.empty': 'This conversation has no saved events yet.',
+  'history.export': 'Export history (JSONL)',
+  'history.exportHint':
+    'Export includes every saved event up to this view’s selected boundary, including message fragments, tools, and interaction history. Existing redaction is retained; interaction response text and native engine transcripts are not included.',
+  'history.exported': 'Exported {count} events to {path}',
+  'history.event.run.starting': 'Session attachment started',
+  'history.event.run.resuming': 'Native conversation restoration started',
+  'history.event.run.ready': 'Session ready',
+  'history.event.interaction.requested': 'Response was requested',
+  'history.event.interaction.resolved': 'Request settled',
+  'history.event.turn.cancelling': 'Turn cancellation requested',
+  'history.event.run.interrupted': 'Session attachment interrupted',
+  'history.event.run.failed': 'Session attachment failed',
+  'history.event.session.closing': 'Session close requested',
+  'history.event.session.closed': 'Session closed',
+  'history.disposition.answered': 'Answered',
+  'history.disposition.cancelled': 'Cancelled',
+  'history.disposition.expired': 'Expired',
+  'error.historyExport': 'The history export could not be saved. Choose a writable regular file.',
+  'error.historyExportProtected':
+    'Choose an export location outside AgentMatrix’s application data directory.',
+  'error.historyExportChanged':
+    'The destination changed during export. It was preserved; choose a destination again.',
+  'error.historyExportBusy': 'Finish the current history export before starting another.',
+} as const

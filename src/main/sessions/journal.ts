@@ -15,6 +15,11 @@ import {
   type SessionEvent,
   type SessionEventPage,
   type SessionSnapshot,
+  sessionHistoryQuerySchema,
+  sessionExportQuerySchema,
+  type HistoryEvent,
+  type SessionHistoryPage,
+  type SessionHistoryRecord,
 } from '../../shared/sessions/schema'
 
 const recordSchema = z.discriminatedUnion('kind', [
@@ -26,6 +31,15 @@ const recordSchema = z.discriminatedUnion('kind', [
 const appendSchema = sessionEventSchema.omit({ sessionId: true, cursor: true, timestamp: true })
 const maxRecordBytes = 1024 * 1024
 const decoder = new TextDecoder('utf-8', { fatal: true })
+const historyPageBytes = 1024 * 1024
+const historyEvent = ({
+  sessionId,
+  cursor,
+  timestamp,
+  runId,
+  turnId,
+  data,
+}: SessionEvent): HistoryEvent => ({ sessionId, cursor, timestamp, runId, turnId, data })
 const runningStates = new Set([
   'starting',
   'resuming',
@@ -166,6 +180,95 @@ export class SessionJournal {
         latestCursor: session.snapshot.cursor,
         hasMore: nextCursor < session.snapshot.cursor,
       }
+    })
+  }
+
+  readHistory(input: z.input<typeof sessionHistoryQuerySchema>): Promise<SessionHistoryPage> {
+    const query = sessionHistoryQuerySchema.parse(input)
+    return this.serial(async () => {
+      const session = await this.load(query.sessionId)
+      if (
+        query.throughCursor > session.snapshot.cursor ||
+        query.fromCursor > query.throughCursor ||
+        (query.throughCursor > 0 && query.fromCursor === 0)
+      )
+        throw appError('error.sessionCursor')
+      const events: HistoryEvent[] = []
+      const sizes: number[] = []
+      let bytes = 0,
+        full = false
+      const scan = await this.scan(this.path(query.sessionId), (record) => {
+        if (record.kind !== 'event') return
+        const event = record.event
+        if (
+          event.cursor > query.throughCursor ||
+          (query.direction === 'forward'
+            ? event.cursor < query.fromCursor || full
+            : event.cursor > query.fromCursor)
+        )
+          return
+        const value = historyEvent(event)
+        const size = Buffer.byteLength(JSON.stringify(value))
+        if (
+          query.direction === 'forward' &&
+          (events.length >= query.limit || (events.length && bytes + size > historyPageBytes))
+        ) {
+          full = true
+          return
+        }
+        events.push(value)
+        sizes.push(size)
+        bytes += size
+        while (events.length > query.limit || (events.length > 1 && bytes > historyPageBytes)) {
+          events.shift()
+          bytes -= sizes.shift()!
+        }
+      })
+      if (scan.tail.length || fingerprint(scan.info) !== session.fingerprint)
+        throw appError('error.sessionStorage')
+      return {
+        events,
+        throughCursor: query.throughCursor,
+        latestCursor: session.snapshot.cursor,
+        hasEarlier: (events[0]?.cursor ?? 0) > 1,
+        hasLater: (events.at(-1)?.cursor ?? 0) < query.throughCursor,
+      }
+    })
+  }
+
+  /** One bounded-memory pass; serialized with appends to preserve the selected event prefix. */
+  writeHistory(
+    input: z.infer<typeof sessionExportQuerySchema>,
+    write: (record: SessionHistoryRecord) => Promise<void>,
+  ) {
+    const query = sessionExportQuerySchema.parse(input)
+    return this.serial(async () => {
+      const loaded = await this.load(query.sessionId)
+      if (query.throughCursor > loaded.snapshot.cursor) throw appError('error.sessionCursor')
+      const { id, agentId, installationId, engineVersion, mode, cwd, createdAt } = loaded.snapshot
+      await write({
+        kind: 'session-history',
+        format: 'agentmatrix-session-history',
+        version: 1,
+        throughCursor: query.throughCursor,
+        exportedAt: this.now(),
+        session: { id, agentId, installationId, engineVersion, mode, cwd, createdAt },
+      })
+      let eventCount = 0
+      const scan = await this.scan(this.path(query.sessionId), async (record) => {
+        if (record.kind === 'event' && record.event.cursor <= query.throughCursor) {
+          if (record.event.cursor !== eventCount + 1) throw appError('error.sessionStorage')
+          await write({ kind: 'event', event: historyEvent(record.event) })
+          eventCount++
+        }
+      })
+      if (
+        scan.tail.length ||
+        fingerprint(scan.info) !== loaded.fingerprint ||
+        eventCount !== query.throughCursor
+      )
+        throw appError('error.sessionStorage')
+      return { throughCursor: query.throughCursor, eventCount }
     })
   }
 
@@ -319,7 +422,7 @@ export class SessionJournal {
 
   private async scan(
     path: string,
-    visit: (record: z.infer<typeof recordSchema>) => void,
+    visit: (record: z.infer<typeof recordSchema>) => void | Promise<void>,
   ): Promise<{ info: Stats; completeBytes: number; tail: Buffer }> {
     const handle = await this.openRegular(path, constants.O_RDONLY)
     try {
@@ -337,7 +440,7 @@ export class SessionJournal {
           const end = combined.indexOf(0x0a, start)
           if (end < 0) break
           if (end - start + 1 > maxRecordBytes) throw appError('error.sessionStorage')
-          visit(recordSchema.parse(JSON.parse(decoder.decode(combined.subarray(start, end)))))
+          await visit(recordSchema.parse(JSON.parse(decoder.decode(combined.subarray(start, end)))))
           completeBytes += end - start + 1
           start = end + 1
         }

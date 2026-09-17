@@ -328,6 +328,45 @@ export interface SessionEventPage {
   latestCursor: number
   hasMore: boolean
 }
+export const sessionHistoryQuerySchema = sessionQuerySchema
+  .extend({
+    throughCursor: sessionCursorSchema,
+    fromCursor: sessionCursorSchema,
+    direction: z.enum(['forward', 'backward']),
+    limit: z.number().int().min(1).max(200).default(100),
+  })
+  .strict()
+export const sessionExportQuerySchema = sessionQuerySchema
+  .extend({
+    throughCursor: sessionCursorSchema,
+  })
+  .strict()
+export type HistoryEvent = Omit<SessionEvent, 'receipt'>
+export interface SessionHistoryPage {
+  events: HistoryEvent[]
+  throughCursor: number
+  latestCursor: number
+  hasEarlier: boolean
+  hasLater: boolean
+}
+export interface SessionExportResult {
+  path: string
+  throughCursor: number
+  eventCount: number
+}
+export type SessionHistoryRecord =
+  | {
+      kind: 'session-history'
+      format: 'agentmatrix-session-history'
+      version: 1
+      throughCursor: number
+      exportedAt: string
+      session: Pick<
+        SessionSnapshot,
+        'id' | 'agentId' | 'installationId' | 'engineVersion' | 'mode' | 'cwd' | 'createdAt'
+      >
+    }
+  | { kind: 'event'; event: HistoryEvent }
 export type SessionDelivery =
   | { kind: 'event'; subscriptionId: string; event: SessionEvent }
   | { kind: 'reset-required'; subscriptionId: string; snapshot: SessionSnapshot }
@@ -335,6 +374,10 @@ export type SessionDelivery =
 
 /** The preload must register its listener before invoking subscribe to avoid lost events. */
 export interface SessionApi {
+  history(input: z.input<typeof sessionHistoryQuerySchema>): Promise<SessionHistoryPage>
+  exportHistory(
+    input: z.infer<typeof sessionExportQuerySchema>,
+  ): Promise<SessionExportResult | null>
   impact(input: LibraryImpactQuery): Promise<LibraryImpact>
   configuration(input: z.infer<typeof sessionQuerySchema>): Promise<ConfigurationReport>
   command(input: SessionCommand): Promise<SessionSnapshot>

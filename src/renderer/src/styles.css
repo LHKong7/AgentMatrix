@@ -1,5 +1,42 @@
 @import url('./tokens.css');
 
+.history-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.history-events {
+  max-height: 50vh;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.history-entry {
+  margin-bottom: 18px;
+  min-width: 0;
+}
+.history-entry > small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+.history-lifecycle {
+  padding: 12px;
+  background: var(--canvas);
+  border-radius: 8px;
+}
+.history-lifecycle pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.session-history .hint,
+.history-range,
+.history-exported {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
 .session-create.settings-panel {
   display: flex;
   flex-wrap: wrap;

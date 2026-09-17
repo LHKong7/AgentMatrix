@@ -1,10 +1,12 @@
 import { supportEn } from './support-en'
+import { historyEn } from './history-en'
 import { impactEn } from './impact-en'
 import { configurationEn } from './configuration-en'
 import { sessionEn } from './session-en'
 import { reportEn } from './report-en'
 
 export const en = {
+  ...historyEn,
   ...configurationEn,
   ...sessionEn,
   ...reportEn,

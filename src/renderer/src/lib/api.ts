@@ -13,6 +13,12 @@ const browserApi: AgentMatrixApi = {
     throw appError('error.runtimeDesktopOnly')
   },
   sessions: {
+    async history() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async exportHistory() {
+      throw appError('error.runtimeDesktopOnly')
+    },
     async impact(input) {
       const workspace = new BrowserWorkspaceStore(localStorage, getInitialLocale()).load()
       const { profiles } = prepareLibraryImpact(workspace, input)

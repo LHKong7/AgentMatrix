@@ -15,7 +15,6 @@ import type { EngineWorkspace } from '../../../shared/engines/workspace'
 import { resolveAgentProfile } from '../../../shared/engines/resolution'
 import type {
   SessionCommand,
-  SessionEvent,
   SessionSnapshot,
   InteractionRequest,
 } from '../../../shared/sessions/schema'
@@ -24,6 +23,8 @@ import { api } from '../lib/api'
 import { SessionFeed, emptySessionView } from '../lib/session-feed'
 import { useI18n } from '../i18n'
 import { ConfigurationReport } from './ConfigurationReport'
+import { Transcript } from './SessionTranscript'
+import { SessionHistory } from './SessionHistory'
 
 const selectedKey = 'agentmatrix.selected-session'
 type Response = Extract<SessionCommand, { kind: 'respond' }>['response']
@@ -54,6 +55,7 @@ export function SessionsPanel({
   const [busy, setBusy] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const [showConfiguration, setShowConfiguration] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
   const locked = useRef(false)
   const pendingMessage = useRef<string | null>(null)
   const transcript = useRef<HTMLDivElement>(null)
@@ -210,6 +212,9 @@ export function SessionsPanel({
   }
   return (
     <>
+      {showHistory && state && (
+        <SessionHistory key={state.id} session={state} onClose={() => setShowHistory(false)} />
+      )}
       {showConfiguration && state && (
         <ConfigurationReport
           key={state.id}
@@ -370,6 +375,7 @@ export function SessionsPanel({
           {sessions.map((session) => (
             <button
               key={session.id}
+              data-session-list-id={session.id}
               className={selected === session.id ? 'selected' : ''}
               onClick={() => {
                 setSelected(session.id)
@@ -415,6 +421,13 @@ export function SessionsPanel({
                   </small>
                 </div>
                 <div className="session-actions">
+                  <button
+                    className="button secondary"
+                    disabled={blocked}
+                    onClick={() => setShowHistory(true)}
+                  >
+                    {t('history.title')}
+                  </button>
                   <button
                     className="button secondary"
                     disabled={blocked}
@@ -511,7 +524,14 @@ export function SessionsPanel({
               >
                 {view.truncated && (
                   <p className="hint">
-                    {t('sessions.historyLimit', { count: view.events.length })}
+                    {t('sessions.historyLimit', { count: view.events.length })}{' '}
+                    <button
+                      className="text-button"
+                      disabled={blocked}
+                      onClick={() => setShowHistory(true)}
+                    >
+                      {t('history.title')}
+                    </button>
                   </p>
                 )}
                 <Transcript events={view.events} />
@@ -651,87 +671,4 @@ export function SessionsPanel({
       </div>
     </>
   )
-}
-
-function Transcript({ events }: { events: SessionEvent[] }) {
-  const { t, number } = useI18n()
-  const rows = useMemo(() => {
-    const output: { id: string; data: SessionEvent['data'] }[] = []
-    const positions = new Map<string, number>()
-    for (const event of events) {
-      const data = event.data
-      if (data.kind === 'message.delta' || data.kind === 'tool.updated') {
-        const id = `${event.turnId}:${data.kind}:${data.kind === 'message.delta' ? data.messageId : data.toolCallId}`
-        const previous = positions.get(id)
-        if (previous !== undefined) {
-          const row = output[previous]!
-          row.data =
-            data.kind === 'message.delta' && row.data.kind === 'message.delta'
-              ? { ...data, text: row.data.text + data.text }
-              : data
-        } else {
-          positions.set(id, output.length)
-          output.push({ id, data: { ...data } })
-        }
-      } else if (
-        data.kind === 'turn.started' ||
-        data.kind === 'turn.finished' ||
-        data.kind === 'engine.notice'
-      )
-        output.push({ id: String(event.cursor), data })
-    }
-    return output
-  }, [events])
-  return rows.map(({ id, data }) => {
-    if (data.kind === 'engine.notice')
-      return (
-        <article className="message" key={id}>
-          <strong>{t(`sessions.notice.${data.code}`)}</strong>
-          {data.text && <pre>{data.text}</pre>}
-        </article>
-      )
-    if (data.kind === 'turn.started' || data.kind === 'message.delta') {
-      const channel = data.kind === 'turn.started' ? 'user' : data.channel
-      return (
-        <article className={`message ${channel}`} key={id}>
-          <strong>{t(`sessions.${channel}`)}</strong>
-          <pre>{data.text}</pre>
-        </article>
-      )
-    }
-    if (data.kind === 'tool.updated')
-      return (
-        <details className="tool-event" key={id}>
-          <summary>
-            {data.title} <span>{t(`sessions.tool.${data.status}`)}</span>
-          </summary>
-          {data.content && <pre>{data.content}</pre>}
-          {data.contentTruncated && <small>{t('sessions.truncated')}</small>}
-        </details>
-      )
-    if (data.kind === 'turn.finished')
-      return (
-        <div className="turn-result" key={id}>
-          <strong>{t(`sessions.outcome.${data.outcome}`)}</strong>
-          <span>
-            {t('sessions.tokens')}:{' '}
-            {data.usage
-              ? `${data.usage.inputTokens ?? t('sessions.unknown')} / ${data.usage.outputTokens ?? t('sessions.unknown')} (${t(`sessions.usage.${data.usage.scope ?? 'unknown'}`)})`
-              : t('sessions.unknown')}
-          </span>
-          <span>
-            {t('sessions.cost')}:{' '}
-            {data.usage?.cost
-              ? `${number(data.usage.cost.amount)} ${data.usage.cost.currency}`
-              : t('sessions.unknown')}
-          </span>
-          {data.nativeStopReason && (
-            <small>
-              {t('sessions.stopReason')}: {data.nativeStopReason}
-            </small>
-          )}
-        </div>
-      )
-    return null
-  })
 }

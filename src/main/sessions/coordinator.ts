@@ -11,6 +11,7 @@ import {
   sessionEventSchema,
   sessionQuerySchema,
   sessionEventQuerySchema,
+  sessionHistoryQuerySchema,
   type SessionCommand,
   type SessionSnapshot,
   type SessionDelivery,
@@ -290,6 +291,18 @@ export class SessionCoordinator {
       const context = await this.context(query.sessionId)
       this.healthy(context)
       return this.journal.readEvents(query).catch((error) => {
+        if (error instanceof Error && error.message === appError('error.sessionCursor').message)
+          throw error
+        this.storageFailure(context)
+      })
+    })
+  }
+  history(input: unknown) {
+    const query = sessionHistoryQuerySchema.parse(input)
+    return this.serial(query.sessionId, async () => {
+      const context = await this.context(query.sessionId)
+      this.healthy(context)
+      return this.journal.readHistory(query).catch((error) => {
         if (error instanceof Error && error.message === appError('error.sessionCursor').message)
           throw error
         this.storageFailure(context)
