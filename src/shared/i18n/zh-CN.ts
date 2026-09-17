@@ -171,6 +171,11 @@ export const zhCN = {
   'validation.invalid': '值无效',
   'validation.headerConflict': '请求头名称不能重复，包括身份验证请求头。',
   'validation.headerValue': '请求头的值不能包含换行或空字符。',
+  'validation.skillEntry': 'Skill 目录必须包含 SKILL.md。',
+  'validation.assetPaths': '资产文件路径不能重复，也不能仅大小写不同。',
+  'validation.assetVersion': '资产版本不存在或重复。',
+  'validation.environmentConflict': '同一个环境变量不能同时设置值和引用。',
+  'error.schemaVersion': '无法迁移此版本的工作空间。',
   'validation.min': '最小允许值或长度为 {limit}。',
   'validation.max': '最大允许值或长度为 {limit}。',
 } satisfies Messages

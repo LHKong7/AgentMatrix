@@ -180,6 +180,12 @@ export const en = {
   'validation.invalid': 'Invalid value.',
   'validation.headerConflict': 'Header names must be unique, including authentication headers.',
   'validation.headerValue': 'Header values must not contain line breaks or null characters.',
+  'validation.skillEntry': 'A Skill directory must contain SKILL.md.',
+  'validation.assetPaths': 'Asset file paths must be unique, including letter case differences.',
+  'validation.assetVersion': 'An asset version is missing or duplicated.',
+  'validation.environmentConflict':
+    'An environment variable cannot have both a value and a reference.',
+  'error.schemaVersion': 'This workspace version cannot be migrated.',
   'validation.min': 'The minimum allowed value or length is {limit}.',
   'validation.max': 'The maximum allowed value or length is {limit}.',
 } as const
