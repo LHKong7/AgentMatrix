@@ -25,7 +25,7 @@ The application journal supplies visible history after renderer reload or proces
 
 Editing shared Prompt assets affects newly captured sessions. Existing sessions and resumed conversations retain their original inputs. App quit waits for process cleanup and marks sessions interrupted. The explicit Close action ends the application conversation after cleanup; durable native state is retained with its run inputs.
 
-DSH cards, terminal interaction, elicitation, forks, native transcript replay, SDK parity, and arbitrary native plugins are outside this adapter's accepted runtime surface. The UI exposes the supported ACP profile and diagnoses incompatible templates/settings at launch.
+DSH cards, terminal interaction, elicitation, forks, native transcript replay, SDK parity, and arbitrary native plugins are outside this adapter's accepted runtime surface. The UI exposes the supported ACP profile and diagnoses incompatible templates/settings at launch. The [installed plugin contract](dsh-plugin-contract.md) now provides evidence for future selected-plugin support, including a startup race: an ACP session can exist before all native components finish loading. Native boot completion and ongoing plugin lifecycle checks remain required.
 
 ## Verification
 

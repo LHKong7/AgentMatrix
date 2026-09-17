@@ -48,7 +48,7 @@ The application-owned component uses native tool dispatch hooks and guards:
 | Deny tool execution  | A monotonic native guard denies tool bodies. The fixture deliberately asks the model to write a file and verifies it remains absent.                            |
 | Allow tool execution | Native danger-full-access with no interactive escalation. The fixture invokes filesystem, Skill, and MCP tools.                                                 |
 
-The native permission table exposes the one captured policy rather than incompatible shipped defaults. A `never` approval policy alone is not used as proof of denial. These controls govern model tool dispatch, not component startup or OS-wide confinement. General third-party plugin activation remains outside this adapter revision.
+The native permission table exposes the one captured policy rather than incompatible shipped defaults. A `never` approval policy alone is not used as proof of denial. These controls govern model tool dispatch, not component startup or OS-wide confinement. General third-party plugin activation remains outside this adapter revision. The separate [installed plugin contract probe](dsh-plugin-contract.md) now verifies native module shapes, configuration schemas, service injection, tools, disposal, and resume. It also demonstrates that ACP initialization and session creation can precede plugin settlement; production activation must add explicit readiness checks.
 
 ## Reproduce and remaining work
 
