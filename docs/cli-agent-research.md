@@ -2,7 +2,7 @@
 
 Research date: **2026-09-17**. English edition: **2026-09-18**. Target application: AgentMatrix, built with Electron, React, and TypeScript.
 
-Scope: Claude Code, Codex CLI, OpenCode, Pi, Gemini CLI, OpenHands, Cline, Goose, and DeepSeek Harness. Findings were checked against official documentation, repository READMEs, and relevant configuration source code. **These nine products were not installed, launched, or called for compatibility testing.** Default-branch capabilities may not be available in released versions; integration must identify the installed version and probe its capabilities. Recommendations describe proposed AgentMatrix behavior, not implemented runtime features.
+Scope: Claude Code, Codex CLI, OpenCode, Pi, Gemini CLI, OpenHands, Cline, Goose, and DeepSeek Harness. Findings were checked against official documentation, repository READMEs, and relevant configuration source code. **The original research did not install, launch, or call these nine products for compatibility testing.** Subsequent installed-release evidence is recorded separately in the [2026-09-18 probe report](engine-probe-2026-09-18.md). Default-branch capabilities may not be available in released versions; integration must identify the installed version and probe its capabilities. Recommendations describe proposed AgentMatrix behavior, not implemented runtime features.
 
 **Delivery scope updated 2026-09-18:** the first integrations are **OpenCode → Pi → DeepSeek Harness**, following the user's product priorities. The other six remain researched candidates for later delivery. The design and delivery sections below reflect the revised [implementation plan](cli-agent-plan.md); the upstream findings and pinned source baseline are unchanged.
 
@@ -167,6 +167,8 @@ Customize `prompts/system.md` to override the system template. Templates use Jin
 **Model connections.** General custom providers use `baseURL`, `api`, and `apiKeyEnv`; the current UI lists `openai-completions`, `openai-responses`, and `anthropic-messages`. The native DeepSeek adapter has a separate `deepseek-official` route, protocol, and reasoning controls. Do not collapse both routes into one schema. The general provider settings UI does not yet support OAuth providers. [Providers][dsh-providers], [native adapter][dsh-llm]
 
 **Runtime limitations.** `dsh --profile sdk` exposes SDK JSON-RPC; `--profile headless` runs a single task; `--profile acp` supports automation. Its ACP reference explicitly omits full DSH cards, plans, terminal interaction, elicitation, and other presentation features. Resume support does not imply historical-event replay. Evaluate the SDK route for a complete desktop experience. [CLI][dsh-cli], [ACP][dsh-acp]
+
+**Installed-release follow-up (2026-09-18):** DSH 0.1.5-rc.2 SDK handshakes successfully but rejects `session/cancel` and `session/resume`; its published request map contains only initialization, prompt submission, and shutdown. The initial AgentMatrix adapter therefore selects ACP and documents its reduced presentation/history surface. These probes made no model calls. See the [probe evidence](engine-probe-2026-09-18.md).
 
 **Engine-specific options:** profiles, bundles, patches, Cordis parameters, permission presets, sandbox backends, persona, tool presentation, and provider reasoning. MCP and Skills are official components, but minimal profiles may omit them; inspect effective capabilities. [MCP][dsh-mcp], [Skills][dsh-skills], [configuration catalog][dsh-catalog]
 
@@ -343,7 +345,7 @@ Present tool authorization, human approval, and enforced file/network sandbox bo
 
 ## 8. Implications for the initialized AgentMatrix project
 
-The original research introduced design documentation only; the runtime changes below remain proposals. The UI has since gained English/Chinese support, which does not implement CLI runtime integration. See [Architecture](architecture.md) and the [README](../README.md) for current behavior.
+The original research introduced design documentation only; implementation progress is tracked in the [status record](implementation-status.md), and the runtime architecture below remains the target design. The UI has since gained English/Chinese support, which does not implement CLI runtime integration. See [Architecture](architecture.md) and the [README](../README.md) for current behavior.
 
 | Existing structure                                                    | Limitation                                                           | Recommendation                                                                   |
 | --------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -381,10 +383,10 @@ This revises the initial scaffolding roadmap: for a multi-CLI product, build **C
 | A: shared configuration   | Draft/launchable schemas, assets, credentials, migration, three-engine forms, and session commands/events | Preserve old data, inspect compatibility, and prepare immutable run inputs; other engines are planned catalog entries                                    |
 | B: first complete runtime | OpenCode through ACP                                                                                      | Complete the desktop workflow, permissions, cancellation, persistence, and effective-config reporting; review abstractions against Pi/DSH probes         |
 | C: second engine          | Pi RPC                                                                                                    | Reuse the application/session contracts with a separate transport; treat MCP and universal approval enforcement as unavailable without validated support |
-| D: third engine           | Version-pinned DeepSeek Harness SDK, or an explicitly scoped alternative after probing                    | Verify profile composition, prompt/provider mappings, interactions, and native persistence; complete the three-engine milestone                          |
+| D: third engine           | Version-pinned DeepSeek Harness ACP, selected after the installed SDK probe                               | Verify profile composition, prompt/provider mappings, interactions, and native persistence; complete the three-engine milestone                          |
 | E: later integrations     | Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands                                               | Probe each installed version and implement separate adapters; investigate OpenHands runtime dependencies when scheduled                                  |
 
-This sequence follows the user's selected initial products and is not a ranking of model quality. OpenCode, Pi, and DSH require distinct ACP/RPC/SDK adapters; common provider code does not imply a shared session protocol. The first abstraction gate includes minimal Pi and DSH probes, and each engine has its own acceptance gate. Existing native configuration is initially imported read-only; native plugins are recognized/bound as installed assets, with a pinned DSH composition. General plugin installation and automatic upgrades are deferred.
+This sequence follows the user's selected initial products and is not a ranking of model quality. OpenCode, Pi, and DSH require distinct configuration/runtime adapters even where ACP transport is shared; common provider code does not imply a shared session protocol. The first abstraction gate includes minimal Pi and DSH probes, and each engine has its own acceptance gate. Existing native configuration is initially imported read-only; native plugins are recognized/bound as installed assets, with a pinned DSH composition. General plugin installation and automatic upgrades are deferred.
 
 ### 9.2 Acceptance checklist for every adapter
 
@@ -407,7 +409,7 @@ This sequence follows the user's selected initial products and is not a ranking 
 - Actual gateway compatibility with Responses/Messages streaming, tools, images, and model IDs. Successful model listing is insufficient.
 - Selection and validation of a Pi MCP extension, including its protocol coverage, permissions, and maintenance. No third-party extension is treated as a verified dependency here.
 - Complete OpenHands SDK/Agent Server coverage of required events, approvals, and workspace lifecycles is deferred with its integration. Keep the old CLI in a compatibility role.
-- The exact DSH SDK version contract is now an initial probe requirement. A generic ACP client cannot invent presentation features absent from the server; resume must not be confused with history replay.
+- The initial DSH SDK probe found no native cancel/resume methods in 0.1.5-rc.2, so the implementation targets ACP with explicit limits; complete lifecycle verification remains required. A generic ACP client cannot invent presentation features absent from the server; resume must not be confused with history replay.
 - Separate Windows/macOS/Linux verification of paths, process-tree termination, credential storage, sandboxes, and native plugin dependencies.
 
 ## 10. Sources and version records

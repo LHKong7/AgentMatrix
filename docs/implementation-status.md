@@ -1,0 +1,16 @@
+# Implementation status
+
+Updated: **2026-09-18**. This is the implementation record for the [plan](cli-agent-plan.md). Task scope and acceptance remain in that plan; partial progress does not pass a delivery gate.
+
+| Area                         | Status        | Evidence / next work                                                                                                                                               |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Existing UI localization     | Complete      | English/Chinese controls and errors, preference persistence, unit tests, and desktop/browser verification. Commit `d5b22f3`                                        |
+| Initial product scope        | Recorded      | OpenCode → Pi → DeepSeek Harness; English plan and research. Commit `3464c87`                                                                                      |
+| V1 / V3 / V5 discovery       | Partial       | Reproducible isolated CLI probe and [installed-version report](engine-probe-2026-09-18.md). No model calls or cross-platform acceptance                            |
+| V4 DSH route decision        | Partial       | Installed SDK lacks cancel/resume; select ACP with explicit limits. Full lifecycle remains unverified                                                              |
+| V2 provider calls            | Pending input | Need the intended endpoint/model and a local key reference; implementation can continue independently                                                              |
+| A1 / A8 shared schemas       | In progress   | Separate engine/provider identities, drafts, secret references, optional sampling, and capability evidence. Persistence and launch validation are not switched yet |
+| A3–A7 / A9 / A10 / A11 / A12 | Not complete  | Asset versions, credential service, migration, session contracts, resolver, and new UI remain required                                                             |
+| B0 / B7 / C4 / D4 gates      | Not passed    | No production adapter or desktop session runtime is connected yet                                                                                                  |
+
+The active application still reads/writes schema v1. The existing configuration UI must stay usable until a tested migration and compatible v2 editors are connected together. Native CLI installations used for probes are not automatically registered as user profiles.
