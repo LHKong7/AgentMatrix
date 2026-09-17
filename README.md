@@ -2,7 +2,7 @@
 
 一个以本地配置为中心的 Agent 桌面工作空间。基于 **Electron + React + TypeScript**，使用 electron-vite 开发和构建。
 
-项目文档：[架构约定](docs/architecture.md) · [首批 9 个 CLI Agent 接入调研与配置架构](docs/cli-agent-research.md)。
+项目文档：[架构约定](docs/architecture.md) · [首批 9 个 CLI Agent 接入调研与配置架构](docs/cli-agent-research.md) · [接入落地计划](docs/cli-agent-plan.md)。
 
 ## 启动
 
