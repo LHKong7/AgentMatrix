@@ -14,6 +14,7 @@ assert.ok(
 )
 const isPi = engine === 'pi'
 const isDsh = engine === 'deepseek-harness'
+const isOpenCode = !isPi && !isDsh
 const nativeDsh = isDsh && process.env.AGENT_MATRIX_DSH_ROUTE === 'deepseek-native'
 const expectedCredentials = nativeDsh ? 1 : 3
 const engineLabel = isDsh ? 'DeepSeek Harness' : isPi ? 'Pi' : 'OpenCode'
@@ -77,12 +78,22 @@ const server = createServer(async (request, response) => {
       )
       if (isDsh) assert.ok(!JSON.stringify(input.messages).includes('SHADOWED_PROMPT_MARKER'))
       primaryRequests++
-      if (isPi)
+      if (isPi || isOpenCode)
         assert.ok(
           JSON.stringify(
             input.messages.filter((message) => ['system', 'developer'].includes(message.role)),
           ).includes('IMPORTED_APPEND_MARKER'),
         )
+      if (isOpenCode) {
+        const system = JSON.stringify(
+          input.messages.filter((message) => ['system', 'developer'].includes(message.role)),
+        )
+        assert.ok(system.includes('{file:/nested-must-not-read}'))
+        assert.ok(system.includes('{env:NESTED_MUST_NOT_RESOLVE}'))
+        assert.ok(
+          system.indexOf('IMPORTED_SYSTEM_MARKER') < system.indexOf('IMPORTED_APPEND_MARKER'),
+        )
+      }
     }
     const content = primary ? 'IMPORTED_NATIVE_REPLY' : 'Import check'
     if (!input.stream) {
@@ -139,7 +150,7 @@ const native = {
   },
   model: 'imported/alias',
   agent: {
-    imported: { prompt: 'IMPORTED_SYSTEM_MARKER. Follow the user request.', permission: 'ask' },
+    imported: { prompt: '{file:./unselected-native-role.md}', permission: 'ask' },
     referenced: { prompt: '{file:/not-read-by-importer}' },
   },
   mcp: {
@@ -151,6 +162,7 @@ const native = {
     },
   },
   plugin: ['/not-executed-plugin.js'],
+  instructions: ['./unresolved-glob/*.md'],
   future: { credential: unknownSecret },
 }
 let sourceBytes = isPi
@@ -189,6 +201,15 @@ let sourceBytes = isPi
     '\n'
   : `// Keep this comment and exact source bytes.\n${JSON.stringify(native, null, 2)}\n`
 const sources = new Map([[source, sourceBytes]])
+const selectedRole = join(root, 'profile', 'selected-role.md')
+const selectedAppend = join(root, 'native-home', 'selected-instruction.md')
+if (isOpenCode) {
+  sources.set(
+    selectedRole,
+    '\uFEFF  IMPORTED_SYSTEM_MARKER. Follow the user request. Literal {file:/nested-must-not-read} {env:NESTED_MUST_NOT_RESOLVE}\r\n',
+  )
+  sources.set(selectedAppend, '\uFEFFIMPORTED_APPEND_MARKER. Additional instructions.\r\n')
+}
 if (isPi) {
   sources.set(
     join(root, 'auth.json'),
@@ -346,7 +367,9 @@ async function choose(locale = 'en', cancel = false, adding = false) {
     {
       paths: (isDsh
         ? [...sources.keys()].slice(adding ? 2 : 0, adding ? 4 : 2)
-        : [...sources.keys()]
+        : isOpenCode
+          ? [source]
+          : [...sources.keys()]
       ).reverse(),
       cancel,
     },
@@ -364,6 +387,38 @@ async function choose(locale = 'en', cancel = false, adding = false) {
     })
     .click()
   if (!cancel) await page.locator('.native-import-preview').waitFor()
+}
+async function choosePrompt(referencePath, selectedPath, locale = 'en', cancel = false) {
+  await app.evaluate(
+    ({ dialog }, selection) => {
+      const original = dialog.showOpenDialog
+      dialog.showOpenDialog = async () => {
+        dialog.showOpenDialog = original
+        return { canceled: selection.cancel, filePaths: selection.cancel ? [] : [selection.path] }
+      }
+    },
+    { path: selectedPath, cancel },
+  )
+  const row = page.locator(`[data-import-reference="${referencePath}"]`)
+  await row
+    .getByRole('button', {
+      name: locale === 'en' ? 'Select Prompt file' : '选择 Prompt 文件',
+      exact: true,
+    })
+    .click()
+  if (!cancel) await row.getByText(selectedPath, { exact: true }).waitFor()
+  await poll(() => row.getByRole('button').isEnabled(), 'Prompt file selection finished')
+}
+async function choosePrompts(locale = 'en') {
+  await choosePrompt('/agent/imported/prompt', selectedRole, locale)
+  await choosePrompt('/instructions/0', selectedAppend, locale)
+  await page
+    .locator('[data-import-reference="/agent/referenced/prompt"]')
+    .getByRole('button', {
+      name: locale === 'en' ? 'Select Prompt file' : '选择 Prompt 文件',
+      exact: true,
+    })
+    .waitFor()
 }
 const state = () => page.evaluate(() => window.agentMatrix.loadWorkspace())
 async function poll(read, label) {
@@ -389,6 +444,13 @@ try {
     assert.equal(await page.locator('.native-import-preview').count(), 1)
     await choose('en', false, true)
   }
+  if (isOpenCode) {
+    await choosePrompt('/agent/imported/prompt', selectedRole, 'en', true)
+    assert.equal(await page.locator('.native-import-preview').count(), 1)
+    assert.equal(await page.getByText(selectedRole, { exact: true }).count(), 0)
+    await choosePrompts()
+    await page.locator('.native-import-references').scrollIntoViewIfNeeded()
+  }
   await page
     .getByText(`${expectedCredentials} literal secrets will be stored as encrypted credentials.`, {
       exact: false,
@@ -403,7 +465,7 @@ try {
     ? dshPath('.credentials.yaml')
     : isPi
       ? join(root, 'auth.json')
-      : source
+      : selectedRole
   await writeFile(changedSource, sources.get(changedSource) + '\n')
   await page.getByRole('button', { name: 'Import configuration', exact: true }).click()
   await page.getByRole('alert').filter({ hasText: 'source file or installation changed' }).waitFor()
@@ -416,6 +478,12 @@ try {
     await choose('zh-CN', false, true)
     await page.getByText('原生启动环境', { exact: false }).last().waitFor()
   }
+  if (isOpenCode) {
+    await choosePrompts('zh-CN')
+    await page.locator('.native-import-references').scrollIntoViewIfNeeded()
+  }
+  if (process.env.AGENT_MATRIX_SMOKE_SCREENSHOT_ZH)
+    await page.screenshot({ path: process.env.AGENT_MATRIX_SMOKE_SCREENSHOT_ZH, fullPage: true })
   await page.getByRole('heading', { name: '导入预览', exact: true }).waitFor()
   await page.getByRole('button', { name: '导入配置', exact: true }).click()
   await page.getByRole('status').filter({ hasText: '配置已导入' }).waitFor()
@@ -445,7 +513,27 @@ try {
     )
     assert.equal(imported.agents[0].engineOptions.appendPosition, 'suffix')
     assert.equal(imported.models[0].parameters.reasoning, 'off')
-  } else assert.equal(imported.mcpServers[0].envRefs.ENV_REFERENCE.name, 'IMPORT_ENV_REFERENCE')
+  } else {
+    assert.equal(imported.mcpServers[0].envRefs.ENV_REFERENCE.name, 'IMPORT_ENV_REFERENCE')
+    assert.deepEqual(
+      record.additionalSources.map((entry) => entry.referencePath),
+      ['/agent/imported/prompt', '/instructions/0'],
+    )
+    assert.equal(
+      record.diagnostics.filter((entry) => entry.code === 'review-prompt-selection').length,
+      2,
+    )
+    assert.deepEqual(
+      imported.prompts.map((entry) => entry.versions[0].content),
+      [sources.get(selectedAppend), sources.get(selectedRole).trim()],
+    )
+    assert.deepEqual(
+      imported.agents
+        .find((entry) => entry.name === 'imported')
+        .promptBindings.map((entry) => entry.mode),
+      ['replace', 'append'],
+    )
+  }
   assert.equal(
     (await page.evaluate(() => window.agentMatrix.getCredentialStatus())).credentials.length,
     expectedCredentials,
@@ -456,17 +544,16 @@ try {
   const encrypted = JSON.parse(await readFile(archivePath, 'utf8'))
   assert.equal(
     await app.evaluate(
-      async ({ safeStorage }, { ciphertext, expected, pi }) => {
+      async ({ safeStorage }, { ciphertext, expected }) => {
         const decrypted = await safeStorage.decryptStringAsync(Buffer.from(ciphertext, 'base64'))
         const payload = Buffer.from(decrypted.result, 'base64').toString('utf8')
-        if (!pi) return payload === expected[0]
         return (
           JSON.stringify(
             JSON.parse(payload).map((file) => Buffer.from(file.bytes, 'base64').toString('utf8')),
           ) === JSON.stringify(expected)
         )
       },
-      { ciphertext: encrypted.ciphertext, expected: [...sources.values()], pi: isPi || isDsh },
+      { ciphertext: encrypted.ciphertext, expected: [...sources.values()] },
     ),
     true,
   )
@@ -567,6 +654,17 @@ try {
         exactEncryptedArchive: true,
         importedCredentials: expectedCredentials,
         sourceFiles: sources.size,
+        ...(isOpenCode
+          ? {
+              explicitPromptSelections: true,
+              replacementAndAppend: true,
+              nestedMacrosRemainLiteral: true,
+              crossFolderSelection: true,
+              selectionProvenance: true,
+              selectionCancelPreservesPreview: true,
+              secondarySourceChangeRejected: true,
+            }
+          : {}),
         ...(isPi
           ? {
               storedAuthPrecedence: true,
@@ -594,6 +692,12 @@ try {
       2,
     ),
   )
+} catch (error) {
+  if (page && !page.isClosed())
+    await page
+      .screenshot({ path: join(root, 'failure.png'), fullPage: true })
+      .catch(() => undefined)
+  throw error
 } finally {
   if (app) await app.close().catch(() => undefined)
   await new Promise((resolve) => server.close(resolve))

@@ -1,4 +1,14 @@
 export const nativeImportEn = {
+  'nativeImport.promptFiles': 'Referenced Prompt files',
+  'nativeImport.promptFilesHint':
+    'Choose a local file for each reference you want to import. Its text becomes a shared Prompt. This is your explicit file selection; native directory searches, glob matches, remote URLs and nested macros are not resolved. Review the resulting draft.',
+  'nativeImport.replacePrompt': 'Agent replacement Prompt',
+  'nativeImport.appendPrompt': 'Shared appended instruction',
+  'nativeImport.selectedPrompt': 'Selected source',
+  'nativeImport.selectPromptFile': 'Select Prompt file',
+  'nativeImport.replaceFile': 'Choose another file',
+  'nativeImport.diagnostic.review-prompt-selection':
+    'This Prompt uses the file you selected. Native directory searches, glob matches, other configuration sources and instruction precedence are not reproduced; review the bindings before enabling the draft.',
   'nativeImport.title': 'Import native configuration',
   'nativeImport.description':
     'Select native OpenCode, Pi or DeepSeek Harness configuration to preview shared library entries and draft Agents.',
@@ -46,7 +56,7 @@ export const nativeImportEn = {
   'error.nativeImportEngine':
     'Select a saved OpenCode, Pi or DeepSeek Harness installation for this import.',
   'error.nativeImportSelection':
-    'Choose one OpenCode JSON/JSONC file, or up to five different Pi files from one folder: models.json, auth.json, settings.json, SYSTEM.md and APPEND_SYSTEM.md; or up to four distinct DSH files: cordis.yml, cordis.patch.yml, settings.yaml and .credentials.yaml.',
+    'Choose one OpenCode JSON/JSONC file, then optionally select one file per supported Prompt reference (up to 16); or up to five different Pi files from one folder: models.json, auth.json, settings.json, SYSTEM.md and APPEND_SYSTEM.md; or up to four distinct DSH files: cordis.yml, cordis.patch.yml, settings.yaml and .credentials.yaml.',
   'error.nativeImportSyntax':
     'JSON settings must contain objects without duplicate keys. Pi requires strict JSON; OpenCode also accepts JSONC. Source contents were not logged.',
   'error.nativeImportLimit':

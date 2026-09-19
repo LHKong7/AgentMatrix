@@ -13,9 +13,15 @@ function SourceDetails({ record }: { record: NativeImportRecord }) {
   return (
     <div className="native-import-source">
       <strong>{t('nativeImport.source')}</strong>
-      {nativeImportSources(record).map(({ source }) => (
-        <p key={source.path}>
-          <code>{source.path}</code> · {number(source.bytes)} B
+      {nativeImportSources(record).map((entry, index) => (
+        <p key={index}>
+          <code>{entry.source.path}</code> · {number(entry.source.bytes)} B
+          {'referencePath' in entry && (
+            <>
+              <br />
+              <code>{entry.referencePath}</code>
+            </>
+          )}
         </p>
       ))}
       <p className="hint">
@@ -86,7 +92,7 @@ export function NativeImportPanel({
   const lock = useRef(false)
   const [error, setError] = useState<unknown>(null)
   const [saved, setSaved] = useState(false)
-  async function run(action: 'reading' | 'adding' | 'importing') {
+  async function run(action: 'reading' | 'adding' | 'importing', referencePath?: string) {
     if (lock.current) return
     lock.current = true
     setBusy(action)
@@ -99,6 +105,7 @@ export function NativeImportPanel({
         const next = await api.previewNativeImport({
           installationId,
           ...(previousPreviewId ? { previousPreviewId } : {}),
+          ...(referencePath ? { referencePath } : {}),
         })
         if (next || action === 'reading') setPreview(next)
       } else if (preview) {
@@ -175,6 +182,49 @@ export function NativeImportPanel({
           <h3>{t('nativeImport.preview')}</h3>
           <p className="hint">{t('nativeImport.scope')}</p>
           <p className="hint">{t('nativeImport.archive')}</p>
+          {!!preview.promptReferences?.length && (
+            <section className="native-import-references">
+              <h4>{t('nativeImport.promptFiles')}</h4>
+              <p className="hint">{t('nativeImport.promptFilesHint')}</p>
+              {preview.promptReferences.map((reference) => (
+                <div
+                  className="native-import-source"
+                  key={reference.path}
+                  data-import-reference={reference.path}
+                >
+                  <strong>
+                    {t(
+                      reference.mode === 'replace'
+                        ? 'nativeImport.replacePrompt'
+                        : 'nativeImport.appendPrompt',
+                    )}
+                  </strong>
+                  <p>
+                    <code>{reference.path}</code>
+                  </p>
+                  <p>
+                    <code>{reference.reference}</code>
+                  </p>
+                  {reference.selectedPath && (
+                    <p>
+                      {t('nativeImport.selectedPrompt')}: <code>{reference.selectedPath}</code>
+                    </p>
+                  )}
+                  <button
+                    className="button secondary"
+                    disabled={!!busy}
+                    onClick={() => void run('adding', reference.path)}
+                  >
+                    {t(
+                      reference.selectedPath
+                        ? 'nativeImport.replaceFile'
+                        : 'nativeImport.selectPromptFile',
+                    )}
+                  </button>
+                </div>
+              ))}
+            </section>
+          )}
           <p>{t('nativeImport.secrets', { count: number(preview.credentials) })}</p>
           <h4>
             {t('nativeImport.entities')} ({number(preview.entities.length)})

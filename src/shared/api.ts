@@ -31,6 +31,7 @@ export interface AgentMatrixApi {
   previewNativeImport(input: {
     installationId: string
     previousPreviewId?: string
+    referencePath?: string
   }): Promise<NativeImportPreview | null>
   applyNativeImport(input: { id: string; workspaceRevision: number }): Promise<EngineWorkspace>
   sessions: SessionApi

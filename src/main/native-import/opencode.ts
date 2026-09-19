@@ -36,6 +36,7 @@ export function planOpenCodeImport(
   data: JsonObject,
   installationId: string,
   importId: string,
+  promptFiles: ReadonlyMap<string, string> = new Map(),
 ): NativeImportPlan {
   const plan: NativeImportPlan = {
     additions: { connections: [], models: [], agents: [], prompts: [], mcpServers: [] },
@@ -398,6 +399,31 @@ export function planOpenCodeImport(
     isObject(data.agent) && Object.keys(data.agent).length
       ? Object.entries(data.agent)
       : ([['build', {} as JsonObject]] as const)
+  const instructions: EngineWorkspace['agents'][number]['promptBindings'] = []
+  if (Array.isArray(data.instructions))
+    for (const [index] of data.instructions.entries()) {
+      const path = `/instructions/${index}`
+      const content = promptFiles.get(path)
+      if (content === undefined) continue
+      const asset = promptAssetSchema.safeParse({
+        id: id(),
+        name: label(`Imported instruction ${index + 1}`),
+        description: '',
+        enabled: true,
+        purpose: 'system-template',
+        currentVersion: 1,
+        versions: [{ version: 1, content }],
+      })
+      if (!asset.success || !content.trim()) {
+        diagnostic(path, 'invalid-value')
+        continue
+      }
+      plan.additions.prompts.push(asset.data)
+      instructions.push({ assetId: asset.data.id, selection: { follow: 'latest' }, mode: 'append' })
+      mapped(path, 'prompts', asset.data.id, 'versions[0].content')
+      // This is the user's selected file, not a reconstruction of cwd/glob/global native discovery.
+      diagnostic(path, 'review-prompt-selection')
+    }
   for (const [name, value] of nativeAgents) {
     const path = at('/agent', name)
     if (!isObject(value)) {
@@ -431,9 +457,11 @@ export function planOpenCodeImport(
       } else diagnostic(path, 'invalid-value')
     }
     const promptBindings: EngineWorkspace['agents'][number]['promptBindings'] = []
-    const prompt = literal(value.prompt, `${path}/prompt`)
+    const selectedPrompt = promptFiles.get(`${path}/prompt`)
+    const prompt =
+      selectedPrompt === undefined ? literal(value.prompt, `${path}/prompt`) : selectedPrompt.trim()
     if (prompt?.trim()) {
-      const asset = promptAssetSchema.parse({
+      const assetResult = promptAssetSchema.safeParse({
         id: id(),
         name: label(`${name} prompt`),
         description: '',
@@ -442,10 +470,15 @@ export function planOpenCodeImport(
         currentVersion: 1,
         versions: [{ version: 1, content: prompt }],
       })
-      plan.additions.prompts.push(asset)
-      promptBindings.push({ assetId: asset.id, selection: { follow: 'latest' }, mode: 'replace' })
-      mapped(`${path}/prompt`, 'prompts', asset.id, 'versions[0].content')
-    }
+      if (assetResult.success) {
+        const asset = assetResult.data
+        plan.additions.prompts.push(asset)
+        promptBindings.push({ assetId: asset.id, selection: { follow: 'latest' }, mode: 'replace' })
+        mapped(`${path}/prompt`, 'prompts', asset.id, 'versions[0].content')
+        if (selectedPrompt !== undefined) diagnostic(`${path}/prompt`, 'review-prompt-selection')
+      } else diagnostic(`${path}/prompt`, 'invalid-value')
+    } else if (selectedPrompt !== undefined) diagnostic(`${path}/prompt`, 'invalid-value')
+    promptBindings.push(...instructions)
     const policy = value.permission ?? data.permission
     const approval = policy === 'allow' ? 'unrestricted' : policy === 'deny' ? 'deny' : 'ask'
     if (policy !== undefined) {

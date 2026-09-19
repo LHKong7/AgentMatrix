@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { parseNativeJsonc } from '../src/main/native-import/jsonc'
 import { planOpenCodeImport } from '../src/main/native-import/opencode'
+import { openCodePromptReferences } from '../src/main/native-import/opencode-prompts'
 
 const plan = (source: string) =>
   planOpenCodeImport(parseNativeJsonc(source), 'opencode', randomUUID())
@@ -48,6 +49,102 @@ describe('inert OpenCode configuration parsing', () => {
 })
 
 describe('OpenCode native-to-shared mapping', () => {
+  it('offers only supported local Prompt fields with escaped provenance pointers', () => {
+    expect(
+      openCodePromptReferences(
+        parseNativeJsonc(
+          JSON.stringify({
+            agent: {
+              'worker/~': { prompt: '{file:./role.md}' },
+              mixed: { prompt: 'prefix {file:./role.md}' },
+              environment: { prompt: '{env:ROLE}' },
+              empty: { prompt: '{file:}' },
+            },
+            instructions: [
+              './rules/*.md',
+              '/selected/path',
+              '~/rules.md',
+              'https://example.test/rules',
+              '{env:RULES}',
+              42,
+              '',
+            ],
+          }),
+        ),
+      ),
+    ).toEqual([
+      { path: '/agent/worker~1~0/prompt', reference: '{file:./role.md}', mode: 'replace' },
+      { path: '/instructions/0', reference: './rules/*.md', mode: 'append' },
+      { path: '/instructions/1', reference: '/selected/path', mode: 'append' },
+      { path: '/instructions/2', reference: '~/rules.md', mode: 'append' },
+    ])
+  })
+  it('maps explicitly selected files to replacement and shared ordered append bindings without expanding nested macros', () => {
+    const data = parseNativeJsonc(
+      JSON.stringify({
+        agent: {
+          'worker/~': { prompt: '{file:./role.md}' },
+          other: { prompt: 'Inline role' },
+          unresolved: { prompt: '{file:/never-read}' },
+        },
+        instructions: ['./first.md', './unselected.md', './third.md'],
+      }),
+    )
+    const selected = new Map([
+      ['/agent/worker~1~0/prompt', '\uFEFF  Role {file:/never-read} {env:NEVER_READ}\r\n'],
+      ['/instructions/2', 'Third\r\n'],
+      ['/instructions/0', '\uFEFFFirst\n'],
+    ])
+    const result = planOpenCodeImport(data, 'opencode', randomUUID(), selected)
+    const bindings = result.additions.agents.map((agent) =>
+      agent.promptBindings.map((binding) => ({
+        mode: binding.mode,
+        content: result.additions.prompts.find((prompt) => prompt.id === binding.assetId)!
+          .versions[0]!.content,
+      })),
+    )
+    const appended = [
+      { mode: 'append', content: '\uFEFFFirst\n' },
+      { mode: 'append', content: 'Third\r\n' },
+    ]
+    expect(bindings).toEqual([
+      [{ mode: 'replace', content: 'Role {file:/never-read} {env:NEVER_READ}' }, ...appended],
+      [{ mode: 'replace', content: 'Inline role' }, ...appended],
+      appended,
+    ])
+    expect(result.additions.agents.every((agent) => !agent.enabled)).toBe(true)
+    expect(result.additions.prompts).toHaveLength(4)
+    for (const path of selected.keys()) {
+      expect(result.mappings).toContainEqual(
+        expect.objectContaining({ path, collection: 'prompts', field: 'versions[0].content' }),
+      )
+      expect(result.diagnostics).toContainEqual({ path, code: 'review-prompt-selection' })
+    }
+    expect(result.diagnostics).toContainEqual({
+      path: '/agent/unresolved/prompt',
+      code: 'unresolved-reference',
+    })
+    expect(result.diagnostics).toContainEqual({ path: '/instructions/1', code: 'unconverted' })
+  })
+  it.each(['', ' \r\n', 'a'.repeat(100_001)])(
+    'retains empty or oversized selected content as unmapped data (%#)',
+    (content) => {
+      const data = parseNativeJsonc(
+        '{"agent":{"worker":{"prompt":"{file:role.md}"}},"instructions":["rules.md"]}',
+      )
+      const paths = ['/agent/worker/prompt', '/instructions/0']
+      const result = planOpenCodeImport(
+        data,
+        'opencode',
+        randomUUID(),
+        new Map(paths.map((path) => [path, content])),
+      )
+      expect(result.additions.prompts).toHaveLength(0)
+      expect(result.additions.agents[0]!.promptBindings).toEqual([])
+      for (const path of paths)
+        expect(result.diagnostics).toContainEqual({ path, code: 'invalid-value' })
+    },
+  )
   it('diagnoses unrepresentable dictionary keys instead of silently stripping configured headers or environment values', () => {
     const result = plan(
       '{"provider":{"custom":{"npm":"@ai-sdk/openai-compatible","options":{"headers":{"__proto__":"private-header"}}}},"mcp":{"local":{"type":"local","command":["server"],"environment":{"__proto__":"private-env"}}}}',

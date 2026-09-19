@@ -1,5 +1,15 @@
 import type { nativeImportEn } from './native-import-en'
 export const nativeImportZhCN: Record<keyof typeof nativeImportEn, string> = {
+  'nativeImport.promptFiles': '引用的 Prompt 文件',
+  'nativeImport.promptFilesHint':
+    '为需要导入的引用选择本地文件，其正文将成为共享 Prompt。这是你明确选择的文件；不会自动搜索原生目录、展开通配符、访问远程 URL 或解析嵌套宏，请检查导入后的草稿。',
+  'nativeImport.replacePrompt': 'Agent 替换提示词',
+  'nativeImport.appendPrompt': '共享追加指令',
+  'nativeImport.selectedPrompt': '所选来源',
+  'nativeImport.selectPromptFile': '选择 Prompt 文件',
+  'nativeImport.replaceFile': '选择其他文件',
+  'nativeImport.diagnostic.review-prompt-selection':
+    '此 Prompt 来自你选中的文件，不复现原生目录搜索、通配符匹配、其他配置来源及指令优先级；启用草稿前请检查绑定。',
   'nativeImport.title': '导入原生配置',
   'nativeImport.description':
     '选择 OpenCode、Pi 或 DeepSeek Harness 原生配置，预览共享资源和 Agent 草稿。',
@@ -40,7 +50,7 @@ export const nativeImportZhCN: Record<keyof typeof nativeImportEn, string> = {
   'error.nativeImportDesktopOnly': '原生配置导入仅在桌面应用中可用。',
   'error.nativeImportEngine': '请为此次导入选择已保存的 OpenCode、Pi 或 DeepSeek Harness 安装。',
   'error.nativeImportSelection':
-    '请选择一个 OpenCode JSON/JSONC 文件，或同一目录下最多五种不同的 Pi 文件：models.json、auth.json、settings.json、SYSTEM.md、APPEND_SYSTEM.md；或最多四种 DSH 文件：cordis.yml、cordis.patch.yml、settings.yaml、.credentials.yaml。',
+    '请选择一个 OpenCode JSON/JSONC 文件，再按需为支持的 Prompt 引用逐项选择文件（最多 16 个）；或同一目录下最多五种不同的 Pi 文件：models.json、auth.json、settings.json、SYSTEM.md、APPEND_SYSTEM.md；或最多四种 DSH 文件：cordis.yml、cordis.patch.yml、settings.yaml、.credentials.yaml。',
   'error.nativeImportSyntax':
     'JSON 设置必须是无重复键的对象。Pi 需要严格 JSON，OpenCode 也接受 JSONC。源文件内容不会写入日志。',
   'error.nativeImportLimit':

@@ -170,7 +170,9 @@ if (!app.requestSingleInstanceLock()) {
                 ? [{ name: 'Pi JSON / Markdown', extensions: ['json', 'md'] }]
                 : kind === 'deepseek-harness'
                   ? [{ name: 'DSH YAML', extensions: ['yaml', 'yml'] }]
-                  : [{ name: 'OpenCode JSON / JSONC', extensions: ['json', 'jsonc'] }],
+                  : query.referencePath !== undefined
+                    ? [{ name: 'Prompt text / Markdown', extensions: ['md', 'txt'] }]
+                    : [{ name: 'OpenCode JSON / JSONC', extensions: ['json', 'jsonc'] }],
           })
           verifySender(event)
           if (result.canceled || !result.filePaths[0]) return null

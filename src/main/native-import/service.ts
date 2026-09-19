@@ -16,6 +16,7 @@ import type { EngineWorkspaceStore } from '../engine-workspace-store'
 import type { CredentialVault } from '../credentials/vault'
 import { NativeImportArchive } from './archive'
 import { planOpenCodeImport } from './opencode'
+import { openCodePromptReferences } from './opencode-prompts'
 import { planPiImport, type PiImportDocuments } from './pi'
 import { planDshImport } from './dsh'
 import type { DshImportDocuments } from './dsh-layers'
@@ -62,19 +63,41 @@ export class NativeImportService {
   preview(input: unknown, paths: string | string[]): Promise<NativeImportPreview> {
     return this.operation(async () => {
       const query = nativeImportQuerySchema.parse(input)
+      let references: string[] = []
+      let priorFiles: ImportFile[] = []
       if (query.previousPreviewId) {
         const prior = this.pending
         if (!prior || prior.record.id !== query.previousPreviewId || prior.expires <= Date.now())
           throw appError('error.nativeImportExpired')
         if (
-          prior.record.engine !== 'deepseek-harness' ||
+          !['opencode', 'deepseek-harness'].includes(prior.record.engine) ||
           prior.installation.id !== query.installationId
         )
           throw appError('error.nativeImportSelection')
-        paths = [
-          ...prior.files.map((file) => file.observation.path),
-          ...(typeof paths === 'string' ? [paths] : paths),
-        ]
+        if (prior.record.engine === 'opencode') {
+          const selected = typeof paths === 'string' ? [paths] : paths
+          if (
+            selected.length !== 1 ||
+            !query.referencePath ||
+            !openCodePromptReferences(prior.files[0]!.data as JsonObject).some(
+              (reference) => reference.path === query.referencePath,
+            )
+          )
+            throw appError('error.nativeImportSelection')
+          priorFiles = prior.files
+          const retained = prior.files.filter((file) => file.referencePath !== query.referencePath)
+          paths = [...retained.map((file) => file.observation.path), selected[0]!]
+          references = [
+            ...retained.slice(1).map((file) => file.referencePath!),
+            query.referencePath,
+          ]
+        } else {
+          if (query.referencePath !== undefined) throw appError('error.nativeImportSelection')
+          paths = [
+            ...prior.files.map((file) => file.observation.path),
+            ...(typeof paths === 'string' ? [paths] : paths),
+          ]
+        }
       }
       this.discard()
       const current = await this.workspace.load()
@@ -83,12 +106,51 @@ export class NativeImportService {
         throw appError('error.nativeImportEngine')
       const engine = installation.kind as NativeImportEngine
       await this.archive.available()
-      const files = await readImportFiles(engine, paths)
+      const files = await readImportFiles(engine, paths, references)
+      for (const prior of priorFiles) {
+        const latest = files.find(
+          (file) =>
+            file.referencePath === prior.referencePath &&
+            file.observation.path === prior.observation.path,
+        )
+        // A replaced selection may differ; every retained source must match the reviewed preview.
+        if (!latest) continue
+        if (
+          latest.stamp !== prior.stamp ||
+          !isDeepStrictEqual(latest.observation, prior.observation)
+        ) {
+          for (const file of files) file.content.fill(0)
+          throw appError('error.nativeImportChanged')
+        }
+      }
       const file = files[0]!
+      const promptReferences =
+        engine === 'opencode'
+          ? openCodePromptReferences(file.data as JsonObject).map((reference) => ({
+              ...reference,
+              ...(files.find((file) => file.referencePath === reference.path)
+                ? {
+                    selectedPath: files.find((file) => file.referencePath === reference.path)!
+                      .observation.path,
+                  }
+                : {}),
+            }))
+          : undefined
+      if (
+        references.some((path) => !promptReferences?.some((reference) => reference.path === path))
+      ) {
+        for (const file of files) file.content.fill(0)
+        throw appError('error.nativeImportSelection')
+      }
       const id = randomUUID()
       const plan =
         engine === 'opencode'
-          ? planOpenCodeImport(file.data as JsonObject, installation.id, id)
+          ? planOpenCodeImport(
+              file.data as JsonObject,
+              installation.id,
+              id,
+              new Map(files.slice(1).map((file) => [file.referencePath!, file.data as string])),
+            )
           : engine === 'deepseek-harness'
             ? planDshImport(
                 Object.fromEntries(
@@ -117,7 +179,15 @@ export class NativeImportService {
                 .slice(1)
                 .map((file) => ({ kind: file.kind, source: file.observation })),
             }
-          : {}),
+          : files.length > 1
+            ? {
+                additionalSources: files.slice(1).map((file) => ({
+                  kind: 'opencode-prompt',
+                  referencePath: file.referencePath,
+                  source: file.observation,
+                })),
+              }
+            : {}),
         importedAt: new Date().toISOString(),
         source: file.observation,
         mappings: plan.mappings,
@@ -150,6 +220,7 @@ export class NativeImportService {
         ),
         credentials: plan.credentials.length,
         expiresAt: new Date(expires).toISOString(),
+        ...(promptReferences ? { promptReferences } : {}),
       }
     })
   }
@@ -181,6 +252,9 @@ export class NativeImportService {
       const latest = await readImportFiles(
         pending.record.engine,
         pending.files.map((file) => file.observation.path),
+        pending.record.engine === 'opencode'
+          ? pending.files.slice(1).map((file) => file.referencePath!)
+          : [],
       )
       const changed = latest.some(
         (file, index) =>

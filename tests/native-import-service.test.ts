@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
 import {
   chmod,
+  mkdir,
   mkdtemp,
   readFile,
   readdir,
@@ -20,6 +21,7 @@ import { CredentialVault, type SecretCipher } from '../src/main/credentials/vaul
 import { createEngineWorkspace } from '../src/shared/engines/workspace'
 import { nativeImportSources, piImportKinds } from '../src/shared/engines/native-import'
 import { unpackImportArchive } from '../src/main/native-import/source-files'
+import type { NativeImportPreview } from '../src/shared/engines/native-import'
 
 let root: string
 let source: string
@@ -87,6 +89,228 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 const preview = () => service.preview({ installationId: 'opencode' }, source)
+const selectPrompt = (prior: NativeImportPreview, referencePath: string, path: string) =>
+  service.preview({ installationId: 'opencode', previousPreviewId: prior.id, referencePath }, path)
+
+describe('explicit OpenCode Prompt file selection', () => {
+  const role = '\uFEFF  Selected role 中文 {file:/never-read} {env:NEVER_READ}\r\n'
+  const appendix = '\uFEFFSelected appendix\r\n'
+  async function fixture() {
+    await mkdir(join(root, 'other-folder'))
+    const rolePath = join(root, 'other-folder', 'role.md')
+    const appendPath = join(root, 'append.txt')
+    const config = original.replace('"Shared role"', '"{file:/unselected-role.md}"')
+    await writeFile(source, config)
+    await writeFile(rolePath, role)
+    await writeFile(appendPath, appendix)
+    return { rolePath, appendPath, config }
+  }
+  it('captures selected cross-folder sources with pointer provenance, encrypted exact originals and restart-safe retry', async () => {
+    const { rolePath, appendPath, config } = await fixture()
+    const before = await readFile(store.filePath, 'utf8')
+    const first = await preview()
+    expect(first.promptReferences).toEqual([
+      { path: '/agent/worker/prompt', reference: '{file:/unselected-role.md}', mode: 'replace' },
+      { path: '/instructions/0', reference: '/no-such-file.md', mode: 'append' },
+    ])
+    const second = await selectPrompt(first, '/agent/worker/prompt', rolePath)
+    const captured = await selectPrompt(second, '/instructions/0', appendPath)
+    expect(captured.promptReferences?.map((entry) => entry.selectedPath)).toEqual([
+      rolePath,
+      appendPath,
+    ])
+    expect(nativeImportSources(captured.record).map((entry) => entry.source.path)).toEqual([
+      source,
+      rolePath,
+      appendPath,
+    ])
+    expect(captured.record).toMatchObject({
+      additionalSources: [
+        { kind: 'opencode-prompt', referencePath: '/agent/worker/prompt' },
+        { kind: 'opencode-prompt', referencePath: '/instructions/0' },
+      ],
+    })
+    expect(JSON.stringify(captured)).not.toMatch(
+      /Selected role|Selected appendix|synthetic-import-secret/,
+    )
+    expect(await readFile(store.filePath, 'utf8')).toBe(before)
+    expect((await vault.status()).credentials).toHaveLength(0)
+    await expect(readdir(join(root, 'native-imports'))).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(
+      service.apply({ id: first.id, workspaceRevision: first.workspaceRevision }),
+    ).rejects.toThrow('error.nativeImportExpired')
+    const saved = await service.apply({
+      id: captured.id,
+      workspaceRevision: captured.workspaceRevision,
+    })
+    expect(saved.prompts.map((prompt) => prompt.versions[0]!.content)).toEqual([
+      appendix,
+      role.trim(),
+    ])
+    expect(saved.agents[0]!.promptBindings.map((binding) => binding.mode)).toEqual([
+      'replace',
+      'append',
+    ])
+    const raw = await readFile(join(root, 'native-imports', `${captured.id}.json`), 'utf8')
+    expect(raw).not.toMatch(/Selected role|Selected appendix|synthetic-import-secret/)
+    const encrypted = JSON.parse(raw)
+    const bytes = Buffer.from(
+      (await cipher.decrypt(Buffer.from(encrypted.ciphertext, 'base64'))).value,
+      'base64',
+    )
+    expect(
+      unpackImportArchive(captured.record, bytes).map((file) => file.toString('utf8')),
+    ).toEqual([config, role, appendix])
+    for (const [path, content] of [
+      [source, config],
+      [rolePath, role],
+      [appendPath, appendix],
+    ] as const) {
+      expect(await readFile(path, 'utf8')).toBe(content)
+      await unlink(path)
+    }
+    const reopened = new NativeImportService(
+      store,
+      new CredentialVault(vault.filePath, cipher),
+      archive,
+    )
+    await reopened.recover()
+    expect(
+      await reopened.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision }),
+    ).toEqual(saved)
+    await archive.verify(captured.record)
+    const modified = structuredClone(saved)
+    if (modified.nativeImports![0]!.engine !== 'opencode') throw new Error('Wrong engine')
+    modified.nativeImports![0]!.additionalSources![0]!.referencePath = '/instructions/9'
+    await expect(store.save(modified)).rejects.toThrow('error.nativeImportHistory')
+    const payload = JSON.parse(bytes.toString('utf8'))
+    payload.reverse()
+    await expect(
+      archive.save(captured.record, Buffer.from(JSON.stringify(payload))),
+    ).resolves.toBeUndefined()
+    // Immutable archive publication preserves the existing original rather than replacing it.
+    await archive.verify(captured.record)
+    const document = JSON.parse(raw)
+    document.ciphertext = (
+      await cipher.encrypt(Buffer.from(JSON.stringify(payload)).toString('base64'))
+    ).toString('base64')
+    await writeFile(join(root, 'native-imports', `${captured.id}.json`), JSON.stringify(document))
+    await expect(archive.verify(captured.record)).rejects.toThrow('error.nativeImportArchive')
+  })
+  it('replaces a selected assignment and preserves distinct bindings to the same physical file', async () => {
+    const { rolePath, appendPath } = await fixture()
+    const first = await selectPrompt(await preview(), '/agent/worker/prompt', rolePath)
+    const replacement = await selectPrompt(first, '/agent/worker/prompt', appendPath)
+    expect(nativeImportSources(replacement.record).map((entry) => entry.source.path)).toEqual([
+      source,
+      appendPath,
+    ])
+    await writeFile(rolePath, 'An unselected source may change')
+    const captured = await selectPrompt(replacement, '/instructions/0', appendPath)
+    expect(nativeImportSources(captured.record).map((entry) => entry.source.path)).toEqual([
+      source,
+      appendPath,
+      appendPath,
+    ])
+    const saved = await service.apply({
+      id: captured.id,
+      workspaceRevision: captured.workspaceRevision,
+    })
+    expect(saved.prompts.map((prompt) => prompt.versions[0]!.content)).toEqual([
+      appendix,
+      appendix.trim(),
+    ])
+    await archive.verify(captured.record)
+  })
+  it.each(['primary', 'role', 'append'])(
+    'rejects %s source changes before apply without publishing resources or credentials',
+    async (which) => {
+      const { rolePath, appendPath } = await fixture()
+      const captured = await selectPrompt(
+        await selectPrompt(await preview(), '/agent/worker/prompt', rolePath),
+        '/instructions/0',
+        appendPath,
+      )
+      const path = which === 'primary' ? source : which === 'role' ? rolePath : appendPath
+      await writeFile(path, (await readFile(path, 'utf8')) + '\n')
+      await expect(
+        service.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision }),
+      ).rejects.toThrow('error.nativeImportChanged')
+      expect((await store.load()).nativeImports).toBeUndefined()
+      expect((await vault.status()).credentials).toHaveLength(0)
+    },
+  )
+  it.each(['primary', 'role'])(
+    'requires a new preview when a retained %s changes during attachment',
+    async (which) => {
+      const { rolePath, appendPath } = await fixture()
+      const first = await selectPrompt(await preview(), '/agent/worker/prompt', rolePath)
+      const path = which === 'primary' ? source : rolePath
+      await writeFile(path, (await readFile(path, 'utf8')) + '\n')
+      await expect(selectPrompt(first, '/instructions/0', appendPath)).rejects.toThrow(
+        'error.nativeImportChanged',
+      )
+      expect((await store.load()).nativeImports).toBeUndefined()
+    },
+  )
+  it('rejects unsupported pointers and forged source content, and detects a changed selected symlink target', async () => {
+    const { rolePath } = await fixture()
+    const first = await preview()
+    await expect(selectPrompt(first, '/provider/custom/options/apiKey', rolePath)).rejects.toThrow(
+      'error.nativeImportSelection',
+    )
+    await expect(
+      service.preview(
+        { installationId: 'opencode', referencePath: '/agent/worker/prompt' },
+        rolePath,
+      ),
+    ).rejects.toThrow()
+    await expect(
+      service.preview(
+        {
+          installationId: 'opencode',
+          previousPreviewId: first.id,
+          referencePath: '/agent/worker/prompt',
+          content: 'forged',
+        },
+        rolePath,
+      ),
+    ).rejects.toThrow()
+    const link = join(root, 'link.md')
+    await symlink(rolePath, link)
+    const captured = await selectPrompt(first, '/agent/worker/prompt', link)
+    expect(nativeImportSources(captured.record)[1]!.source).toMatchObject({ path: link })
+    await unlink(link)
+    await symlink(source, link)
+    await expect(
+      service.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision }),
+    ).rejects.toThrow('error.nativeImportChanged')
+    expect((await vault.status()).credentials).toHaveLength(0)
+  })
+  it('limits the source group to sixteen assignments and one MiB including the primary file', async () => {
+    const { rolePath, appendPath } = await fixture()
+    await writeFile(
+      source,
+      JSON.stringify({
+        instructions: Array.from({ length: 17 }, (_, index) => `rules-${index}.md`),
+      }),
+    )
+    let captured = await preview()
+    for (let index = 0; index < 16; index++)
+      captured = await selectPrompt(captured, `/instructions/${index}`, rolePath)
+    expect(nativeImportSources(captured.record)).toHaveLength(17)
+    await expect(selectPrompt(captured, '/instructions/16', rolePath)).rejects.toThrow(
+      'error.nativeImportSelection',
+    )
+    await writeFile(rolePath, 'a'.repeat(600_000))
+    await writeFile(appendPath, 'b'.repeat(600_000))
+    captured = await selectPrompt(await preview(), '/instructions/0', rolePath)
+    await expect(selectPrompt(captured, '/instructions/1', appendPath)).rejects.toThrow(
+      'error.nativeImportLimit',
+    )
+    expect((await store.load()).nativeImports).toBeUndefined()
+  })
+})
 async function piFixture() {
   const current = await store.load()
   current.installations[0] = { ...current.installations[0]!, id: 'pi', kind: 'pi' }
