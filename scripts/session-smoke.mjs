@@ -501,6 +501,19 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     const sessionId = document.querySelector('.conversation').getAttribute('data-session-id')
     return window.agentMatrix.sessions.configuration({ sessionId })
   })
+  if (value.diagnostic) {
+    const diagnostic = dialog.locator(`[data-configuration-check="${value.diagnostic.check}"]`)
+    await diagnostic.waitFor()
+    assert.ok(!(await dialog.textContent()).includes('PRIVATE_DIAGNOSTIC_MARKER'))
+    if (process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT) {
+      await diagnostic.scrollIntoViewIfNeeded()
+      await page.screenshot({
+        path:
+          process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT +
+          (title === '配置报告' ? '.zh.png' : '.en.png'),
+      })
+    }
+  }
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
   assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
   assert.ok(
@@ -979,28 +992,75 @@ try {
   const historicalReport = await configurationReport()
   assert.equal(historicalReport.observationIsCurrent, false)
   assert.equal(historicalReport.observation.runId, latest.runId)
-  if (!isPi && !isDsh) {
-    const snapshotFile = join(dataDirectory, 'runs', latest.snapshotId, 'manifest.json')
-    const beforeDrift = await readFile(snapshotFile, 'utf8')
-    const newlyDiscovered = join(alternateCwd, '.opencode/agents/newly-discovered.md')
-    await writeFile(
-      newlyDiscovered,
-      '---\ndescription: New native agent\nmode: subagent\n---\nNEW_NATIVE_RESOURCE\n',
+  const snapshotFile = join(dataDirectory, 'runs', latest.snapshotId, 'manifest.json')
+  const beforeDrift = await readFile(snapshotFile, 'utf8')
+  const nativeControl = isPi
+    ? join(dataDirectory, 'runs', latest.snapshotId, 'state/pi/models.json')
+    : isDsh
+      ? join(
+          dataDirectory,
+          'runs',
+          latest.snapshotId,
+          'state/dsh/profiles/agentmatrix/cordis.patch.yml',
+        )
+      : join(alternateCwd, '.opencode/agents/newly-discovered.md')
+  const originalControl = isPi || isDsh ? await readFile(nativeControl) : null
+  await writeFile(
+    nativeControl,
+    originalControl
+      ? Buffer.concat([originalControl, Buffer.from('\nPRIVATE_DIAGNOSTIC_MARKER')])
+      : '---\ndescription: New native agent\nmode: subagent\n---\nPRIVATE_DIAGNOSTIC_MARKER\n',
+  )
+  const callsBefore = calls.length
+  await page.getByRole('button', { name: 'Resume session', exact: true }).click()
+  await status('Failed')
+  const failedResume = (await sessions()).find((session) => session.id === latest.id)
+  const diagnostic = {
+    check: isPi ? 'pi-controls' : isDsh ? 'dsh-controls' : 'sources',
+    reason: 'changed',
+    fields: [],
+  }
+  assert.deepEqual(failedResume.failure, {
+    code: 'configuration',
+    detail: '',
+    configuration: diagnostic,
+  })
+  assert.equal(failedResume.nativeSessionId, latest.nativeSessionId)
+  assert.equal(failedResume.snapshotDigest, latest.snapshotDigest)
+  assert.equal(calls.length, callsBefore)
+  assert.equal(await readFile(snapshotFile, 'utf8'), beforeDrift)
+  for (const locale of ['en', 'zh-CN']) {
+    await language(locale)
+    await page.locator(`.conversation [data-configuration-check="${diagnostic.check}"]`).waitFor()
+    const failedReport = await configurationReport(
+      locale === 'en' ? 'Configuration report' : '配置报告',
+      locale === 'en' ? 'Close' : '关闭',
     )
-    const callsBefore = calls.length
-    await page.getByRole('button', { name: 'Resume session', exact: true }).click()
-    await status('Failed')
-    const failedResume = (await sessions()).find((session) => session.id === latest.id)
-    assert.equal(failedResume.failure.code, 'configuration')
-    assert.equal(failedResume.nativeSessionId, latest.nativeSessionId)
-    assert.equal(failedResume.snapshotDigest, latest.snapshotDigest)
-    assert.equal(calls.length, callsBefore)
-    assert.equal(await readFile(snapshotFile, 'utf8'), beforeDrift)
-    const failedReport = await configurationReport()
+    assert.deepEqual(failedReport.diagnostic, diagnostic)
     assert.equal(failedReport.observationIsCurrent, false)
     assert.equal(failedReport.observation.runId, latest.runId)
-    await rm(newlyDiscovered)
+    assert.equal(
+      failedReport.fields.some((field) => field.rejected),
+      false,
+    )
   }
+  await app.close()
+  app = null
+  await launch()
+  await language('en')
+  await navigate('Sessions')
+  await status('Failed')
+  assert.deepEqual(
+    (await sessions()).find((session) => session.id === latest.id).failure.configuration,
+    diagnostic,
+  )
+  assert.ok(
+    !(await readFile(join(dataDirectory, 'sessions', `${latest.id}.jsonl`), 'utf8')).includes(
+      'PRIVATE_DIAGNOSTIC_MARKER',
+    ),
+  )
+  if (originalControl) await writeFile(nativeControl, originalControl)
+  else await rm(nativeControl)
   await page.getByRole('button', { name: 'Resume session', exact: true }).click()
   await status('Ready')
   const resumed = (await sessions()).find((session) => session.id === latest.id)
@@ -1010,6 +1070,11 @@ try {
   assert.equal(resumed.snapshotId, latest.snapshotId)
   assert.equal(resumed.snapshotDigest, latest.snapshotDigest)
   const resumedReport = await configurationReport()
+  assert.equal(resumedReport.diagnostic, null)
+  assert.equal(
+    resumedReport.fields.some((field) => field.rejected),
+    false,
+  )
   assert.equal(resumedReport.observationIsCurrent, true)
   assert.equal(resumedReport.observation.runId, resumed.runId)
   assert.equal(
@@ -1029,6 +1094,69 @@ try {
   await page.getByRole('button', { name: 'Close session', exact: true }).click()
   await status('Closed')
   await verifyLongHistory(original.id)
+  if (!isPi && !isDsh) {
+    await language('en')
+    await navigate('Sessions')
+    await page.getByRole('textbox', { name: 'Working directory', exact: true }).fill(cwd)
+    const nativeOverride = join(cwd, '.opencode/agents/build.md')
+    const nativeContents =
+      '---\ndescription: Native conflict fixture\n---\nPRIVATE_NATIVE_PROMPT_OVERRIDE\n'
+    await writeFile(nativeOverride, nativeContents)
+    const countBefore = (await sessions()).length
+    const callsBeforeMismatch = calls.length
+    await page.getByRole('button', { name: 'Start new session', exact: true }).click()
+    await waitForIpc(
+      async () => (await sessions()).length === countBefore + 1,
+      'native conflict capture',
+    )
+    await status('Failed')
+    const selectedId = await page.locator('.conversation').getAttribute('data-session-id')
+    const mismatch = (await sessions()).find((session) => session.id === selectedId)
+    const fieldDiagnostic = { check: 'opencode-config', reason: 'mismatch', fields: ['prompts'] }
+    assert.deepEqual(mismatch.failure.configuration, fieldDiagnostic)
+    assert.equal(mismatch.nativeSessionId, null)
+    assert.equal(calls.length, callsBeforeMismatch)
+    for (const locale of ['en', 'zh-CN']) {
+      await language(locale)
+      await page
+        .getByRole('button', {
+          name: locale === 'en' ? 'Configuration report' : '配置报告',
+          exact: true,
+        })
+        .click()
+      const dialog = page.getByRole('dialog')
+      await dialog.locator('[data-report-field="prompts"][data-rejected="true"]').waitFor()
+      await dialog.locator('[data-configuration-check="opencode-config"]').waitFor()
+      const report = await page.evaluate(
+        (sessionId) => window.agentMatrix.sessions.configuration({ sessionId }),
+        selectedId,
+      )
+      assert.deepEqual(report.diagnostic, fieldDiagnostic)
+      assert.equal(report.observation, null)
+      assert.equal(report.fields.find((field) => field.id === 'prompts').status, 'planned')
+      assert.ok(!(await dialog.textContent()).includes('PRIVATE_NATIVE_PROMPT_OVERRIDE'))
+      if (process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT)
+        await page.screenshot({
+          path:
+            process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT +
+            (locale === 'en' ? '.field.en.png' : '.field.zh.png'),
+        })
+      await dialog
+        .getByRole('button', { name: locale === 'en' ? 'Close' : '关闭', exact: true })
+        .last()
+        .click()
+    }
+    assert.equal(await readFile(nativeOverride, 'utf8'), nativeContents)
+    assert.ok(
+      !(await readFile(join(dataDirectory, 'sessions', `${selectedId}.jsonl`), 'utf8')).includes(
+        'PRIVATE_NATIVE_PROMPT_OVERRIDE',
+      ),
+    )
+    await language('en')
+    await page.getByRole('button', { name: 'Close session', exact: true }).click()
+    await status('Closed')
+    await rm(nativeOverride)
+  }
   assert.ok(
     calls.length > 5 && calls.every((call) => call.authenticated && call.model === 'fixture-model'),
   )
@@ -1104,6 +1232,15 @@ try {
             englishAndChinese: true,
           }
         : 'No directory inventory declared by this adapter',
+    configurationFailure: {
+      check: diagnostic.check,
+      nativePromptMismatchAtStartup: !isPi && !isDsh ? true : 'Not part of this engine fixture',
+      persistedAfterRestart: true,
+      englishAndChinese: true,
+      historicalSuccessPreserved: true,
+      noNativeValuesOrSecretContent: true,
+      clearedAfterSuccessfulNativeResume: true,
+    },
     permissionCancellation: isPi ? 'unsupported: no universal per-tool approval' : true,
     sharedPromptOldAndNewSnapshots: true,
     libraryImpact: {

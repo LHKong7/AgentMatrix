@@ -276,6 +276,49 @@ describe('DSH runtime contract', () => {
 })
 
 describe('DSH native model readback', () => {
+  it('classifies route and reasoning failures without exposing native values', () => {
+    const f = fixture()
+    f.manifest.connection.protocol = 'deepseek-official'
+    f.manifest.model.parameters.reasoning = 'high'
+    const options: SessionConfigOption[] = [
+      {
+        id: 'model',
+        name: 'PRIVATE_LABEL',
+        type: 'select',
+        currentValue: JSON.stringify(['PRIVATE_ROUTE', 'PRIVATE_MODEL']),
+        options: [],
+      },
+      {
+        id: 'reasoning_effort',
+        name: 'Reasoning',
+        type: 'select',
+        currentValue: 'off',
+        options: [],
+      },
+    ]
+    try {
+      verifyDshOptions(options, f.manifest)
+      throw new Error('Expected rejection')
+    } catch (error) {
+      expect(error).toBeInstanceOf(RuntimeFailure)
+      expect((error as RuntimeFailure).diagnostic).toEqual({
+        check: 'dsh-session',
+        reason: 'mismatch',
+        fields: ['connection', 'model', 'reasoning'],
+      })
+      expect(JSON.stringify(error)).not.toContain('PRIVATE')
+    }
+    try {
+      verifyDshOptions([], f.manifest)
+      throw new Error('Expected missing-selector rejection')
+    } catch (error) {
+      expect((error as RuntimeFailure).diagnostic).toEqual({
+        check: 'dsh-session',
+        reason: 'unavailable',
+        fields: [],
+      })
+    }
+  })
   it('requires the exact full route tuple', () => {
     const f = fixture()
     for (const value of [

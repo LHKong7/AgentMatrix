@@ -270,6 +270,12 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
       if (error instanceof RuntimeFailure) throw error
       throw new RuntimeFailure(
         getErrorKey(error)?.startsWith('error.credential') ? 'credentials' : 'configuration',
+        '',
+        getErrorKey(error) === 'error.runSourceChanged'
+          ? { check: 'sources', reason: 'changed', fields: [] }
+          : getErrorKey(error) === 'error.runIntegrity'
+            ? { check: 'snapshot', reason: 'mismatch', fields: [] }
+            : undefined,
       )
     }
   }

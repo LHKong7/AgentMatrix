@@ -6,6 +6,7 @@ import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { Modal } from './Modal'
 import { SessionCapabilities } from './SessionCapabilities'
+import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 
 export function ConfigurationReport({
   session,
@@ -93,9 +94,12 @@ export function ConfigurationReport({
               </dd>
             </dl>
             {report.failure && (
-              <p className="error-banner">
+              <div className="error-banner configuration-failure">
                 {t('report.failed')} {t(`sessions.failure.${report.failure}`)}
-              </p>
+                {report.failure === 'configuration' && (
+                  <ConfigurationFailureDetails diagnostic={report.diagnostic} />
+                )}
+              </div>
             )}
             <div className="report-table">
               <table aria-label={t('report.fields')}>
@@ -109,13 +113,26 @@ export function ConfigurationReport({
                 </thead>
                 <tbody>
                   {report.fields.map((field) => (
-                    <tr key={field.id} data-report-field={field.id}>
+                    <tr key={field.id} data-report-field={field.id} data-rejected={field.rejected}>
                       <th scope="row">{t(`report.field.${field.id}`)}</th>
                       <td>
                         <code>{field.value === 'default' ? t('report.default') : field.value}</code>
                       </td>
                       <td>
-                        <strong>{t(`report.status.${field.status}`)}</strong>
+                        {field.rejected ? (
+                          <>
+                            <strong>{t('report.fieldRejected')}</strong>
+                            {report.observation && (
+                              <small>
+                                {t('report.priorEvidence', {
+                                  evidence: t(`report.status.${field.status}`),
+                                })}
+                              </small>
+                            )}
+                          </>
+                        ) : (
+                          <strong>{t(`report.status.${field.status}`)}</strong>
+                        )}
                         {field.checks.map((check) => (
                           <small key={check}>{t(`report.check.${check}`)}</small>
                         ))}

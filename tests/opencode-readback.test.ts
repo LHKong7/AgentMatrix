@@ -1,7 +1,49 @@
 import { describe, expect, it } from 'vitest'
-import { configurationMismatch } from '../src/main/engines/adapters/opencode/readback'
+import {
+  configurationMismatch,
+  openCodeMismatchFields,
+} from '../src/main/engines/adapters/opencode/readback'
 
 describe('requested OpenCode configuration readback', () => {
+  it('reports all affected field groups without dynamic names, native values, or false permission matches', () => {
+    const expected = {
+      provider: {
+        'PRIVATE.PROVIDER': {
+          options: {
+            baseURL: 'PRIVATE_ENDPOINT',
+            apiKey: 'PRIVATE_KEY',
+            headers: { permission: 'allow' },
+          },
+          models: { selected: { id: 'model' } },
+        },
+      },
+      agent: { 'PRIVATE.AGENT': { prompt: 'PRIVATE_PROMPT', permission: 'ask', temperature: 0.2 } },
+      instructions: ['rule-a', 'rule-b'],
+      skills: { paths: ['PRIVATE_PATH'] },
+      mcp: { PRIVATE_MCP: { command: ['PRIVATE_COMMAND'] } },
+      plugin: ['PRIVATE_PLUGIN'],
+    }
+    const actual = structuredClone(expected) as Record<string, unknown>
+    expect(openCodeMismatchFields(expected, actual)).toEqual([])
+    expect(openCodeMismatchFields(expected, {})).toEqual([
+      'connection',
+      'authentication',
+      'model',
+      'sampling',
+      'execution',
+      'prompts',
+      'skills',
+      'mcp',
+      'plugins',
+    ])
+    const headers = { provider: { custom: { options: { headers: { permission: 'allow' } } } } }
+    const normalized = {
+      provider: { custom: { options: { headers: { permission: { '*': 'allow' } } } } },
+    }
+    expect(configurationMismatch(headers, normalized)).not.toBeNull()
+    expect(openCodeMismatchFields(headers, normalized)).toEqual(['connection', 'authentication'])
+    expect(JSON.stringify(openCodeMismatchFields(expected, {}))).not.toContain('PRIVATE')
+  })
   it('permits added native defaults while checking each explicitly requested value', () => {
     const requested = {
       provider: { custom: { options: { baseURL: 'http://localhost/v1', apiKey: 'synthetic' } } },

@@ -116,7 +116,11 @@ export async function verifyPiHome(
       }
     }
   } catch {
-    throw new RuntimeFailure('configuration', 'pi.native-home')
+    throw new RuntimeFailure('configuration', 'pi.native-home', {
+      check: 'pi-controls',
+      reason: 'changed',
+      fields: [],
+    })
   }
 }
 
@@ -145,7 +149,11 @@ export async function preparePiLaunch(
     )
   ).trim()
   if (version !== piContract.engineVersion)
-    throw new RuntimeFailure('configuration', 'installation.version')
+    throw new RuntimeFailure('configuration', 'installation.version', {
+      check: 'installation',
+      reason: 'mismatch',
+      fields: ['installation'],
+    })
   await store.verifyForReuse(id)
   if (signal.aborted) throw new RuntimeFailure('process-exit')
   return prepared

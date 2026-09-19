@@ -84,6 +84,39 @@ afterEach(async () => {
   )
 })
 describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
+  it.each(['sources', 'snapshot'] as const)(
+    'reports %s integrity failure before resolving credentials or spawning an engine',
+    async (check) => {
+      const f = await fixture()
+      await f.factory.probe({ installationId: 'oc' })
+      const identity = await f.factory.create('integrity-failure', {
+        kind: 'create',
+        commandId: 'create',
+        agentId: 'reviewer',
+      })
+      await writeFile(
+        check === 'sources'
+          ? join(f.cwd, 'AGENTS.md')
+          : join(f.runs.paths(identity.snapshotId).inputs, 'opencode.json'),
+        'PRIVATE_NATIVE_CONTENT',
+      )
+      await expect(
+        f.factory.connect(
+          createSessionSnapshot({
+            ...identity,
+            id: 'session',
+            createdAt: new Date().toISOString(),
+          }),
+          new AbortController().signal,
+        ),
+      ).rejects.toMatchObject({
+        code: 'configuration',
+        diagnostic: { check, reason: check === 'sources' ? 'changed' : 'mismatch', fields: [] },
+      })
+      expect(f.resolveSecretVersioned).not.toHaveBeenCalled()
+      expect(f.resolveSecret).not.toHaveBeenCalled()
+    },
+  )
   it.each(['opencode', 'pi'] as const)(
     'captures a per-session %s directory and its native sources without changing the saved profile',
     async (kind) => {

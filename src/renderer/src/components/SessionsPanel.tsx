@@ -23,6 +23,7 @@ import { api } from '../lib/api'
 import { SessionFeed, emptySessionView } from '../lib/session-feed'
 import { useI18n } from '../i18n'
 import { ConfigurationReport } from './ConfigurationReport'
+import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 import { Transcript } from './SessionTranscript'
 import { SessionHistory } from './SessionHistory'
 
@@ -509,9 +510,12 @@ export function SessionsPanel({
               </div>
               <p className="hint captured-hint">{t('sessions.captured')}</p>
               {state.failure && (
-                <p className="error-banner" role="status">
+                <div className="error-banner configuration-failure" role="status">
                   {t(`sessions.failure.${state.failure.code}`)}
-                </p>
+                  {state.failure.code === 'configuration' && (
+                    <ConfigurationFailureDetails diagnostic={state.failure.configuration} />
+                  )}
+                </div>
               )}
               <div
                 className="transcript"

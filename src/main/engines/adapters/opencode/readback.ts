@@ -4,6 +4,10 @@ import type { RunInputManifest, RunPaths } from '../../../../shared/engines/run-
 import type { ProcessLaunch } from '../../process/managed-process'
 import { captureCommand } from '../../process/capture-command'
 import { RuntimeFailure } from '../../runtime'
+import {
+  configurationFieldSchema,
+  type ConfigurationField,
+} from '../../../../shared/engines/configuration-report'
 
 /** Native parsing may add defaults, but cannot change values explicitly requested by this plan. */
 export function configurationMismatch(
@@ -11,7 +15,7 @@ export function configurationMismatch(
   actual: unknown,
   path = '',
 ): string | null {
-  if (path.endsWith('.permission') && typeof expected === 'string') {
+  if (path.startsWith('agent.') && path.endsWith('.permission') && typeof expected === 'string') {
     if (actual === expected) return null
     if (actual && typeof actual === 'object' && !Array.isArray(actual)) {
       const rules = actual as Record<string, unknown>
@@ -44,6 +48,45 @@ export function configurationMismatch(
   return expected === actual ? null : path
 }
 
+/** Classify requested mismatches in memory. Dynamic provider/agent/header names never leave this function. */
+export function openCodeMismatchFields(expected: unknown, actual: unknown): ConfigurationField[] {
+  const fields = new Set<ConfigurationField>()
+  const classify = (path: string[]) => {
+    const [root, , leaf, option] = path
+    const add = (...values: ConfigurationField[]) => values.forEach((value) => fields.add(value))
+    if (root === 'provider') {
+      if (leaf === 'models') add(path.at(-1) === 'temperature' ? 'sampling' : 'model')
+      else if (leaf === 'options' && option === 'apiKey') add('authentication')
+      else if (leaf === 'options' && option === 'headers') add('connection', 'authentication')
+      else add('connection')
+    } else if (root === 'agent') {
+      if (leaf === 'prompt') add('prompts')
+      else if (leaf === 'permission') add('execution')
+      else if (leaf === 'temperature' || leaf === 'top_p') add('sampling')
+      else add('engine-options')
+    } else if (root === 'model' || root === 'small_model') add('model')
+    else if (root === 'instructions') add('prompts')
+    else if (root === 'skills') add('skills')
+    else if (root === 'mcp') add('mcp')
+    else if (root === 'plugin') add('plugins')
+    else add('engine-options')
+  }
+  const visit = (wanted: unknown, found: unknown, path: string[]) => {
+    if (wanted !== null && typeof wanted === 'object' && !Array.isArray(wanted)) {
+      const object =
+        found !== null && typeof found === 'object' && !Array.isArray(found)
+          ? (found as Record<string, unknown>)
+          : {}
+      const entries = Object.entries(wanted)
+      if (!entries.length && configurationMismatch(wanted, found, path.join('.')) !== null)
+        classify(path)
+      for (const [key, value] of entries) visit(value, object[key], [...path, key])
+    } else if (configurationMismatch(wanted, found, path.join('.')) !== null) classify(path)
+  }
+  visit(expected, actual, [])
+  return configurationFieldSchema.options.filter((field) => fields.has(field))
+}
+
 /** Compare in memory only: native config readback can include plaintext credentials. */
 export async function verifyOpenCodeReadback(
   manifest: RunInputManifest,
@@ -56,7 +99,11 @@ export async function verifyOpenCodeReadback(
     await captureCommand({ ...launch, args: [...prefix, '--version'] }, signal)
   ).trim()
   if (version !== manifest.installation.version)
-    throw new RuntimeFailure('configuration', 'installation.version')
+    throw new RuntimeFailure('configuration', 'installation.version', {
+      check: 'installation',
+      reason: 'mismatch',
+      fields: ['installation'],
+    })
   try {
     let text = await readFile(join(paths.inputs, 'opencode.json'), 'utf8')
     text = text.replace(/\{env:([^}]+)\}/g, (_match, name: string) => {
@@ -77,9 +124,17 @@ export async function verifyOpenCodeReadback(
     )
     // The path is intentionally not copied from untrusted native objects into diagnostics.
     if (configurationMismatch(expected, actual) !== null)
-      throw new RuntimeFailure('configuration', 'native.override')
+      throw new RuntimeFailure('configuration', 'native.override', {
+        check: 'opencode-config',
+        reason: 'mismatch',
+        fields: openCodeMismatchFields(expected, actual),
+      })
   } catch (error) {
     if (error instanceof RuntimeFailure) throw error
-    throw new RuntimeFailure('configuration', 'native.readback')
+    throw new RuntimeFailure('configuration', 'native.readback', {
+      check: 'opencode-config',
+      reason: 'unavailable',
+      fields: [],
+    })
   }
 }

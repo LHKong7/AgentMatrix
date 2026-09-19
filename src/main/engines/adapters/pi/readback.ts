@@ -5,6 +5,10 @@ import type { RunInputManifest, RunPaths } from '../../../../shared/engines/run-
 import type { PiClient } from '../../pi/client'
 import { RuntimeFailure } from '../../runtime'
 import { piApis, piThinking } from './configuration'
+import type {
+  ConfigurationDiagnostic,
+  ConfigurationField,
+} from '../../../../shared/engines/configuration-report'
 
 export const piStateSchema = z.looseObject({
   model: z.looseObject({
@@ -27,21 +31,33 @@ export async function verifyPiReadback(
   manifest: RunInputManifest,
   paths: RunPaths,
 ) {
+  let check: ConfigurationDiagnostic['check'] = 'pi-state'
   try {
     const state = piStateSchema.parse(await client.request({ type: 'get_state' }))
     const api = piApis[manifest.connection.protocol as keyof typeof piApis]
+    const fields: ConfigurationField[] = []
     if (
-      state.model.id !== manifest.model.modelId ||
       state.model.provider !== `agentmatrix-${manifest.connection.id}` ||
       state.model.api !== api ||
-      state.model.baseUrl !== manifest.connection.baseUrl ||
-      state.thinkingLevel !== piThinking(manifest) ||
+      state.model.baseUrl !== manifest.connection.baseUrl
+    )
+      fields.push('connection')
+    if (state.model.id !== manifest.model.modelId) fields.push('model')
+    if (state.thinkingLevel !== piThinking(manifest)) fields.push('reasoning')
+    if (
       state.isStreaming ||
       state.isCompacting ||
       state.pendingMessageCount !== 0 ||
       state.autoCompactionEnabled
     )
-      throw new Error('Unexpected native state')
+      fields.push('engine-options')
+    if (fields.length)
+      throw new RuntimeFailure('configuration', 'pi.native-readback', {
+        check,
+        reason: 'mismatch',
+        fields,
+      })
+    check = 'pi-skills'
     const commands = z
       .object({ commands: z.array(z.looseObject({ name: z.string(), source: z.string() })) })
       .parse(await client.request({ type: 'get_commands' }))
@@ -57,9 +73,18 @@ export async function verifyPiReadback(
       expected.length !== observed.length ||
       expected.some((name, index) => name !== observed[index])
     )
-      throw new Error('Unexpected native Skills')
+      throw new RuntimeFailure('configuration', 'pi.native-readback', {
+        check,
+        reason: 'mismatch',
+        fields: ['skills'],
+      })
     return state
-  } catch {
-    throw new RuntimeFailure('configuration', 'pi.native-readback')
+  } catch (error) {
+    if (error instanceof RuntimeFailure) throw error
+    throw new RuntimeFailure('configuration', 'pi.native-readback', {
+      check,
+      reason: 'unavailable',
+      fields: [],
+    })
   }
 }

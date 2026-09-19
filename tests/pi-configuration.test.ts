@@ -277,11 +277,17 @@ describe('Pi configuration contract', () => {
     state.model.baseUrl = 'https://unexpected.invalid'
     await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
       field: 'pi.native-readback',
+      diagnostic: { check: 'pi-state', reason: 'mismatch', fields: ['connection'] },
     })
     state.model.baseUrl = manifest.connection.baseUrl
     commands.commands.push({ source: 'skill', name: 'skill:unselected' })
     await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
       field: 'pi.native-readback',
+      diagnostic: { check: 'pi-skills', reason: 'mismatch', fields: ['skills'] },
+    })
+    vi.mocked(client.request).mockResolvedValueOnce({ privateNativeData: 'PRIVATE_VALUE' })
+    await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
+      diagnostic: { check: 'pi-state', reason: 'unavailable', fields: [] },
     })
   })
 })

@@ -30,7 +30,10 @@ import {
 import { RuntimeFailure, type RuntimeSession } from '../engines/runtime'
 import { SessionJournal } from './journal'
 import { SessionEventStream } from './event-stream'
-import type { ConfigurationReport } from '../../shared/engines/configuration-report'
+import {
+  configurationDiagnosticSchema,
+  type ConfigurationReport,
+} from '../../shared/engines/configuration-report'
 
 type Failure = NonNullable<SessionSnapshot['failure']>
 type CreateCommand = Extract<SessionCommand, { kind: 'create' }>
@@ -77,10 +80,17 @@ function canonical(value: unknown): string {
       .join(',')}}`
   return JSON.stringify(value)
 }
-const failureOf = (error: unknown): Failure => ({
-  code: error instanceof RuntimeFailure ? error.code : 'engine',
-  detail: '',
-})
+const failureOf = (error: unknown): Failure => {
+  const diagnostic =
+    error instanceof RuntimeFailure && error.code === 'configuration'
+      ? configurationDiagnosticSchema.safeParse(error.diagnostic)
+      : null
+  return {
+    code: error instanceof RuntimeFailure ? error.code : 'engine',
+    detail: '',
+    ...(diagnostic?.success ? { configuration: diagnostic.data } : {}),
+  }
+}
 
 /** Serialize durable decisions per session; never hold that queue while waiting for native work. */
 export class SessionCoordinator {

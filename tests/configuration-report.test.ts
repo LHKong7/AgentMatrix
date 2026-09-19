@@ -10,9 +10,10 @@ import { openCodeWorkspace } from './helpers/opencode-fixture'
 import { createSessionSnapshot, applySessionEvent } from '../src/shared/sessions/state'
 import {
   configurationChecksSchema,
+  configurationDiagnosticSchema,
   type ConfigurationCheck,
 } from '../src/shared/engines/configuration-report'
-import { sessionSnapshotSchema } from '../src/shared/sessions/schema'
+import { sessionFailureSchema, sessionSnapshotSchema } from '../src/shared/sessions/schema'
 import { SessionJournal } from '../src/main/sessions/journal'
 import { observeResourceDirectory } from '../src/main/engines/external-sources'
 
@@ -79,6 +80,83 @@ async function fixture(credential = false) {
   return { root, manifest, workspace, initial, ready, store }
 }
 describe('configuration report evidence and updates', () => {
+  it('keeps failed field checks separate from historical successes and clears rejection on retry', async () => {
+    const f = await fixture()
+    const ready = f.ready(['opencode.config'])
+    const interrupted = applySessionEvent(ready, {
+      sessionId: ready.id,
+      cursor: 3,
+      timestamp: ready.createdAt,
+      runId: ready.runId,
+      turnId: null,
+      data: { kind: 'run.interrupted', failure: { code: 'interrupted', detail: '' } },
+    })
+    const resuming = applySessionEvent(interrupted, {
+      sessionId: ready.id,
+      cursor: 4,
+      timestamp: ready.createdAt,
+      runId: 'retry',
+      turnId: null,
+      data: { kind: 'run.resuming' },
+    })
+    const diagnostic = {
+      check: 'opencode-config' as const,
+      reason: 'mismatch' as const,
+      fields: ['prompts' as const],
+    }
+    const failed = applySessionEvent(resuming, {
+      sessionId: ready.id,
+      cursor: 5,
+      timestamp: ready.createdAt,
+      runId: 'retry',
+      turnId: null,
+      data: {
+        kind: 'run.failed',
+        failure: { code: 'configuration', detail: '', configuration: diagnostic },
+      },
+    })
+    const report = buildConfigurationReport(f.manifest, failed, f.workspace)
+    expect(report.diagnostic).toEqual(diagnostic)
+    expect(report.observationIsCurrent).toBe(false)
+    expect(report.observation?.runId).toBe(ready.runId)
+    expect(report.fields.find((field) => field.id === 'prompts')).toMatchObject({
+      rejected: true,
+      status: 'observed',
+    })
+    expect(report.fields.filter((field) => field.rejected).map((field) => field.id)).toEqual([
+      'prompts',
+    ])
+    const retry = applySessionEvent(failed, {
+      sessionId: ready.id,
+      cursor: 6,
+      timestamp: ready.createdAt,
+      runId: 'retry-again',
+      turnId: null,
+      data: { kind: 'run.resuming' },
+    })
+    const pending = buildConfigurationReport(f.manifest, retry, f.workspace)
+    expect(pending.diagnostic).toBeNull()
+    expect(pending.fields.some((field) => field.rejected)).toBe(false)
+  })
+
+  it('rejects unknown or value-bearing diagnostic metadata', () => {
+    const valid = { check: 'pi-state', reason: 'mismatch', fields: ['model'] }
+    expect(configurationDiagnosticSchema.safeParse(valid).success).toBe(true)
+    expect(
+      sessionFailureSchema.safeParse({ code: 'engine', detail: '', configuration: valid }).success,
+    ).toBe(false)
+    expect(
+      sessionFailureSchema.safeParse({ code: 'configuration', detail: '', configuration: valid })
+        .success,
+    ).toBe(true)
+    for (const invalid of [
+      { ...valid, expected: 'PRIVATE_KEY' },
+      { ...valid, fields: ['model', 'model'] },
+      { ...valid, fields: ['provider.PRIVATE_KEY'] },
+      { ...valid, check: 'PRIVATE_NATIVE_CHECK' },
+    ])
+      expect(configurationDiagnosticSchema.safeParse(invalid).success).toBe(false)
+  })
   it('retains captured asset versions after the library item and binding are removed', async () => {
     const f = await fixture()
     f.workspace.prompts = f.workspace.prompts.filter((asset) => asset.id !== 'role')

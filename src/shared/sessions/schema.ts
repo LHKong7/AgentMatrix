@@ -2,6 +2,7 @@ import type { LibraryImpact, LibraryImpactQuery } from '../engines/impact'
 import { z } from 'zod'
 import {
   configurationChecksSchema,
+  configurationDiagnosticSchema,
   configurationObservationSchema,
   type ConfigurationReport,
 } from '../engines/configuration-report'
@@ -27,8 +28,10 @@ export const sessionFailureSchema = z
     ]),
     // Adapters supply a redacted diagnostic, never an Error/command/environment dump.
     detail: z.string().max(4000),
+    configuration: configurationDiagnosticSchema.optional(),
   })
   .strict()
+  .refine((failure) => !failure.configuration || failure.code === 'configuration')
 
 const requestFields = {
   id: entityId,

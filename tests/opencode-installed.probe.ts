@@ -607,7 +607,11 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       expect(await readFile(nativePath, 'utf8')).toBe(nativeContents)
       await expect(
         verifyOpenCodeReadback(manifest, store.paths('native'), launch, controller.signal),
-      ).rejects.toMatchObject({ code: 'configuration', field: 'native.override' })
+      ).rejects.toMatchObject({
+        code: 'configuration',
+        field: 'native.override',
+        diagnostic: { check: 'opencode-config', reason: 'mismatch', fields: ['prompts'] },
+      })
       await expect(
         prepareRunLaunch(store, 'native', async () => key, { HOME: home }),
       ).rejects.toThrow('error.runSourceChanged')

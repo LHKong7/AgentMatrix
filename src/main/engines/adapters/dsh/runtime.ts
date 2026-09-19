@@ -100,7 +100,11 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
       initialized.agentInfo?.name !== 'deepseek-harness-acp' ||
       initialized.agentInfo.version !== '0.0.1'
     )
-      throw new RuntimeFailure('configuration', 'dsh.acp-version')
+      throw new RuntimeFailure('configuration', 'dsh.acp-version', {
+        check: 'installation',
+        reason: 'mismatch',
+        fields: ['installation'],
+      })
     if (!initialized.agentCapabilities?.sessionCapabilities?.resume)
       throw new RuntimeFailure('unsupported', 'resume')
     // ACP may acknowledge initialization while native plugins are still loading.

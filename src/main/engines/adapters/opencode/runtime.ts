@@ -63,13 +63,20 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       manifest.agent.engineOptions?.kind === 'opencode'
         ? manifest.agent.engineOptions.agent
         : 'build'
+    const fields: ('model' | 'engine-options')[] = []
     if (
       model?.type !== 'select' ||
-      model.currentValue !== `agentmatrix-${manifest.connection.id}/selected` ||
-      agent?.type !== 'select' ||
-      agent.currentValue !== expectedAgent
+      model.currentValue !== `agentmatrix-${manifest.connection.id}/selected`
     )
-      throw new RuntimeFailure('configuration', 'native.session-options')
+      fields.push('model')
+    if (agent?.type !== 'select' || agent.currentValue !== expectedAgent)
+      fields.push('engine-options')
+    if (fields.length)
+      throw new RuntimeFailure('configuration', 'native.session-options', {
+        check: 'opencode-session',
+        reason: model?.type === 'select' && agent?.type === 'select' ? 'mismatch' : 'unavailable',
+        fields,
+      })
   }
   try {
     attachment = await attachAcpProcess(launch, {
@@ -108,7 +115,11 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     void closed.catch(() => {})
     const initialization = await owned.client.initialize('0.1.0')
     if (initialization.agentInfo?.version !== manifest.installation.version)
-      throw new RuntimeFailure('configuration', 'installation.version')
+      throw new RuntimeFailure('configuration', 'installation.version', {
+        check: 'installation',
+        reason: 'mismatch',
+        fields: ['installation'],
+      })
     let nativeSessionId = options.previousNativeSessionId
     if (nativeSessionId) {
       if (launch.secrets?.some((secret) => nativeSessionId!.includes(secret)))

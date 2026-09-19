@@ -51,8 +51,31 @@ export const reportEn = {
   'report.currentObservation': 'Recorded for this attachment',
   'report.historicalObservation': 'Historical evidence; no current attachment is verified',
   'report.noObservation':
-    'No recorded native checks. Older sessions remain unverified until a successful native resume.',
+    'No successful attachment checks were recorded. Older sessions remain unverified until a successful native resume.',
   'report.failed': 'The latest operation failed or was interrupted:',
+  'report.fieldRejected': 'Rejected by the latest configuration check.',
+  'report.priorEvidence': 'Earlier attachment: {evidence}',
+  'report.diagnosticMissing': 'No detailed configuration failure was recorded for this attempt.',
+  'report.diagnosticUnattributed': 'The check could not identify a specific configuration field.',
+  'report.diagnosticHint':
+    'This describes the failed attempt. Earlier successful checks remain historical. Native values and the winning source are not recorded. Review the captured inputs and native settings before retrying; create a new session to adopt changed inputs.',
+  'report.diagnosticReason.mismatch':
+    'The observed configuration did not match the captured requirements.',
+  'report.diagnosticReason.unavailable':
+    'The required native configuration could not be read or validated.',
+  'report.diagnosticReason.changed':
+    'Captured sources or managed native controls changed or became unavailable.',
+  'report.diagnosticCheck.snapshot': 'Captured input integrity',
+  'report.diagnosticCheck.sources': 'External source compatibility',
+  'report.diagnosticCheck.installation': 'Installed engine or protocol version',
+  'report.diagnosticCheck.opencode-config': 'OpenCode configuration readback',
+  'report.diagnosticCheck.opencode-session': 'OpenCode session selection',
+  'report.diagnosticCheck.pi-state': 'Pi model and runtime state',
+  'report.diagnosticCheck.pi-skills': 'Pi Skill discovery',
+  'report.diagnosticCheck.pi-controls': 'Pi managed native controls',
+  'report.diagnosticCheck.dsh-composition': 'DSH profile composition',
+  'report.diagnosticCheck.dsh-session': 'DSH session model and reasoning',
+  'report.diagnosticCheck.dsh-controls': 'DSH managed native controls',
   'report.fields': 'Configuration fields and evidence',
   'report.field': 'Field',
   'report.capturedValue': 'Captured value',

@@ -46,6 +46,8 @@ The **Native resource directories** section shows captured OpenCode Agent, Mode,
 
 ## Data boundaries and validation
 
+[Configuration failure diagnostics](configuration-failures.md) identify the latest rejected check and known field groups without exposing native values. Historical successful checks remain separate; unknown field attribution and legacy missing diagnostics stay explicit. The same diagnostic is available in the conversation and stored history, including when snapshot corruption prevents opening the full report.
+
 The sender-checked `sessions.configuration` IPC accepts only a validated session ID. The renderer cannot supply a path or native command. The main process projects an explicit set of metadata: raw native config, Prompt/Skill contents, headers, environment values, CLI arguments, secret values, and credential references are omitted. Endpoint display retains only the origin, removing user information, paths, queries, and fragments. Credential comparison uses random stored-version identifiers, revision numbers, and timestamps without decrypting values; identifiers are omitted from the report response. It compares stored revisions, not plaintext equality or environment-value changes.
 
 Native checks are a bounded, unique enum list rather than raw native output. Existing journal and process ownership rules apply: a failed durable Ready write cannot publish successful evidence. Application history remains the source of truth for observation ownership; no provider fixture result is silently promoted into evidence for a user's conversation.

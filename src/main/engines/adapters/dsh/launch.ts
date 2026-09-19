@@ -99,7 +99,11 @@ export async function verifyDshHome(
       }
     }
   } catch {
-    throw new RuntimeFailure('configuration', 'dsh.native-home')
+    throw new RuntimeFailure('configuration', 'dsh.native-home', {
+      check: 'dsh-controls',
+      reason: 'changed',
+      fields: [],
+    })
   }
 }
 
@@ -125,7 +129,11 @@ export async function prepareDshLaunch(
     (await captureCommand({ ...launch, args: ['--version'] }, signal)).trim() !==
     dshContract.engineVersion
   )
-    throw new RuntimeFailure('configuration', 'installation.version')
+    throw new RuntimeFailure('configuration', 'installation.version', {
+      check: 'installation',
+      reason: 'mismatch',
+      fields: ['installation'],
+    })
   // Dumping composes tagged YAML without evaluating it or starting plugins. This verifies composition, not application.
   const dump = await captureCommand({ ...launch, args: [...launch.args, '--dump-config'] }, signal)
   try {
@@ -133,9 +141,18 @@ export async function prepareDshLaunch(
       await readFile(join(store.paths(id).inputs, 'profile/cordis.patch.yml'), 'utf8'),
     ) as { insert: unknown }[]
     if (!isDeepStrictEqual(parseDshYaml(dump), expected[0]?.insert))
-      throw new Error('DSH composition differs')
-  } catch {
-    throw new RuntimeFailure('configuration', 'dsh.composition-readback')
+      throw new RuntimeFailure('configuration', 'dsh.composition-readback', {
+        check: 'dsh-composition',
+        reason: 'mismatch',
+        fields: [],
+      })
+  } catch (error) {
+    if (error instanceof RuntimeFailure) throw error
+    throw new RuntimeFailure('configuration', 'dsh.composition-readback', {
+      check: 'dsh-composition',
+      reason: 'unavailable',
+      fields: [],
+    })
   }
   await verifyDshHome(store, id)
   await store.verifyForReuse(id)

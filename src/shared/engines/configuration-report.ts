@@ -39,19 +39,45 @@ export const configurationObservationSchema = z
   })
   .strict()
 export type ConfigurationObservation = z.infer<typeof configurationObservationSchema>
-export type ConfigurationField =
-  | 'installation'
-  | 'connection'
-  | 'authentication'
-  | 'model'
-  | 'sampling'
-  | 'reasoning'
-  | 'execution'
-  | 'engine-options'
-  | 'prompts'
-  | 'skills'
-  | 'mcp'
-  | 'plugins'
+export const configurationFieldSchema = z.enum([
+  'installation',
+  'connection',
+  'authentication',
+  'model',
+  'sampling',
+  'reasoning',
+  'execution',
+  'engine-options',
+  'prompts',
+  'skills',
+  'mcp',
+  'plugins',
+])
+export type ConfigurationField = z.infer<typeof configurationFieldSchema>
+/** Fixed identifiers only: native object keys, values, paths, and errors must never enter this receipt. */
+export const configurationDiagnosticSchema = z
+  .object({
+    check: z.enum([
+      'snapshot',
+      'sources',
+      'installation',
+      'opencode-config',
+      'opencode-session',
+      'pi-state',
+      'pi-skills',
+      'pi-controls',
+      'dsh-composition',
+      'dsh-session',
+      'dsh-controls',
+    ]),
+    reason: z.enum(['mismatch', 'unavailable', 'changed']),
+    fields: z
+      .array(configurationFieldSchema)
+      .max(12)
+      .refine((fields) => new Set(fields).size === fields.length),
+  })
+  .strict()
+export type ConfigurationDiagnostic = z.infer<typeof configurationDiagnosticSchema>
 export interface ConfigurationReport {
   sessionId: string
   snapshotId: string
@@ -69,6 +95,7 @@ export interface ConfigurationReport {
   capabilities: SessionCapabilityReport
   observationIsCurrent: boolean
   failure: NonNullable<SessionSnapshot['failure']>['code'] | null
+  diagnostic: ConfigurationDiagnostic | null
   savedState: 'same' | 'pending' | 'draft' | 'missing'
   fields: {
     id: ConfigurationField
@@ -76,6 +103,7 @@ export interface ConfigurationReport {
     status: 'planned' | 'observed' | 'composition' | 'unknown'
     checks: ConfigurationCheck[]
     changed: boolean | null
+    rejected: boolean
   }[]
   assets: {
     kind: 'prompt' | 'skill'

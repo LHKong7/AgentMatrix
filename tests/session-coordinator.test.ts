@@ -157,6 +157,72 @@ afterEach(async () => {
 })
 
 describe('durable session coordination', () => {
+  it('journals safe configuration diagnostics, preserves them after restart, and clears them on successful resume', async () => {
+    const f = await fixture()
+    const { ready, runtime } = await f.start()
+    runtime.ended.resolve(result)
+    await f.wait(ready.id, 'interrupted')
+    const diagnostic = {
+      check: 'opencode-config' as const,
+      reason: 'mismatch' as const,
+      fields: ['prompts' as const],
+    }
+    f.factory.connect.mockRejectedValueOnce(
+      new RuntimeFailure('configuration', 'PRIVATE_NATIVE_DETAIL', diagnostic),
+    )
+    await f.coordinator.command({
+      kind: 'resume',
+      commandId: 'rejected',
+      sessionId: ready.id,
+      previousRunId: ready.runId!,
+    })
+    const failed = await f.wait(ready.id, 'failed')
+    expect(failed.failure).toEqual({ code: 'configuration', detail: '', configuration: diagnostic })
+    expect(failed.nativeSessionId).toBe(ready.nativeSessionId)
+    expect(failed.snapshotDigest).toBe(ready.snapshotDigest)
+    await f.coordinator.shutdown()
+    const restarted = new SessionCoordinator(new SessionJournal(f.root), f.factory)
+    coordinators.push(restarted)
+    expect((await restarted.get({ sessionId: ready.id })).failure).toEqual(failed.failure)
+    await restarted.command({
+      kind: 'resume',
+      commandId: 'retry',
+      sessionId: ready.id,
+      previousRunId: failed.runId!,
+    })
+    await vi.waitFor(async () =>
+      expect((await restarted.get({ sessionId: ready.id })).status).toBe('ready'),
+    )
+    expect((await restarted.get({ sessionId: ready.id })).failure).toBeNull()
+    const persisted = await readFile(join(f.root, `${ready.id}.jsonl`), 'utf8')
+    expect(persisted).toContain('opencode-config')
+    expect(persisted).not.toContain('PRIVATE_NATIVE_DETAIL')
+  })
+
+  it('drops invalid diagnostic payloads rather than persisting native values', async () => {
+    const f = await fixture()
+    const error = new RuntimeFailure('configuration', 'PRIVATE_FIELD')
+    Object.assign(error, {
+      diagnostic: {
+        check: 'opencode-config',
+        reason: 'mismatch',
+        fields: ['prompts'],
+        actual: 'PRIVATE_VALUE',
+      },
+    })
+    f.factory.connect.mockRejectedValueOnce(error)
+    const initial = await f.coordinator.command({
+      kind: 'create',
+      commandId: 'create',
+      agentId: 'profile',
+    })
+    await f.coordinator.command({ kind: 'start', commandId: 'start', sessionId: initial.id })
+    expect((await f.wait(initial.id, 'failed')).failure).toEqual({
+      code: 'configuration',
+      detail: '',
+    })
+    expect(await readFile(join(f.root, `${initial.id}.jsonl`), 'utf8')).not.toContain('PRIVATE')
+  })
   it.each([
     [
       { kind: 'select', options: [{ id: 'selected', label: 'Choose' }] },

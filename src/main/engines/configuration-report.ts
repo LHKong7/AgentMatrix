@@ -48,6 +48,7 @@ export function buildConfigurationReport(
   )
     throw new RuntimeFailure('configuration', 'report.evidence')
   const current = resolved.status === 'resolved' ? resolved.configuration : null
+  const diagnostic = snapshot.failure?.configuration ?? null
   const desired = current ? resolvedIntent(current) : null
   const captured = capturedIntent(manifest)
   const kind = manifest.installation.kind
@@ -131,6 +132,7 @@ export function buildConfigurationReport(
               ? 'composition'
               : 'observed',
         changed: desired ? canonicalIntent(captured[id]) !== canonicalIntent(desired[id]) : null,
+        rejected: diagnostic?.fields.includes(id) ?? false,
       }
     },
   )
@@ -163,6 +165,7 @@ export function buildConfigurationReport(
       ['ready', 'running', 'waiting', 'cancelling'].includes(snapshot.status),
     ),
     failure: snapshot.failure?.code ?? null,
+    diagnostic,
     savedState: !workspace.agents.some((agent) => agent.id === snapshot.agentId)
       ? 'missing'
       : !desired

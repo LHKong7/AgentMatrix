@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { HistoryEvent } from '../../../shared/sessions/schema'
 import { transcriptRows } from '../../../shared/sessions/transcript'
 import { useI18n } from '../i18n'
+import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 
 export function Transcript({
   events,
@@ -84,7 +85,12 @@ export function Transcript({
               <p>{t(`history.disposition.${data.disposition}`)}</p>
             )}
             {(data.kind === 'run.failed' || data.kind === 'run.interrupted') && (
-              <p>{t(`sessions.failure.${data.failure.code}`)}</p>
+              <>
+                <p>{t(`sessions.failure.${data.failure.code}`)}</p>
+                {data.failure.code === 'configuration' && (
+                  <ConfigurationFailureDetails diagnostic={data.failure.configuration} />
+                )}
+              </>
             )}
           </article>
         )

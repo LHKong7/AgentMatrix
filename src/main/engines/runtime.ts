@@ -4,7 +4,11 @@ import type {
   SessionEventData,
 } from '../../shared/sessions/schema'
 import type { ProcessResult } from './process/managed-process'
-import type { ConfigurationCheck } from '../../shared/engines/configuration-report'
+import {
+  configurationDiagnosticSchema,
+  type ConfigurationCheck,
+  type ConfigurationDiagnostic,
+} from '../../shared/engines/configuration-report'
 import type { CredentialResolution } from '../../shared/engines/credential-observation'
 import type { NativeRuntimeObservation } from '../../shared/engines/session-capabilities'
 
@@ -33,6 +37,7 @@ export interface RuntimeSession {
   dispose(): Promise<ProcessResult>
 }
 export class RuntimeFailure extends Error {
+  readonly diagnostic?: ConfigurationDiagnostic
   constructor(
     readonly code:
       | 'configuration'
@@ -44,7 +49,10 @@ export class RuntimeFailure extends Error {
       | 'engine'
       | 'storage',
     readonly field = '',
+    diagnostic?: ConfigurationDiagnostic,
   ) {
     super(`Agent runtime ${code}${field ? ` (${field})` : ''}`)
+    if (code === 'configuration' && diagnostic)
+      this.diagnostic = configurationDiagnosticSchema.parse(diagnostic)
   }
 }
