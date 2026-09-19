@@ -21,6 +21,10 @@ The selected file path is not proof of successful model invocation, model-visibl
 
 The [DSH observer](dsh-skill-sources.md) uses the actual ACP Agent scope, not the global catalog. It requires complete discovery without a concurrent registry change, compares the selected filesystem/custom entry paths, and discards loaded bodies inside the native process. DSH’s registered providers and plugins remain trusted native code; this is source-selection evidence, not verification of their implementation or subsequent behavior.
 
+## Model-visible loading and selected-name collisions
+
+The [four-route loading fixture](skill-loading-acceptance.md) now verifies selected metadata before invocation, Skill body contents after an entry read and reference contents after a separate read. Disabled bound assets and removed bindings disappear from new native conversations; two selected directory assets with the same frontmatter name fail before credential resolution. Exact native restoration retains the original context and captured files after import-source and library deletion. These checks pass 16 turns and 32 primary requests. They establish model-visible loading and selected-asset behavior, not the absence of internal filesystem reads or a universal winner among independently discovered native sources.
+
 ## Persistence and presentation
 
 Successful adapters add a fixed check identifier to the durable Ready acknowledgment. The existing session observation ties it to the snapshot digest, process run, native session, and timestamp. Each Skill in the English/Chinese configuration report shows a Pi RPC source match, an OpenCode ACP-server match, a legacy separate-process preflight match, a DSH session-registry match, or no recorded native source check. The mapped native entry is shown separately from the asset's archival path, so a generated Markdown wrapper is not confused with its unwrapped source. This entry comes from verified captured inputs; report reads never execute a native discovery command. Prompt assets do not receive Skill evidence.

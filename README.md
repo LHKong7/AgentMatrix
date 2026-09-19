@@ -70,6 +70,7 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run probe:dsh`                | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes                                            |
 | `npm run probe:providers`          | Opt-in Responses and Anthropic Messages endpoint, authentication, tool and lifecycle checks across all three installed engines using local fixtures |
 | `npm run probe:isolation`          | Verify two overlapping snapshots, native tool environments, resource versions, exact resume and independent cleanup on all four routes              |
+| `npm run probe:skills`             | Verify native Skill body/reference loading, disabled/unbound resources, selected-name collisions and restoration on four routes                     |
 | `npm run probe:pi`                 | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                                                           |
 | `npm run probe:acp`                | Opt-in installed OpenCode/DSH handshake through the application ACP client                                                                          |
 | `npm run format`                   | Format source and documentation                                                                                                                     |
