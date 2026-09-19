@@ -286,6 +286,7 @@ describe('configuration report evidence and updates', () => {
         kind: 'run.ready',
         nativeSessionId: 'native-id',
         configurationChecks: ['cli.version', 'opencode.session-model'],
+        nativeRuntime: { protocol: 'acp', version: 1, restoration: 'resume', restored: false },
         credentialResolutions: [
           {
             slot: 1,
@@ -304,6 +305,7 @@ describe('configuration report evidence and updates', () => {
     const interrupted = await restarted.get('session')
     expect(interrupted.status).toBe('interrupted')
     expect(interrupted.configuration?.checks).toEqual(['cli.version', 'opencode.session-model'])
+    expect(interrupted.configuration?.nativeRuntime?.restored).toBe(false)
     expect(interrupted.configuration?.credentialResolutions?.[0]?.version).toMatchObject({
       revision: 1,
     })
@@ -326,6 +328,7 @@ describe('configuration report evidence and updates', () => {
         kind: 'run.ready',
         nativeSessionId: 'native-id',
         configurationChecks: ['cli.version'],
+        nativeRuntime: { protocol: 'acp', version: 1, restoration: 'resume', restored: true },
         credentialResolutions: [
           {
             slot: 1,
@@ -362,6 +365,9 @@ describe('configuration report evidence and updates', () => {
     })
     expect(JSON.stringify(report)).not.toContain('private-vault-reference')
     expect(report.observation).not.toHaveProperty('credentialResolutions')
+    expect(
+      report.capabilities.capabilities.find((row) => row.feature === 'native-restore'),
+    ).toMatchObject({ verification: 'passed', availability: 'ready' })
     expect((await restarted.get('session')).configuration).toMatchObject({
       runId: 'new-run',
       checks: ['cli.version'],

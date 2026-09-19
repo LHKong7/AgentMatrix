@@ -495,6 +495,51 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
       isPi ? 'pi.plugins' : isDsh ? 'dsh.plugins' : 'opencode.plugins',
     ),
   )
+  const capabilities = value.capabilities
+  assert.equal(capabilities.contractMatches, true)
+  assert.equal(capabilities.current, value.observationIsCurrent)
+  assert.equal(capabilities.identity.snapshotDigest, value.snapshotDigest)
+  assert.equal(capabilities.identity.runId, value.observation.runId)
+  assert.equal(capabilities.identity.nativeSessionId, value.nativeSessionId)
+  assert.equal(capabilities.capabilities.length, 18)
+  for (const feature of [
+    'session-protocol',
+    'model-selection',
+    'connection-mapping',
+    'credential-resolution',
+    'plugin-activation',
+  ]) {
+    const row = capabilities.capabilities.find((item) => item.feature === feature)
+    assert.equal(row.verification, 'passed', feature)
+    assert.equal(row.availability, capabilities.current ? 'ready' : 'unknown', feature)
+  }
+  for (const feature of [
+    'model-service',
+    'mcp-connectivity',
+    'prompt-loading',
+    'policy-enforcement',
+  ])
+    assert.equal(
+      capabilities.capabilities.find((item) => item.feature === feature).verification,
+      'untested',
+      feature,
+    )
+  await dialog.locator('.session-capabilities > summary').click()
+  const table = dialog.getByRole('table', {
+    name: title === '配置报告' ? '原生能力证据' : 'Native capability evidence',
+    exact: true,
+  })
+  await table
+    .locator('[data-session-capability="session-protocol"][data-verification="passed"]')
+    .waitFor()
+  assert.equal(await table.locator('[data-session-capability]').count(), 18)
+  await table.locator('[data-session-capability="native-restore"]').scrollIntoViewIfNeeded()
+  if (process.env.AGENT_MATRIX_CAPABILITY_SCREENSHOT)
+    await page.screenshot({
+      path:
+        process.env.AGENT_MATRIX_CAPABILITY_SCREENSHOT +
+        (title === '配置报告' ? '.zh.png' : '.en.png'),
+    })
   if (process.env.AGENT_MATRIX_REPORT_SCREENSHOT)
     await page.screenshot({
       path: process.env.AGENT_MATRIX_REPORT_SCREENSHOT + (title === '配置报告' ? '.zh.png' : ''),
@@ -669,6 +714,11 @@ try {
   assert.ok(original.nativeSessionId)
   const initialReport = await configurationReport()
   assert.equal(initialReport.savedState, 'same')
+  assert.equal(
+    initialReport.capabilities.capabilities.find((row) => row.feature === 'native-restore')
+      .verification,
+    'untested',
+  )
   assert.equal(initialReport.observation.runId, original.runId)
   assert.equal(initialReport.snapshotDigest, original.snapshotDigest)
   assert.equal(
@@ -893,6 +943,16 @@ try {
   const resumedReport = await configurationReport()
   assert.equal(resumedReport.observationIsCurrent, true)
   assert.equal(resumedReport.observation.runId, resumed.runId)
+  assert.equal(
+    resumedReport.capabilities.capabilities.find((row) => row.feature === 'native-restore')
+      .verification,
+    'passed',
+  )
+  assert.equal(
+    resumedReport.capabilities.capabilities.find((row) => row.feature === 'native-restore')
+      .availability,
+    'ready',
+  )
   assert.equal(resumedReport.assets.find((asset) => asset.id === 'role').version, 2)
   await send('Continue the saved session')
   await status('Ready')
@@ -954,6 +1014,15 @@ try {
       pendingAssetVersions: true,
       englishAndChinese: true,
       sensitiveValuesOmitted: true,
+    },
+    sessionCapabilities: {
+      dimensions: 18,
+      capturedIdentityAndNativeChecks: true,
+      advertisedRestoreIsNotVerifiedUse: true,
+      freshEvidenceAfterNativeRestore: true,
+      historicalAvailabilityUnknown: true,
+      serviceAndEnforcementRemainUnverified: true,
+      englishAndChinese: true,
     },
     permissionCancellation: isPi ? 'unsupported: no universal per-tool approval' : true,
     sharedPromptOldAndNewSnapshots: true,

@@ -7,6 +7,7 @@ import {
 } from '../engines/configuration-report'
 import { absolutePath, entityId, runtimeModeSchema } from '../engines/schema'
 import { credentialResolutionsSchema } from '../engines/credential-observation'
+import { nativeRuntimeSchema } from '../engines/session-capabilities'
 
 const text = z.string().max(65_536)
 const nativeId = z.string().min(1).max(1000)
@@ -194,6 +195,11 @@ export const sessionSnapshotSchema = z
     if (!['created', 'closing', 'closed'].includes(snapshot.status) && !snapshot.runId)
       invalid('runId')
     if (
+      snapshot.configuration?.nativeRuntime &&
+      snapshot.configuration.nativeRuntime.protocol !== snapshot.mode
+    )
+      invalid('configuration')
+    if (
       ['ready', 'running', 'waiting', 'cancelling', 'resuming'].includes(snapshot.status) &&
       !snapshot.nativeSessionId
     )
@@ -238,6 +244,7 @@ export const sessionEventDataSchema = z
         nativeSessionId: nativeId,
         configurationChecks: configurationChecksSchema.optional(),
         credentialResolutions: credentialResolutionsSchema.optional(),
+        nativeRuntime: nativeRuntimeSchema.optional(),
       })
       .strict(),
     z.object({ kind: z.literal('turn.started'), messageId: entityId, text }).strict(),

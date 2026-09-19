@@ -134,6 +134,12 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
     }
     await verify()
     return {
+      nativeRuntime: {
+        protocol: 'acp',
+        version: 1,
+        restoration: 'resume',
+        restored: Boolean(previous),
+      },
       configurationChecks: [
         'inputs.integrity',
         'sources.unchanged',

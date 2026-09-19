@@ -3,6 +3,7 @@ import { entityId } from './schema'
 import { contentDigest } from './run-inputs'
 import type { SessionSnapshot } from '../sessions/schema'
 import { credentialResolutionsSchema, type CredentialReport } from './credential-observation'
+import { nativeRuntimeSchema, type SessionCapabilityReport } from './session-capabilities'
 
 // Only fixed check identifiers cross the runtime boundary. Raw native configuration may contain keys.
 export const configurationCheckSchema = z.enum([
@@ -34,6 +35,7 @@ export const configurationObservationSchema = z
     checkedAt: z.iso.datetime(),
     checks: configurationChecksSchema,
     credentialResolutions: credentialResolutionsSchema.optional(),
+    nativeRuntime: nativeRuntimeSchema.optional(),
   })
   .strict()
 export type ConfigurationObservation = z.infer<typeof configurationObservationSchema>
@@ -62,8 +64,9 @@ export interface ConfigurationReport {
   adapter: { id: string; version: string }
   cwd: string
   nativeSessionId: string | null
-  observation: Omit<ConfigurationObservation, 'credentialResolutions'> | null
+  observation: Omit<ConfigurationObservation, 'credentialResolutions' | 'nativeRuntime'> | null
   credentials: CredentialReport
+  capabilities: SessionCapabilityReport
   observationIsCurrent: boolean
   failure: NonNullable<SessionSnapshot['failure']>['code'] | null
   savedState: 'same' | 'pending' | 'draft' | 'missing'

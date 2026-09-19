@@ -12,6 +12,7 @@ import { piThinking } from './adapters/pi/configuration'
 import { capturedIntent, resolvedIntent, canonicalIntent } from '../../shared/engines/intent'
 import { credentialReport } from './credential-report'
 import type { CredentialVersions } from '../credentials/vault'
+import { buildSessionCapabilities } from './session-capabilities'
 
 const origin = (value: string) => {
   try {
@@ -155,6 +156,7 @@ export function buildConfigurationReport(
         }
       : null,
     credentials: credentialReport(manifest, observation?.credentialResolutions, versions),
+    capabilities: buildSessionCapabilities(manifest, snapshot),
     observationIsCurrent: Boolean(
       observation &&
       observation.runId === snapshot.runId &&

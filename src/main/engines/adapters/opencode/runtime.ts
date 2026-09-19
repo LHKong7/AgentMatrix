@@ -137,6 +137,16 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     const id = nativeSessionId
     return {
+      nativeRuntime: {
+        protocol: 'acp',
+        version: 1,
+        restoration: initialization.agentCapabilities?.sessionCapabilities?.resume
+          ? 'resume'
+          : initialization.agentCapabilities?.loadSession
+            ? 'load'
+            : 'unavailable',
+        restored: Boolean(options.previousNativeSessionId),
+      },
       configurationChecks: [
         'inputs.integrity',
         'sources.unchanged',

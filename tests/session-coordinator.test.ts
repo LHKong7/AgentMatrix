@@ -638,6 +638,9 @@ describe('durable session coordination', () => {
         },
       ],
     })
+    Object.defineProperty(runtime, 'nativeRuntime', {
+      value: { protocol: 'acp', version: 1, restoration: 'resume', restored: false },
+    })
     f.factory.connect.mockResolvedValueOnce(runtime)
     const initial = await f.coordinator.command({
       kind: 'create',

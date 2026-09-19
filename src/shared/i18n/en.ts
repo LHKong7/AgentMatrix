@@ -1,4 +1,5 @@
 import { supportEn } from './support-en'
+import { capabilityEn } from './capability-en'
 import { pluginEn } from './plugin-en'
 import { historyEn } from './history-en'
 import { impactEn } from './impact-en'
@@ -8,6 +9,7 @@ import { reportEn } from './report-en'
 import { nativeImportEn } from './native-import-en'
 
 export const en = {
+  ...capabilityEn,
   ...nativeImportEn,
   ...pluginEn,
   ...historyEn,

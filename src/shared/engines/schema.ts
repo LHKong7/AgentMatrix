@@ -242,7 +242,7 @@ export const capabilitySchema = z
     evidence: z.array(
       z
         .object({
-          kind: z.enum(['contract', 'runtime']),
+          kind: z.enum(['contract', 'advertisement', 'runtime']),
           source: z.string().max(4000),
           checkedAt: z.iso.datetime(),
         })

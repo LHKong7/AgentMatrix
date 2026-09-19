@@ -5,6 +5,7 @@ import { formatError } from '../../../shared/errors'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { Modal } from './Modal'
+import { SessionCapabilities } from './SessionCapabilities'
 
 export function ConfigurationReport({
   session,
@@ -129,6 +130,7 @@ export function ConfigurationReport({
                 </tbody>
               </table>
             </div>
+            <SessionCapabilities report={report.capabilities} />
             <h3>{t('report.credentialTitle')}</h3>
             <p className="hint">{t('report.credentialHint')}</p>
             <p className="hint">

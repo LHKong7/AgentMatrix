@@ -126,6 +126,11 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
       active?.fail(handlerFailure ?? new RuntimeFailure('process-exit')),
     )
     return {
+      nativeRuntime: {
+        protocol: 'pi-rpc',
+        restoration: 'switch-session',
+        restored: Boolean(previous),
+      },
       configurationChecks: [
         'inputs.integrity',
         'sources.unchanged',

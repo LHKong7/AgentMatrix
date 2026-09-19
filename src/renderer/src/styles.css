@@ -1705,11 +1705,13 @@ input[type='checkbox'] {
   color: var(--muted);
   margin-top: 8px;
 }
-.engine-support summary {
+.engine-support summary,
+.session-capabilities summary {
   cursor: pointer;
   color: var(--accent);
 }
-.engine-support .support-digest {
+.engine-support .support-digest,
+.session-capabilities .support-digest {
   display: block;
   overflow-wrap: anywhere;
   font-size: 10px;

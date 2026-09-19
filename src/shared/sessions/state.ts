@@ -146,14 +146,21 @@ export function applySessionEvent(previous: SessionSnapshot, input: SessionEvent
       requireStatus(state, ['starting', 'resuming'])
       if (state.status === 'resuming' && state.nativeSessionId !== data.nativeSessionId)
         throw appError('error.sessionStale')
+      if (
+        data.nativeRuntime &&
+        (data.nativeRuntime.protocol !== state.mode ||
+          data.nativeRuntime.restored !== (state.status === 'resuming'))
+      )
+        throw appError('error.sessionStale')
       state.nativeSessionId = data.nativeSessionId
-      if (data.configurationChecks || data.credentialResolutions)
+      if (data.configurationChecks || data.credentialResolutions || data.nativeRuntime)
         state.configuration = {
           runId: event.runId!,
           snapshotDigest: state.snapshotDigest,
           nativeSessionId: data.nativeSessionId,
           checkedAt: event.timestamp,
           checks: data.configurationChecks ?? [],
+          ...(data.nativeRuntime ? { nativeRuntime: data.nativeRuntime } : {}),
           ...(data.credentialResolutions
             ? { credentialResolutions: data.credentialResolutions }
             : {}),

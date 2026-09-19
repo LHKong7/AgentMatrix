@@ -30,6 +30,8 @@ For selected DSH modules, `dsh.plugins` records native boot completion and fresh
 
 Unset sampling defaults and unsupported reasoning readback remain unknown. The report presents the captured request and the scope of its native checks; it is not an assertion that every field is applied or continuously unchanged. Failures/interruption remain visible alongside historical evidence.
 
+The expandable [Native capability evidence](session-capabilities.md) table aggregates eighteen precise scopes with independent mechanism, verification, and availability. It distinguishes native restoration declarations from successful restoration, ties observations to the exact captured configuration/process/native conversation, and removes current availability after interruption. Model service acceptance, full Prompt application, MCP connectivity and universal enforcement are not inferred from native config readback. Saved-profile compatibility remains a separate static assessment.
+
 ## Saved changes and assets
 
 Reports compare executable installation identity, connection/authentication references and headers, model and parameter choices, requested execution policy, native options, resolved Prompt/Skill revisions and sources, MCP definitions, and native plugin references. Descriptive agent/connection names and a refreshed probe timestamp alone do not create pending changes.
