@@ -323,7 +323,45 @@ try {
     .getByRole('alert')
     .filter({ hasText: '所选插件或其声明的入口不存在。' })
     .waitFor()
+  await pluginDialog
+    .getByLabel('OpenCode 插件配置（JSON）', { exact: true })
+    .fill('{"marker":"KEEP_OPTIONS"}')
   await pluginDialog.getByLabel('引擎安装', { exact: true }).selectOption({ label: 'Smoke Pi' })
+  await pluginDialog
+    .getByText('这些选项属于其他引擎。请先清除，再配置当前引擎；不会自动转换选项含义。', {
+      exact: true,
+    })
+    .waitFor()
+  assert.equal(
+    JSON.parse(
+      await pluginDialog.getByLabel('OpenCode 插件配置（JSON）', { exact: true }).inputValue(),
+    ).marker,
+    'KEEP_OPTIONS',
+  )
+  await pluginDialog.getByRole('button', { name: '清除插件选项', exact: true }).click()
+  assert.equal(
+    await pluginDialog.getByLabel('OpenCode 插件配置（JSON）', { exact: true }).count(),
+    0,
+  )
+  await pluginDialog.getByLabel('引擎安装', { exact: true }).selectOption({ label: 'Smoke DSH' })
+  await pluginDialog
+    .getByLabel('DSH 插件配置（JSON）', { exact: true })
+    .fill('{"marker":"KEEP_DSH"}')
+  await pluginDialog
+    .getByLabel('引擎安装', { exact: true })
+    .selectOption({ label: 'Smoke OpenCode' })
+  assert.equal(
+    JSON.parse(await pluginDialog.getByLabel('DSH 插件配置（JSON）', { exact: true }).inputValue())
+      .marker,
+    'KEEP_DSH',
+  )
+  await pluginDialog.getByRole('button', { name: '清除插件选项', exact: true }).click()
+  assert.deepEqual(
+    JSON.parse(
+      await pluginDialog.getByLabel('OpenCode 插件配置（JSON）', { exact: true }).inputValue(),
+    ),
+    {},
+  )
   assert.equal(
     await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).isDisabled(),
     false,
@@ -841,6 +879,7 @@ try {
           savedReferencesSurviveRestart: true,
           secretMetadataOmitted: true,
           staleResultsCleared: true,
+          pluginOptionsEngineSwitchPreservesKindUntilCleared: true,
         },
         null,
         2,

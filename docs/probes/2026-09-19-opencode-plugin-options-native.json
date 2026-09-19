@@ -1,0 +1,58 @@
+{
+  "checkedAt": "2026-09-19T13:11:57.906Z",
+  "engine": "opencode",
+  "engineVersion": "1.18.16",
+  "platform": "darwin",
+  "arch": "arm64",
+  "selectedBindings": ["legacy", "v1"],
+  "nativeTupleOptions": {
+    "legacyAndV1": true,
+    "nestedLiteralsAndMacroKeys": true,
+    "capturedOptionsSurviveSavedEditsAndNativeResume": true,
+    "newCaptureUsesEditedOptions": true
+  },
+  "observed": [
+    {
+      "stage": "new",
+      "checks": [
+        "inputs.integrity",
+        "sources.unchanged",
+        "cli.version",
+        "opencode.config",
+        "opencode.instance-config",
+        "opencode.session-model",
+        "opencode.session-agent",
+        "opencode.plugins"
+      ]
+    },
+    {
+      "stage": "resume",
+      "checks": [
+        "inputs.integrity",
+        "sources.unchanged",
+        "cli.version",
+        "opencode.config",
+        "opencode.instance-config",
+        "opencode.session-model",
+        "opencode.session-agent",
+        "opencode.plugins"
+      ]
+    }
+  ],
+  "hookOrderByAttachment": [
+    ["alpha", "beta", "v1", "alpha", "beta", "v1"],
+    ["alpha", "beta", "v1"]
+  ],
+  "rejected": [
+    "pure",
+    "import",
+    "init",
+    "config",
+    "missing-dependency",
+    "wrong-id",
+    "changed-relative-dependency-on-resume",
+    "changed-entry-on-resume"
+  ],
+  "provider": "local synthetic HTTP fixture",
+  "sourceCoverage": "partial: entries, explicit relative modules and package scopes; package and computed imports remain unobserved"
+}

@@ -20,6 +20,7 @@ import { inspectFile } from '../../installed-plugin-files'
 import { pluginExportNames } from './plugin-exports'
 import bridgeSource from './plugin-bridge.mjs?raw'
 import { observePluginDependencies } from '../../plugin-dependencies'
+import type { PluginConfiguration } from '../../../../shared/engines/plugin-options'
 
 const bindingSchema = z
   .object({
@@ -46,10 +47,10 @@ export async function planOpenCodePlugins(
   paths: RunPaths,
   generated: GeneratedInputs,
   agentName: string,
-): Promise<string[]> {
+): Promise<(string | [string, PluginConfiguration])[]> {
   if (!configuration.nativePlugins.length) return []
   const bindings: z.infer<typeof planSchema> = []
-  const specifiers: string[] = []
+  const specifiers: (string | [string, PluginConfiguration])[] = []
   const entries = new Set<string>()
   for (const plugin of configuration.nativePlugins) {
     const inspection = await inspectOpenCodePlugin(plugin.path)
@@ -109,7 +110,12 @@ export async function planOpenCodePlugins(
         '',
       ].join('\n'),
     })
-    specifiers.push(pathToFileURL(join(paths.inputs, path)).href)
+    const specifier = pathToFileURL(join(paths.inputs, path)).href
+    specifiers.push(
+      plugin.options?.kind === 'opencode'
+        ? [specifier, structuredClone(plugin.options.config)]
+        : specifier,
+    )
   }
   generated.files.push(
     { path: planPath, content: JSON.stringify(bindings) + '\n' },

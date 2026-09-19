@@ -43,7 +43,7 @@ function nativeJson(value: NativeValue): string {
   if (value !== null && typeof value === 'object')
     return `{${Object.entries(value)
       .filter(([, item]) => item !== undefined)
-      .map(([key, item]) => `${JSON.stringify(key)}:${nativeJson(item)}`)
+      .map(([key, item]) => `${nativeJson(key)}:${nativeJson(item)}`)
       .join(',')}}`
   return JSON.stringify(value)
 }

@@ -73,18 +73,20 @@ it.runIf(Boolean(process.env.AGENT_MATRIX_TEST_OPENCODE))(
       const address = server.address()
       if (!address || typeof address === 'string') throw new Error('No fixture port')
       const record = `import { appendFileSync } from 'node:fs';
-function hooks(id) { return Object.freeze({
+function hooks(id, options) {
+  if (options?.nested?.[0] !== false || options.nested[1] !== 0 || options.nested[2] !== null || options['{env:OPTIONS_POISON}'] !== '{file:missing.txt}') throw new Error('Options changed');
+  return Object.freeze({
   config(config) { config.agent.build.description = 'Existing plugin description'; appendFileSync(${JSON.stringify(receipts)}, JSON.stringify({id, pid:process.pid, stage:'config'})+'\\n'); },
-  'experimental.chat.system.transform'(_input, output) { output.system.push('MANAGED_PLUGIN_' + id); appendFileSync(${JSON.stringify(receipts)}, JSON.stringify({id, pid:process.pid, stage:'system'})+'\\n'); },
+  'experimental.chat.system.transform'(_input, output) { output.system.push('MANAGED_PLUGIN_' + id, 'OPTIONS_' + options.marker); appendFileSync(${JSON.stringify(receipts)}, JSON.stringify({id, pid:process.pid, stage:'system'})+'\\n'); },
 }); }
 `
       const legacy = join(installed, 'legacy.mjs')
       await writeFile(
         legacy,
         `${record}
-export async function Alpha() { return hooks('alpha') }
+export async function Alpha(_input, options) { return hooks('alpha', options) }
 export const Alias = Alpha;
-export async function Beta() { return hooks('beta') }
+export async function Beta(_input, options) { return hooks('beta', options) }
 `,
       )
       const packaged = join(installed, 'v1')
@@ -103,7 +105,7 @@ export async function Beta() { return hooks('beta') }
         join(packaged, 'server.ts'),
         `${record}
 import { name } from './identity.ts';
-const plugin = Object.freeze({ id:'fixture-v1', async server() { if (this !== plugin) throw new Error('Lost server receiver'); return hooks(name); } });
+const plugin = Object.freeze({ id:'fixture-v1', async server(_input, options) { if (this !== plugin) throw new Error('Lost server receiver'); return hooks(name, options); } });
 export default plugin;
 export const metadata = 'ignored by V1';
 `,
@@ -122,6 +124,15 @@ export const metadata = 'ignored by V1';
         engineInstallationId: 'oc',
       })
       workspace.nativePlugins = [plugin('legacy', legacy), plugin('v1', packaged, 'fixture-v1')]
+      for (const selected of workspace.nativePlugins)
+        selected.options = {
+          kind: 'opencode',
+          config: {
+            marker: selected.id + '-original',
+            nested: [false, 0, null],
+            '{env:OPTIONS_POISON}': '{file:missing.txt}',
+          },
+        }
       workspace.agents[0]!.nativePluginIds = ['legacy', 'v1']
       const store = new RunInputStore(
         join(root, 'runs'),
@@ -141,6 +152,7 @@ export const metadata = 'ignored by V1';
             OPENCODE_DISABLE_DEFAULT_PLUGINS: 'true',
             OPENCODE_DISABLE_CLAUDE_CODE: 'true',
             OPENCODE_DISABLE_EXTERNAL_SKILLS: 'true',
+            OPTIONS_POISON: 'must-not-expand',
           }))
             plan.launch.environment[name] = { kind: 'literal', value }
           return plan
@@ -154,7 +166,7 @@ export const metadata = 'ignored by V1';
           environment: { ...process.env, HOME: home },
           signal: new AbortController().signal,
         })
-      await capture('success')
+      const originalCapture = await capture('success')
       const observed: { stage: string; checks: readonly string[] }[] = []
       for (const stage of ['new', 'resume']) {
         const previousNativeSessionId = runtime?.nativeSessionId
@@ -172,6 +184,12 @@ export const metadata = 'ignored by V1';
           interaction: async () => ({ kind: 'cancelled' }),
         })
         expect(output.join('')).toContain('ACTIVATION_RESPONSE')
+        expect(requests.at(-1)!.system).toContain('OPTIONS_legacy-original')
+        expect(requests.at(-1)!.system).toContain('OPTIONS_v1-original')
+        expect(requests.at(-1)!.system).not.toContain('-edited')
+        for (const selected of workspace.nativePlugins)
+          selected.options!.config.marker = selected.id + '-edited'
+        expect(await store.read('success')).toEqual(originalCapture)
         observed.push({ stage, checks: runtime.configurationChecks! })
       }
       const nativeSessionId = runtime!.nativeSessionId
@@ -201,6 +219,18 @@ export const metadata = 'ignored by V1';
         ).length,
       ).toBeGreaterThanOrEqual(2)
       expect(requests.every((request) => request.authorized)).toBe(true)
+      await capture('edited')
+      runtime = await connect('edited')
+      await runtime.send('Reply with the updated configuration.', {
+        output: async () => {},
+        interaction: async () => ({ kind: 'cancelled' }),
+      })
+      expect(requests.at(-1)!.system).toContain('OPTIONS_legacy-edited')
+      expect(requests.at(-1)!.system).toContain('OPTIONS_v1-edited')
+      expect(requests.at(-1)!.system).not.toContain('-original')
+      await runtime.dispose()
+      await runtime.closed
+      runtime = undefined
       const rejected: string[] = []
       await capture('pure', true)
       await expect(connect('pure')).rejects.toThrow('native.plugins')
@@ -247,6 +277,12 @@ export const metadata = 'ignored by V1';
         platform: process.platform,
         arch: process.arch,
         selectedBindings: ['legacy', 'v1'],
+        nativeTupleOptions: {
+          legacyAndV1: true,
+          nestedLiteralsAndMacroKeys: true,
+          capturedOptionsSurviveSavedEditsAndNativeResume: true,
+          newCaptureUsesEditedOptions: true,
+        },
         observed,
         hookOrderByAttachment: [...byPid.values()],
         rejected,

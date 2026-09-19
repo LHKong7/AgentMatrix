@@ -171,7 +171,7 @@ export const nativePluginSchema = z
     source: z.string().max(4000),
     path: absolutePath,
     options: z
-      .object({ kind: z.literal('deepseek-harness'), config: pluginConfigurationSchema })
+      .object({ kind: z.enum(['opencode', 'deepseek-harness']), config: pluginConfigurationSchema })
       .strict()
       .optional(),
   })

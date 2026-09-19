@@ -1,6 +1,11 @@
 import type { pluginEn } from './plugin-en'
 
 export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
+  'plugin.opencodeOptions': 'OpenCode 插件配置（JSON）',
+  'plugin.opencodeOptionsHint':
+    '作为第二个参数传给原生插件初始化函数的普通 JSON，最多 64 KiB，宏文本保持原样。修改仅应用于新会话。API Key 请使用共享凭据引用管理。',
+  'plugin.optionsEngineMismatch':
+    '这些选项属于其他引擎。请先清除，再配置当前引擎；不会自动转换选项含义。',
   'plugin.dshOptions': 'DSH 插件配置（JSON）',
   'plugin.dshOptionsHint':
     '交给原生插件校验的普通配置，最多 64 KiB，不接受可执行表达式对象。API Key 请使用共享凭据引用管理。',

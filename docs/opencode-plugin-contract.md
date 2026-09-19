@@ -29,7 +29,7 @@ The fixture also writes a distinct instance marker into the generated native age
 
 A bridge must preserve alias deduplication, multiple legacy initializers, V1 behavior, options, hook order, and separate tool/auth hook objects. Combining arbitrary hook objects into one would change native semantics. Any unsupported export or dependency form needs an explicit diagnostic. The bridge must not import selected code into Electron while preparing or inspecting a draft.
 
-The subsequent activation implementation adds nonce/binding checks, description preservation, source revalidation, and instance-specific lifecycle receipts. Native options editing, CommonJS/export-star coverage, complete dependency provenance, Pi extensions, and DSH plugin recognition remain open. The generic native probe above intentionally remains independent of that production verifier.
+The subsequent activation implementation adds nonce/binding checks, description preservation, source revalidation, and instance-specific lifecycle receipts. The later [OpenCode options implementation](opencode-plugin-options.md) adds native tuple editing and capture/resume checks. Pi and DSH have separate activation contracts. CommonJS/export-star coverage and complete dependency provenance remain open. The generic native probe above intentionally remains independent of that production verifier.
 
 ## Reproduce
 

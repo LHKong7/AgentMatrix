@@ -9,6 +9,10 @@ import { prepareOpenCodePluginAttachment } from '../src/main/engines/adapters/op
 import { pluginExportNames } from '../src/main/engines/adapters/opencode/plugin-exports'
 import bridgeSource from '../src/main/engines/adapters/opencode/plugin-bridge.mjs?raw'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
+import { capturedOpenCodeConfiguration } from '../src/main/engines/adapters/opencode/readback'
+import { resolveAgentProfile } from '../src/shared/engines/resolution'
+import { engineConfigurationIssues } from '../src/shared/engines/validation'
+import { nativePluginSchema } from '../src/shared/engines/workspace'
 import type { EngineWorkspace } from '../src/shared/engines/workspace'
 import type { SessionConfigOption } from '@agentclientprotocol/sdk'
 
@@ -80,6 +84,39 @@ async function loadBridge(environment: Record<string, string>): Promise<Bridge> 
 }
 
 describe('OpenCode export planning', () => {
+  it('captures native tuple options as literal data and preserves old configuration on reuse', async () => {
+    const config = {
+      marker: 'original',
+      nested: [false, 0, null, { text: '中文 {env:PRIVATE} {file:missing.txt}' }],
+      '{env:PRIVATE}': '{file:missing.txt}',
+    }
+    workspace.nativePlugins[0] = nativePluginSchema.parse({
+      ...workspace.nativePlugins[0],
+      options: { kind: 'opencode', config },
+    })
+    const manifest = await capture()
+    const nativeText = await readFile(join(store.paths('run').inputs, 'opencode.json'), 'utf8')
+    const native = JSON.parse(nativeText)
+    expect(native.plugin[0]).toEqual([expect.stringContaining('binding-1.mjs'), config])
+    expect(native.plugin[1]).toContain('sentinel.mjs')
+    expect(nativeText).not.toMatch(/\{(?:env:PRIVATE|file:missing\.txt)\}/)
+    const environment = Object.fromEntries(
+      Object.keys(manifest.launch.environment).map((name) => [name, 'fixture']),
+    )
+    const readback = await capturedOpenCodeConfiguration(manifest, store.paths('run'), environment)
+    expect((readback as { plugin: unknown }).plugin).toEqual(native.plugin)
+    workspace.nativePlugins[0]!.options!.config.marker = 'edited'
+    expect((await store.verifyForReuse('run')).nativePlugins[0]!.options!.config).toEqual(config)
+    const attachment = await prepareOpenCodePluginAttachment(manifest, store.paths('run'))
+    await attachment!.cleanup()
+    const resolved = resolveAgentProfile(workspace, 'reviewer')
+    if (resolved.status !== 'resolved') throw new Error('Invalid fixture')
+    expect(engineConfigurationIssues(resolved.configuration)).toEqual([])
+    resolved.configuration.installation.kind = 'pi'
+    expect(engineConfigurationIssues(resolved.configuration)).toContainEqual(
+      expect.objectContaining({ code: 'native-plugin-options' }),
+    )
+  })
   it('enumerates aliases, destructuring, runtime declarations and named reexports without execution', () => {
     expect(
       pluginExportNames(

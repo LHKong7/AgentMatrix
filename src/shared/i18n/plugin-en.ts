@@ -1,5 +1,10 @@
 export const pluginEn = {
   'plugin.clearOptions': 'Clear plugin options',
+  'plugin.opencodeOptions': 'OpenCode plugin configuration (JSON)',
+  'plugin.opencodeOptionsHint':
+    'Plain JSON passed as the second argument to native plugin initializers. Up to 64 KiB; macro text stays literal. Changes apply to new sessions. Keep API keys in shared credential references.',
+  'plugin.optionsEngineMismatch':
+    'These options belong to a different engine. Clear them before configuring the selected engine; their meaning is not converted automatically.',
   'plugin.dshOptions': 'DSH plugin configuration (JSON)',
   'plugin.dshOptionsHint':
     'Plain configuration passed to the native plugin schema. Up to 64 KiB; executable expression objects are not accepted. Keep API keys in shared credential references.',

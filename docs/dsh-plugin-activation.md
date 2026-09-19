@@ -13,7 +13,7 @@ The native ID becomes the Cordis row ID. It must start with a letter or digit, c
 
 Options are optional for backward compatibility and default to an empty object. The root must be a plain JSON object. Validation bounds serialized UTF-8 content to 64 KiB, nesting to 12 levels, total values to 4096, each string to 16,384 characters, and keys to 200 characters. Cycles, accessors, nonfinite numbers, and `__jsExpr`, `__proto__`, `constructor`, or `prototype` keys are rejected. Literal text is not converted into executable expressions. Captured options are copied so later workspace edits cannot change existing inputs.
 
-These options are persisted ordinary configuration. Keep provider keys in the shared connection's credential references. Plugin-specific secret-reference injection is not implemented; do not put keys into the JSON field. Selecting another engine with DSH options produces a compatibility diagnostic; **Clear plugin options** removes them. OpenCode/Pi option mappings remain separate work.
+These options are persisted ordinary configuration. Keep provider keys in the shared connection's credential references. Plugin-specific secret-reference injection is not implemented; do not put keys into the JSON field. Selecting another engine with DSH options produces a compatibility diagnostic; **Clear plugin options** removes them. OpenCode has a separate [native tuple mapping](opencode-plugin-options.md); Pi has no generic JSON option mapping.
 
 ## Entry resolution and native behavior
 

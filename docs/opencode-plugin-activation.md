@@ -6,7 +6,7 @@ AgentMatrix now loads explicitly selected, already installed OpenCode plugins wh
 
 1. Register and check the supported OpenCode installation.
 2. Add a native plugin reference with its local path, ID, version, and source description. The optional [file inspection](native-plugin-inspection.md) helps resolve its entry and package metadata.
-3. Bind that reference to an Agent. Remove `--pure` from the installation arguments when using plugins.
+3. Optionally enter ordinary JSON options, then bind that reference to an Agent. Remove `--pure` from the installation arguments when using plugins.
 4. Start a new session and inspect its configuration report. Resuming a conversation rechecks its captured sources and obtains fresh activation evidence.
 
 Saving or inspecting a reference never executes its code. Starting or resuming the selected profile does execute it in the owned OpenCode process, including OpenCode's separate configuration readback process. An installed package's declared version must match the reference, and its declared `engines.opencode` range must include the checked CLI release. Missing engine ranges remain unknown compatibility, not an inferred match.
@@ -17,7 +17,7 @@ For V1 modules, the exported `id` must match the reference. Legacy modules have 
 
 The planner statically enumerates explicit ESM exports with the [Babel parser](https://babeljs.io/docs/babel-parser). It writes small proxy modules into captured inputs without importing the selected module into Electron. OpenCode imports the original installed entry from its physical location, preserving relative imports and normal dependency resolution.
 
-The bridge preserves legacy initializer ordering, export aliases, separate initializer results, V1 default server selection, and unrelated V1 named exports. Multiple legacy exports are not flattened into one hook object. Frozen hook objects are supported, nested tool/auth objects retain their identity, and method calls retain their original receivers. Native initializer arguments are forwarded unchanged. The library has no OpenCode plugin options editor, so configuring OpenCode option tuples remains follow-up work.
+The bridge preserves legacy initializer ordering, export aliases, separate initializer results, V1 default server selection, and unrelated V1 named exports. Multiple legacy exports are not flattened into one hook object. Frozen hook objects are supported, nested tool/auth objects retain their identity, and method calls retain their original receivers. Native initializer arguments are forwarded unchanged. The bilingual editor now supports [native JSON tuple options](opencode-plugin-options.md) for legacy and V1 plugins, preserving literal macro text and captured values across native resume.
 
 CommonJS and `export *` entry shapes are rejected explicitly. An unexpected runtime namespace, invalid V1 ID/server shape, missing dependency, or failed import cannot produce valid activation evidence. Selecting two references that resolve to the same entry is rejected. [Pi extension activation](pi-plugin-activation.md) uses a separate native contract. [DeepSeek Harness selected modules](dsh-plugin-activation.md) have their own native row/configuration and lifecycle checks.
 
@@ -35,7 +35,7 @@ This is lifecycle evidence from selected executable code, not a sandbox or prote
 
 Captured observations cover the selected entry, explicit relative module dependencies, package scopes or their absence, and resolved paths; see [dependency source checks](plugin-dependency-sources.md). Startup and resume re-resolve each selection and check those observations. Detected entry/dependency/package changes block reuse until sources are restored or a new capture is created. Old sessions without plugin bindings retain their existing adapter contract and do not require a plugin receipt.
 
-Package dependency trees, computed imports, arbitrary runtime file reads, and remote resources remain outside the observed closure. Their changes may therefore escape the source comparison; a successful import checks availability at that moment only. Source coverage remains `partial`. Complete dependency provenance, CommonJS/export-star support, native options editing, arbitrary plugin compatibility, automatic installation, and upgrades remain open. Existing native configuration can introduce overrides or discovery conflicts; selected plugin activation does not establish complete effective-policy provenance.
+Package dependency trees, computed imports, arbitrary runtime file reads, and remote resources remain outside the observed closure. Their changes may therefore escape the source comparison; a successful import checks availability at that moment only. Source coverage remains `partial`. Complete dependency provenance, CommonJS/export-star support, plugin secret-reference injection, arbitrary plugin compatibility, automatic installation, and upgrades remain open. Existing native configuration can introduce overrides or discovery conflicts; selected plugin activation does not establish complete effective-policy provenance.
 
 ## Verification
 

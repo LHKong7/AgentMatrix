@@ -134,6 +134,11 @@ const server = createServer(async (request, response) => {
         role: body.includes('NEW_ROLE_MARKER') ? 'new' : 'original',
         read,
         plugin: body.includes('DESKTOP_PLUGIN_MARKER'),
+        pluginOptions: body.includes('PLUGIN_OPTIONS_edited')
+          ? 'edited'
+          : body.includes('PLUGIN_OPTIONS_original')
+            ? 'original'
+            : null,
         dependency: body.includes('DESKTOP_DEPENDENCY_MARKER'),
         nativeInstructions: body.includes('PRIVATE_INSTRUCTION_BODY'),
         directoryRead: read
@@ -277,9 +282,11 @@ exports.apply=(ctx,config)=>ctx.systemPrompt.section({name:'desktop-plugin',orde
     path,
     `import { existsSync } from 'node:fs';
 import { dependency } from './desktop-plugin-helper.mjs';
-export default { id: 'desktop-plugin', async server() { return Object.freeze({
+export default { id: 'desktop-plugin', async server(_input, options) {
+  if (options['{env:PRIVATE_PLUGIN_KEY}'] !== '{file:missing.txt}') throw new Error('Literal options changed');
+  return Object.freeze({
     config(config) { if (process.env.OPENCODE_SERVER_PASSWORD && existsSync(${JSON.stringify(instanceOverride)})) config.agent.build.prompt = 'PRIVATE_ACP_PROMPT_OVERRIDE'; },
-    'experimental.chat.system.transform'(_input, output) { output.system.push('DESKTOP_PLUGIN_MARKER', dependency); }
+    'experimental.chat.system.transform'(_input, output) { output.system.push(options.marker, dependency, 'PLUGIN_OPTIONS_' + options.revision); }
   }); } };\n`,
   )
   workspace.nativePlugins = [
@@ -291,6 +298,14 @@ export default { id: 'desktop-plugin', async server() { return Object.freeze({
       version: 'fixture',
       source: 'local desktop fixture',
       path,
+      options: {
+        kind: 'opencode',
+        config: {
+          marker: 'DESKTOP_PLUGIN_MARKER',
+          revision: 'original',
+          '{env:PRIVATE_PLUGIN_KEY}': '{file:missing.txt}',
+        },
+      },
     },
   ]
   workspace.agents[0].nativePluginIds = ['desktop-plugin']
@@ -354,12 +369,20 @@ async function crashApplication() {
     .filter(([pid, , group]) => pid !== host.pid && descendants.has(pid) && pid === group)
     .map(([pid]) => pid)
   assert.ok(groups.length >= 2, 'Expected owned guardian and native process groups')
-  const exists = (pid) => {
+  const exists = async (pid) => {
     try {
       process.kill(pid, 0)
       return true
     } catch (error) {
       if (error.code === 'ESRCH') return false
+      if (error.code === 'EPERM') {
+        // A denied signal probe is not evidence of exit. Check current group membership instead.
+        const { stdout } = await promisify(execFile)('/bin/ps', ['-axo', 'pgid='])
+        return stdout
+          .trim()
+          .split(/\s+/)
+          .some((group) => Number(group) === -pid)
+      }
       throw error
     }
   }
@@ -369,13 +392,16 @@ async function crashApplication() {
   app = null
   try {
     await waitForIpc(
-      () => groups.every((pid) => !exists(-pid)) && activeStreams.size === 0,
+      async () => {
+        for (const pid of groups) if (await exists(-pid)) return false
+        return activeStreams.size === 0
+      },
       'native groups and provider streams after application SIGKILL',
       10_000,
     )
   } finally {
     for (const pid of groups) {
-      if (!exists(-pid)) continue
+      if (!(await exists(-pid))) continue
       try {
         process.kill(-pid, 'SIGKILL')
       } catch {
@@ -1169,22 +1195,40 @@ async function verifyUnusedRunData() {
 try {
   await launch()
   await language('en')
-  if (isDsh) {
+  if (!isPi) {
     for (const locale of ['en', 'zh-CN']) {
       await language(locale)
       await navigate(locale === 'en' ? 'Native plugins' : '原生插件')
       await page
         .getByRole('button', {
-          name: locale === 'en' ? 'Edit Desktop DSH plugin' : '编辑 Desktop DSH plugin',
+          name:
+            (locale === 'en' ? 'Edit ' : '编辑 ') +
+            (isDsh ? 'Desktop DSH plugin' : 'Desktop plugin'),
           exact: true,
         })
         .click()
       const dialog = page.getByRole('dialog')
       await dialog
-        .getByLabel(locale === 'en' ? 'DSH plugin configuration (JSON)' : 'DSH 插件配置（JSON）', {
-          exact: true,
+        .getByLabel(
+          (isDsh ? 'DSH' : 'OpenCode') +
+            (locale === 'en' ? ' plugin configuration (JSON)' : ' 插件配置（JSON）'),
+          {
+            exact: true,
+          },
+        )
+        .fill(
+          JSON.stringify({
+            ...(isDsh ? {} : workspace.nativePlugins[0].options.config),
+            marker: 'DESKTOP_PLUGIN_MARKER',
+            locale,
+          }),
+        )
+      if (!isDsh && process.env.AGENT_MATRIX_PLUGIN_OPTIONS_SCREENSHOT)
+        await dialog.screenshot({
+          path:
+            process.env.AGENT_MATRIX_PLUGIN_OPTIONS_SCREENSHOT +
+            (locale === 'en' ? '.en.png' : '.zh.png'),
         })
-        .fill(JSON.stringify({ marker: 'DESKTOP_PLUGIN_MARKER', locale }))
       await dialog
         .getByRole('button', {
           name: locale === 'en' ? 'Save configuration' : '保存配置',
@@ -1477,9 +1521,29 @@ try {
   await page.getByRole('button', { name: '取消', exact: true }).click()
   await page.getByRole('dialog').waitFor({ state: 'hidden' })
   await language('en')
+  if (!isPi && !isDsh) {
+    await navigate('Native plugins')
+    await page.getByRole('button', { name: 'Edit Desktop plugin', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog
+      .getByLabel('OpenCode plugin configuration (JSON)', { exact: true })
+      .fill(JSON.stringify({ ...workspace.nativePlugins[0].options.config, revision: 'edited' }))
+    await dialog
+      .getByTestId('library-impact')
+      .locator(`[data-impact-session="${original.id}"][data-effect="pending"] summary`)
+      .click()
+    await dialog.getByRole('button', { name: 'Save configuration', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    const originalManifest = JSON.parse(
+      await readFile(join(dataDirectory, 'runs', original.snapshotId, 'manifest.json'), 'utf8'),
+    )
+    assert.equal(originalManifest.nativePlugins[0].options.config.revision, 'original')
+  }
   await navigate('Sessions')
   await status('Ready')
   const pendingReport = await configurationReport()
+  if (!isPi && !isDsh)
+    assert.equal(pendingReport.fields.find((field) => field.id === 'plugins').changed, true)
   assert.equal(pendingReport.savedState, 'pending')
   assert.deepEqual(
     pendingReport.assets
@@ -1490,6 +1554,7 @@ try {
   await send('Keep using the captured role')
   await status('Ready')
   assert.equal(calls.at(-1).role, 'original')
+  if (!isPi && !isDsh) assert.equal(calls.at(-1).pluginOptions, 'original')
   const beforeOverride = await page.evaluate(() => window.agentMatrix.loadWorkspace())
   // Selecting a folder changes the next launch only; cancelling another chooser retains it.
   await chooseWorkingDirectory(alternateCwd)
@@ -1530,6 +1595,7 @@ try {
   assert.equal(calls.at(-1).role, 'new')
   assert.equal(calls.at(-1).directoryRead, 'alternate')
   assert.equal(calls.at(-1).plugin, true)
+  if (!isPi && !isDsh) assert.equal(calls.at(-1).pluginOptions, 'edited')
   const latest = (await sessions()).find((session) => session.id !== original.id)
   assert.ok(latest)
   assert.equal(latest.cwd, alternateCwd)
@@ -1702,6 +1768,14 @@ try {
   await send('Continue the saved session')
   await status('Ready')
   assert.equal(calls.at(-1).directoryRead, 'alternate')
+  if (!isPi && !isDsh) {
+    assert.equal(calls.at(-1).pluginOptions, 'edited')
+    assert.equal(
+      (await page.evaluate(() => window.agentMatrix.loadWorkspace())).nativePlugins[0].options
+        .config.revision,
+      'edited',
+    )
+  }
   await page.getByRole('button', { name: 'Close session', exact: true }).click()
   await status('Closed')
   await verifyLongHistory(original.id)
@@ -1891,8 +1965,19 @@ try {
       newAndResumedInstanceVerified: true,
       englishAndChineseReport: true,
       extensionCommandsAndInputHandling: isPi ? true : 'not part of this engine fixture',
-      nativeOptionsEditor: isDsh
-        ? { englishAndChinese: true, persisted: true }
+      nativeOptionsEditor: !isPi
+        ? {
+            englishAndChinese: true,
+            persisted: true,
+            ...(isDsh
+              ? {}
+              : {
+                  nativeTupleAndLiteralMacros: true,
+                  savedEditsLeaveActiveSessionUnchanged: true,
+                  changedOptionsUseNewSnapshot: true,
+                  restartAndNativeResumePreserveCapturedOptions: true,
+                }),
+          }
         : 'not part of this engine fixture',
     },
     pluginDependencySources: {

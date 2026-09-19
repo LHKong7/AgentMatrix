@@ -62,6 +62,16 @@ export function ResourceEditor({
   const [credentials, setCredentials] = useState<CredentialMetadata[]>([])
   const [importing, setImporting] = useState(false)
   const isNew = !workspace[kind].some((item) => item.id === resource.id)
+  const pluginEngine =
+    'nativeId' in draft
+      ? workspace.installations.find((item) => item.id === draft.engineInstallationId)?.kind
+      : null
+  // Retain the saved engine's options when switching installations; conversion must be explicit.
+  const pluginOptionsKind =
+    'nativeId' in draft
+      ? (draft.options?.kind ??
+        (pluginEngine === 'opencode' || pluginEngine === 'deepseek-harness' ? pluginEngine : null))
+      : null
   const candidate = useMemo(() => {
     let candidate = draft
     if ('purpose' in draft)
@@ -695,18 +705,30 @@ export function ResourceEditor({
                   onChange={(path) => setDraft({ ...draft, path })}
                 />
                 <p className="hint">{t('config.nativeHint')}</p>
-                {(workspace.installations.find((item) => item.id === draft.engineInstallationId)
-                  ?.kind === 'deepseek-harness' ||
-                  draft.options) && (
+                {pluginOptionsKind && (
                   <>
                     <JsonField
-                      label={t('plugin.dshOptions')}
+                      key={pluginOptionsKind}
+                      label={t(
+                        pluginOptionsKind === 'opencode'
+                          ? 'plugin.opencodeOptions'
+                          : 'plugin.dshOptions',
+                      )}
                       value={draft.options?.config ?? {}}
                       onChange={(config) =>
-                        setDraft({ ...draft, options: { kind: 'deepseek-harness', config } })
+                        setDraft({ ...draft, options: { kind: pluginOptionsKind, config } })
                       }
                     />
-                    <p className="hint">{t('plugin.dshOptionsHint')}</p>
+                    <p className="hint">
+                      {t(
+                        pluginOptionsKind === 'opencode'
+                          ? 'plugin.opencodeOptionsHint'
+                          : 'plugin.dshOptionsHint',
+                      )}
+                    </p>
+                    {pluginEngine !== pluginOptionsKind && (
+                      <p className="hint">{t('plugin.optionsEngineMismatch')}</p>
+                    )}
                     {draft.options && (
                       <button
                         type="button"
