@@ -205,3 +205,118 @@ describe('session IPC ownership', () => {
     await expect(f.invoke(sessionChannels.get, { sessionId: 's' })).rejects.toThrow('untrusted')
   })
 })
+
+describe('application error boundary', () => {
+  it.each(['raw', 'forged-code', 'schema'] as const)(
+    'replaces %s exceptions without retaining their message, cause or properties',
+    async (kind) => {
+      const { safeSessionOperation } = await import('../src/main/sessions/ipc')
+      const { z } = await import('zod')
+      const secret = 'synthetic-ipc-error-secret'
+      const error =
+        kind === 'schema'
+          ? z
+              .object({})
+              .strict()
+              .safeParse({ [secret]: true }).error!
+          : new Error(
+              kind === 'forged-code'
+                ? `AGENT_MATRIX_ERROR:${JSON.stringify({ key: 'error.conflict', params: { private: secret } })}`
+                : secret,
+              { cause: new Error(secret) },
+            )
+      Object.assign(error, { private: secret })
+      const caught = await safeSessionOperation(async () => {
+        throw error
+      }).catch((value) => value)
+      expect(caught).not.toBe(error)
+      expect(caught.message).toContain(
+        kind === 'schema' ? 'error.invalidData' : 'error.runtimeOperation',
+      )
+      expect(caught.cause).toBeUndefined()
+      expect(caught.private).toBeUndefined()
+      expect(String(caught.stack)).not.toContain(secret)
+      expect(JSON.stringify(caught)).not.toContain(secret)
+    },
+  )
+
+  it('rebuilds trusted application errors from their original payload and preserves localization', async () => {
+    const { safeSessionOperation } = await import('../src/main/sessions/ipc')
+    const { appError, formatError } = await import('../src/shared/errors')
+    const params = { feature: 'skill.frontmatter' }
+    const original = appError('error.piConfiguration', params)
+    params.feature = 'synthetic-mutated-secret'
+    original.message = 'synthetic-mutated-secret'
+    original.stack = 'synthetic-mutated-secret'
+    Object.assign(original, {
+      cause: new Error('synthetic-mutated-secret'),
+      private: 'synthetic-mutated-secret',
+    })
+    const caught = await safeSessionOperation(async () => {
+      throw original
+    }).catch((value) => value)
+    expect(caught).not.toBe(original)
+    expect(caught.cause).toBeUndefined()
+    expect(caught.private).toBeUndefined()
+    expect(String(caught.stack)).not.toContain('synthetic-mutated-secret')
+    expect(formatError(caught, 'en')).toContain('skill.frontmatter')
+    expect(formatError(caught, 'zh-CN')).toContain('无法映射')
+    expect(caught.message).toContain('error.piConfiguration')
+  })
+})
+
+describe('shared application invoke registration', () => {
+  it.each(['sync', 'async'] as const)(
+    'sanitizes %s service failures before Electron receives them',
+    async (kind) => {
+      const { registerApplicationHandler } = await import('../src/main/sessions/ipc')
+      let invoke!: Parameters<IpcMain['handle']>[1]
+      const verify = vi.fn()
+      const privateError = Object.assign(new Error('synthetic-service-secret'), {
+        private: 'synthetic-service-secret',
+      })
+      const operation = vi.fn(() => {
+        if (kind === 'async') return Promise.reject(privateError)
+        throw privateError
+      })
+      registerApplicationHandler(
+        {
+          handle: (_channel, listener) => {
+            invoke = listener
+          },
+        },
+        'test:service',
+        verify,
+        operation,
+      )
+      const event = {} as IpcMainInvokeEvent
+      const error = await invoke(event, { value: 1 }).catch((value: unknown) => value)
+      expect(error.message).toContain('error.failed')
+      expect(String(error.stack)).not.toContain('synthetic-service-secret')
+      expect(error.private).toBeUndefined()
+      expect(verify).toHaveBeenCalledExactlyOnceWith(event)
+      expect(operation).toHaveBeenCalledExactlyOnceWith(event, { value: 1 })
+    },
+  )
+
+  it('checks ownership before service execution and preserves the trusted rejection code', async () => {
+    const { registerApplicationHandler } = await import('../src/main/sessions/ipc')
+    const { appError } = await import('../src/shared/errors')
+    let invoke!: Parameters<IpcMain['handle']>[1]
+    const operation = vi.fn()
+    registerApplicationHandler(
+      {
+        handle: (_channel, listener) => {
+          invoke = listener
+        },
+      },
+      'test:service',
+      () => {
+        throw appError('error.untrusted')
+      },
+      operation,
+    )
+    await expect(invoke({} as IpcMainInvokeEvent)).rejects.toThrow('error.untrusted')
+    expect(operation).not.toHaveBeenCalled()
+  })
+})

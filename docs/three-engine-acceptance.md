@@ -80,7 +80,7 @@ The earlier [configuration editor record](probes/2026-09-19-plugin-options-edito
 
 ## Remaining work and gate decisions
 
-The subsequent [native-import credential boundary](native-configuration-import.md#known-credentials-copied-into-ordinary-data) closes a reproduced ordinary-field/provenance copy defect. Its four desktop routes verify bilingual rejection followed by successful corrected imports and native calls. The [four-route run-isolation record](run-isolation-acceptance.md) also verifies two overlapping snapshots per profile, native tool environments, events, restoration and independent cleanup. Item 6 remains partial for direct edits and remaining logging/input paths; the combined native baseline is now recorded.
+The subsequent [native-import credential boundary](native-configuration-import.md#known-credentials-copied-into-ordinary-data) closes a reproduced ordinary-field/provenance copy defect. Its four desktop routes verify bilingual rejection followed by successful corrected imports and native calls. The [four-route run-isolation record](run-isolation-acceptance.md) also verifies two overlapping snapshots per profile, native tool environments, events, restoration and independent cleanup. The [IPC exception boundary](ipc-error-boundary.md) closes a reproduced filesystem-path disclosure and rejects forged application error payloads. Item 6 remains partial for direct edits, successful payloads, intentional diagnostic parameters and remaining logging/input paths; the combined native baseline is now recorded.
 
 The X2 checklist artifact now exists. Its partial rows remain partial, and B7/C4/D4 are not promoted by collecting the reports. B0 requires its own foundation acceptance decision; an external provider is not a B0 prerequisite.
 

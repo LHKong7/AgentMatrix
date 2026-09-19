@@ -3,6 +3,7 @@ import { isMessageKey, translate, type Locale, type MessageKey, type MessagePara
 
 type ErrorKey = Extract<MessageKey, `error.${string}`>
 const prefix = 'AGENT_MATRIX_ERROR:'
+const applicationErrors = new WeakMap<Error, string>()
 
 export function getErrorKey(error: unknown): ErrorKey | null {
   if (!(error instanceof Error) || !error.message.startsWith(prefix)) return null
@@ -17,7 +18,20 @@ export function getErrorKey(error: unknown): ErrorKey | null {
 
 // Electron invoke preserves Error.message, but not custom Error properties.
 export function appError(key: ErrorKey, params: MessageParams = {}): Error {
-  return new Error(`${prefix}${JSON.stringify({ key, params })}`)
+  const message = `${prefix}${JSON.stringify({ key, params })}`
+  const error = new Error(message)
+  applicationErrors.set(error, message)
+  return error
+}
+
+/** Only locally created errors are trusted at IPC boundaries; never copy stack/cause/properties. */
+export function copyAppError(error: unknown): Error | null {
+  if (!(error instanceof Error)) return null
+  const message = applicationErrors.get(error)
+  if (!message) return null
+  const copy = new Error(message)
+  applicationErrors.set(copy, message)
+  return copy
 }
 
 export function formatError(error: unknown, locale: Locale = 'en'): string {

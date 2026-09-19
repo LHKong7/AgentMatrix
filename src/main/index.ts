@@ -12,7 +12,12 @@ import { RunInputStore } from './engines/run-input-store'
 import { SessionJournal } from './sessions/journal'
 import { SessionCoordinator } from './sessions/coordinator'
 import { DesktopSessionFactory } from './sessions/desktop-factory'
-import { registerSessionIpc, safeSessionOperation, verifyRenderer } from './sessions/ipc'
+import {
+  registerApplicationHandler,
+  registerSessionIpc,
+  safeSessionOperation,
+  verifyRenderer,
+} from './sessions/ipc'
 import { stopOwnedProcesses } from './engines/process/managed-process'
 import { z } from 'zod'
 import { absolutePath } from '../shared/engines/schema'
@@ -41,6 +46,11 @@ const rendererUrl = new URL(
 function verifySender(event: IpcMainInvokeEvent): void {
   verifyRenderer(event, mainWindow?.webContents ?? null, rendererUrl)
 }
+
+const handle = (
+  channel: string,
+  operation: (event: IpcMainInvokeEvent, input: unknown) => unknown,
+) => registerApplicationHandler(ipcMain, channel, verifySender, operation)
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -117,7 +127,7 @@ if (!app.requestSingleInstanceLock()) {
     const coordinator = new SessionCoordinator(journal, factory)
     sessionBridge = registerSessionIpc(ipcMain, coordinator, verifySender)
     let exportingHistory = false
-    ipcMain.handle(sessionChannels.exportHistory, (event, input: unknown) =>
+    handle(sessionChannels.exportHistory, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)
         const query = sessionExportQuerySchema.parse(input)
@@ -144,7 +154,7 @@ if (!app.requestSingleInstanceLock()) {
         }
       }),
     )
-    ipcMain.handle(channels.engineProbe, (event, input: unknown) =>
+    handle(channels.engineProbe, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)
         return factory.probe(input)
@@ -152,7 +162,7 @@ if (!app.requestSingleInstanceLock()) {
     )
     let inspectingPlugin = false
     let choosingImport = false
-    ipcMain.handle(channels.nativeImportPreview, (event, input: unknown) =>
+    handle(channels.nativeImportPreview, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)
         const query = nativeImportQuerySchema.parse(input)
@@ -188,14 +198,14 @@ if (!app.requestSingleInstanceLock()) {
         }
       }),
     )
-    ipcMain.handle(channels.nativeImportApply, (event, input: unknown) =>
+    handle(channels.nativeImportApply, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)
         if (choosingImport) throw appError('error.nativeImportBusy')
         return nativeImports.apply(input)
       }),
     )
-    ipcMain.handle(channels.pluginInspect, (event, input: unknown) =>
+    handle(channels.pluginInspect, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)
         if (inspectingPlugin) throw appError('error.pluginBusy')
@@ -233,15 +243,15 @@ if (!app.requestSingleInstanceLock()) {
       callback(false),
     )
     session.defaultSession.setPermissionCheckHandler(() => false)
-    ipcMain.handle(channels.load, (event) => {
+    handle(channels.load, (event) => {
       verifySender(event)
       return store.load()
     })
-    ipcMain.handle(channels.save, (event, workspace: unknown) => {
+    handle(channels.save, (event, workspace: unknown) => {
       verifySender(event)
       return store.save(workspace)
     })
-    ipcMain.handle(channels.info, (event): AppInfo => {
+    handle(channels.info, (event): AppInfo => {
       verifySender(event)
       return {
         version: app.getVersion(),
@@ -250,20 +260,20 @@ if (!app.requestSingleInstanceLock()) {
         storage: 'desktop',
       }
     })
-    ipcMain.handle(channels.credentialStatus, (event) => {
+    handle(channels.credentialStatus, (event) => {
       verifySender(event)
       return vault.status()
     })
-    ipcMain.handle(channels.credentialSet, (event, input: unknown) => {
+    handle(channels.credentialSet, (event, input: unknown) => {
       verifySender(event)
       return vault.set(input)
     })
-    ipcMain.handle(channels.credentialDelete, (event, input: unknown) => {
+    handle(channels.credentialDelete, (event, input: unknown) => {
       verifySender(event)
       return vault.remove(input)
     })
     let choosingDirectory = false
-    ipcMain.handle(channels.workingDirectory, (event, input: unknown) =>
+    handle(channels.workingDirectory, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)
         const options = z.object({ defaultPath: absolutePath.optional() }).strict().parse(input)
@@ -283,7 +293,7 @@ if (!app.requestSingleInstanceLock()) {
       }),
     )
     let importingSkill = false
-    ipcMain.handle(channels.skillImport, async (event) => {
+    handle(channels.skillImport, async (event) => {
       verifySender(event)
       if (importingSkill) throw appError('error.skillImportBusy')
       importingSkill = true

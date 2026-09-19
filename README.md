@@ -62,6 +62,7 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run dev:web`                  | Preview the UI in a browser                                                                                                                         |
 | `npm run check`                    | Run ESLint, unit tests, TypeScript, and production builds                                                                                           |
 | `npm run test:smoke`               | Build and test a real Electron window, including language switching and persistence                                                                 |
+| `npm run test:ipc-errors`          | Verify real Electron error projection, private path/exception masking, both locales and failure recovery                                            |
 | `npm run test:sessions`            | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture                                   |
 | `npm run test:shared-assets`       | Build and verify shared Prompt/Skill updates across all three installed engines in one desktop workspace                                            |
 | `npm run test:native-import`       | Verify OpenCode, Pi or DSH import, OS encryption, bilingual UI, and an imported native session against a local provider                             |

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { IpcMain, IpcMainInvokeEvent, WebContents } from 'electron'
 import { z } from 'zod'
-import { appError, getErrorKey } from '../../shared/errors'
+import { appError, copyAppError } from '../../shared/errors'
 import { sessionChannels } from '../../shared/sessions/channels'
 import { sessionSubscriptionSchema } from '../../shared/sessions/schema'
 import { entityId } from '../../shared/engines/schema'
@@ -21,13 +21,32 @@ export function verifyRenderer(
     throw appError('error.untrusted')
 }
 
-export async function safeSessionOperation<T>(operation: () => Promise<T>): Promise<T> {
+export async function safeSessionOperation<T>(
+  operation: () => Promise<T>,
+  fallback: Parameters<typeof appError>[0] = 'error.runtimeOperation',
+): Promise<T> {
   try {
     return await operation()
   } catch (error) {
-    if (getErrorKey(error)) throw error
-    throw appError(error instanceof z.ZodError ? 'error.invalidData' : 'error.runtimeOperation')
+    const applicationError = copyAppError(error)
+    if (applicationError) throw applicationError
+    throw appError(error instanceof z.ZodError ? 'error.invalidData' : fallback)
   }
+}
+
+/** Apply sender verification and exception projection to every non-session invoke handler. */
+export function registerApplicationHandler(
+  ipc: Pick<IpcMain, 'handle'>,
+  channel: string,
+  verify: (event: IpcMainInvokeEvent) => void,
+  operation: (event: IpcMainInvokeEvent, input: unknown) => unknown,
+): void {
+  ipc.handle(channel, (event, input) =>
+    safeSessionOperation(async () => {
+      verify(event)
+      return operation(event, input)
+    }, 'error.failed'),
+  )
 }
 export function registerSessionIpc(
   ipc: Pick<IpcMain, 'handle'>,

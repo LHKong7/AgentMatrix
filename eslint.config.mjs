@@ -11,6 +11,7 @@ export default tseslint.config(
   {
     files: [
       'scripts/smoke.mjs',
+      'scripts/ipc-errors-smoke.mjs',
       'scripts/session-smoke.mjs',
       'scripts/shared-assets-smoke.mjs',
       'scripts/native-import-smoke.mjs',

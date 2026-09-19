@@ -36,6 +36,10 @@ The [launch-boundary verification record](probes/2026-09-19-launch-argument-boun
 
 The [installed-engine isolation fixture](run-isolation-acceptance.md) now checks two snapshots of the same profile with different endpoint/key/model selections, Prompt/Skill revisions and working directories. A two-request provider gate proves overlapping execution. Native tools verify their environment and workspace; event streams exclude sibling content. Exact native restoration survives saved-library removal, and B keeps running after A closes and its capture is removed. All four routes pass 24 turns and 72 primary requests in total. DSH explicitly scrubs selected credentials from its bash children; OpenCode/Pi expose only the selected run values in this fixture. This is functional configuration/resource isolation, not an OS sandbox or a claim that shared project files become private.
 
+## IPC exception projection
+
+The [IPC exception boundary](ipc-error-boundary.md) closes a reproduced missing-Skill path disclosure and the wrapper's acceptance of forged application error messages. Every application invoke handler now verifies its sender and projects failures before Electron handles them; session handlers use the same projection. Only locally constructed application errors retain their original serialized diagnostic. Original exception stacks, causes and arbitrary properties are discarded. Successful payloads and intentional application-error parameters remain separate audit surfaces.
+
 ## Inspected surfaces and current evidence
 
 | Surface                                 | Application boundary                                                                                                                                                                                                                 | Evidence and limits                                                                                                                                                                                                                                                                                 |

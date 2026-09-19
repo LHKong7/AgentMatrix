@@ -1,0 +1,77 @@
+{
+  "checkedAt": "2026-09-19T14:46:11.130Z",
+  "sourceRevision": "3984e3ddf5cc7d9e16e1e92e14244e3846fd629b",
+  "productionSourceChanges": true,
+  "sourceSha256": {
+    "src/shared/errors.ts": "7e00b9ae35d3a792359ec291e4117a91cf4c42459ae442fb78139f11eb8afd5b",
+    "src/main/sessions/ipc.ts": "11898183ac3de58e18e77767b0749f3903f8983f972fdbd11b4d29bafdc1c67f",
+    "src/main/index.ts": "d35fc3040f67f34366d5072b3a38073082d23509905e84f8ef83e9fa196a836e",
+    "tests/session-ipc.test.ts": "c1ac62397d84f6f9616df5c9891b29a032d10130b5c290feaf23be1195bcd612",
+    "scripts/ipc-errors-smoke.mjs": "63138cca359a6dd3aef7d05a80060cd3dfc89550cfceafb04f92d02116d4fd5d",
+    "scripts/smoke.mjs": "1739cd0a38dcf46c710a0e213b54a3246c3eea53bdf8e7bb16a23be6c3ad7421",
+    "package.json": "dfe3dd727f79ec272ed3f02dc064c9fc85cf5f2559330f675dec07f15e6b1e98",
+    "eslint.config.mjs": "84f7015f4006efa720c7522bdb088f56c2f7526f24e26b144bc325de9447417d"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "defects": {
+    "unwrappedApplicationHandlers": "Unexpected filesystem exceptions could reach Electron with their original path.",
+    "forgedApplicationErrors": "The wrapper trusted a parseable message prefix and rethrew the original exception, including arbitrary properties.",
+    "failedBeforeFixUnitCases": 2,
+    "failedBeforeFixDesktopScenario": "The prior build returned a synthetic private path marker from a missing Skill source.",
+    "desktopFailureAssertion": "IPC reply exposed the synthetic private marker"
+  },
+  "implementation": {
+    "applicationInvokeHandlers": 13,
+    "sessionInvokeHandlers": 13,
+    "ownershipCheckedBeforeOperation": true,
+    "applicationErrorsRecognizedByLocalIdentity": true,
+    "originalPayloadFrozenBySerialization": true,
+    "exceptionCauseStackAndExtraPropertiesDiscarded": true,
+    "intentionalApplicationParametersPreserved": true,
+    "successPayloadsChanged": false
+  },
+  "validation": {
+    "unit": {
+      "command": "npx vitest run --maxWorkers=2",
+      "tests": 983,
+      "files": 61,
+      "addedCases": 7,
+      "exitCode": 0
+    },
+    "lint": {
+      "command": "npm run lint",
+      "exitCode": 0
+    },
+    "build": {
+      "command": "npm run build",
+      "includesTypecheck": true,
+      "exitCode": 0
+    },
+    "ipcDesktop": {
+      "command": "AGENT_MATRIX_IPC_ERRORS_REPORT=/private/tmp/agentmatrix-ipc-errors.json node scripts/ipc-errors-smoke.mjs",
+      "report": "docs/probes/2026-09-19-ipc-errors-desktop.json",
+      "sha256": "2e49941290ff769c255fec2408174bb51338eb0038d088b85b44579b28492d2c",
+      "cases": 10,
+      "busyRecoveryChecks": 6,
+      "exitCode": 0
+    },
+    "fullDesktop": {
+      "command": "node scripts/smoke.mjs",
+      "exitCode": 0,
+      "rendererErrors": 0,
+      "result": "Workspace migration, all three engine drafts, connection and credential CRUD, resource import/editing, native plugin inspection, OS encryption, bilingual UI and restart passed."
+    },
+    "overlappingDesktopOrNativeSuites": false,
+    "rebuildDuringSuite": false,
+    "installedAgentSuitesRerun": false
+  },
+  "externalProviderCalls": false,
+  "deliveryGatesPromoted": [],
+  "remaining": [
+    "Complete X3 audit of successful response payloads, deliberate diagnostic parameters and saved ordinary text",
+    "Fatal startup errors and unrelated OS logs are not covered by this invoke boundary",
+    "Known credential checks do not discover arbitrary unselected or transformed secrets",
+    "External-provider and other-platform acceptance remain separate"
+  ]
+}
