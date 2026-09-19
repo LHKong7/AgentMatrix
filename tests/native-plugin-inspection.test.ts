@@ -185,7 +185,7 @@ describe('read-only installed OpenCode plugin inspection', () => {
     await expect(
       inspectNativePlugin(workspace, { installationId: 'absent', path: plugin }),
     ).rejects.toThrow('error.pluginEngine')
-    workspace.installations[0]!.kind = 'pi'
+    workspace.installations[0]!.kind = 'goose'
     await expect(
       inspectNativePlugin(workspace, { installationId: 'oc', path: plugin }),
     ).rejects.toThrow('error.pluginEngine')
@@ -219,4 +219,181 @@ describe('read-only installed OpenCode plugin inspection', () => {
     expect(engineConfigurationIssues(resolved.configuration)).toEqual([])
     expect(workspace.nativePlugins[0]).not.toHaveProperty('verification')
   })
+})
+
+describe('Pi and DSH editor inspection', () => {
+  function workspace(kind: 'pi' | 'deepseek-harness') {
+    const value = openCodeWorkspace(join(root, 'missing-executable'), root)
+    Object.assign(value.installations[0]!, {
+      kind,
+      version: kind === 'pi' ? '0.85.1' : '0.1.5-rc.2',
+    })
+    return value
+  }
+  it.each(['pi', 'deepseek-harness'] as const)(
+    'resolves %s files without importing code, probing the executable or changing the workspace',
+    async (kind) => {
+      await fs.writeFile(join(plugin, 'dist', 'second.ts'), code)
+      await metadata({
+        name: '@fixture/plugin',
+        version: '1.2.3',
+        main: './missing.js',
+        exports: { '.': { import: './dist/server.mjs' } },
+        pi: { extensions: ['./dist/server.mjs', './dist/second.ts'] },
+        peerDependencies: {
+          '@earendil-works/pi-coding-agent': '^0.85.0',
+          '@mariozechner/pi-coding-agent': '>=1.0.0',
+          '@deepseek-ai/dsh': '0.1.5-rc.2',
+          '@deepseek-ai/cordis': '^4.0.0',
+          privateDependency: 'DO_NOT_RETURN',
+        },
+        privateCredential: 'DO_NOT_RETURN',
+        scripts: { install: 'must never execute' },
+      })
+      const state = workspace(kind),
+        before = structuredClone(state)
+      const result = await inspectNativePlugin(state, { installationId: 'oc', path: plugin })
+      if (result.engine === 'opencode') throw new Error('Wrong engine')
+      expect(result).toMatchObject({
+        engine: kind,
+        verification: 'files-only',
+        resolverVersion: state.installations[0]!.version,
+        package: { name: '@fixture/plugin', version: '1.2.3' },
+        localSpecifier: pathToFileURL(plugin).href,
+      })
+      expect(result.entries.map((file) => file.path)).toEqual(
+        kind === 'pi'
+          ? [join(plugin, 'dist/server.mjs'), join(plugin, 'dist/second.ts')]
+          : [join(plugin, 'dist/server.mjs')],
+      )
+      expect(
+        result.entries.every(
+          (file) => file.sha256 === createHash('sha256').update(code).digest('hex'),
+        ),
+      ).toBe(true)
+      expect(result.requirements.map((row) => [row.name, row.status, row.version])).toEqual(
+        kind === 'pi'
+          ? [
+              ['@earendil-works/pi-coding-agent', 'matched', '0.85.1'],
+              ['@mariozechner/pi-coding-agent', 'mismatched', '0.85.1'],
+            ]
+          : [
+              ['@deepseek-ai/dsh', 'matched', '0.1.5-rc.2'],
+              ['@deepseek-ai/cordis', 'engine-unverified', null],
+            ],
+      )
+      expect(JSON.stringify(result)).not.toMatch(
+        /DO_NOT_RETURN|must never execute|Inspection must never/,
+      )
+      expect(state).toEqual(before)
+    },
+  )
+  it('uses the DSH ancestor package for a selected file and does not borrow its CLI version for framework peers', async () => {
+    await metadata({
+      name: 'ancestor',
+      version: '2.3.4',
+      peerDependencies: {
+        '@deepseek-ai/dsh': '0.1.5-rc.2',
+        '@deepseek-ai/dsh-acp': '^0.1.5',
+        '@deepseek-ai/cordis': 'invalid-range',
+      },
+    })
+    const result = await inspectNativePlugin(workspace('deepseek-harness'), {
+      installationId: 'oc',
+      path: join(plugin, 'dist/server.mjs'),
+    })
+    if (result.engine === 'opencode') throw new Error('Wrong engine')
+    expect(result.package?.file.path).toBe(join(plugin, 'package.json'))
+    expect(result.requirements).toEqual([
+      {
+        name: '@deepseek-ai/dsh',
+        range: '0.1.5-rc.2',
+        version: '0.1.5-rc.2',
+        source: 'saved-engine',
+        status: 'matched',
+      },
+      {
+        name: '@deepseek-ai/dsh-acp',
+        range: '^0.1.5',
+        version: null,
+        source: 'unverified-dependency',
+        status: 'engine-unverified',
+      },
+      {
+        name: '@deepseek-ai/cordis',
+        range: 'invalid-range',
+        version: null,
+        source: 'unverified-dependency',
+        status: 'invalid-range',
+      },
+    ])
+  })
+  it.each(['pi', 'deepseek-harness'] as const)(
+    'keeps absent %s package metadata and ranges unknown',
+    async (kind) => {
+      const result = await inspectNativePlugin(workspace(kind), {
+        installationId: 'oc',
+        path: join(plugin, 'dist/server.mjs'),
+      })
+      if (result.engine === 'opencode') throw new Error('Wrong engine')
+      expect(result.package).toBeNull()
+      expect(result.entries).toHaveLength(1)
+      expect(result.requirements).toEqual([
+        expect.objectContaining({ range: null, status: 'undeclared' }),
+      ])
+    },
+  )
+  it('keeps Pi range comparisons unverified when the selected installation has not been probed', async () => {
+    await metadata({
+      pi: { extensions: ['./dist/server.mjs'] },
+      peerDependencies: { '@earendil-works/pi-coding-agent': '^0.85.0' },
+    })
+    const state = workspace('pi')
+    state.installations[0]!.probedAt = null
+    const result = await inspectNativePlugin(state, { installationId: 'oc', path: plugin })
+    if (result.engine === 'opencode') throw new Error('Wrong engine')
+    expect(result.requirements[0]!.status).toBe('engine-unverified')
+  })
+  it.each(['pi', 'deepseek-harness'] as const)(
+    'retains %s native package restrictions',
+    async (kind) => {
+      await metadata({ pi: { extensions: ['./dist/server.mjs'], skills: ['skills'] } })
+      if (kind === 'deepseek-harness') await fs.writeFile(join(plugin, 'cordis.patch.yml'), '[]')
+      await expect(
+        inspectNativePlugin(workspace(kind), { installationId: 'oc', path: plugin }),
+      ).rejects.toThrow(kind === 'pi' ? 'error.piPluginResources' : 'error.dshPluginBundle')
+    },
+  )
+  it.each(['pi', 'deepseek-harness'] as const)(
+    'rejects changed %s metadata between native resolution and display projection',
+    async (kind) => {
+      await metadata({
+        version: '1.0.0',
+        main: './dist/server.mjs',
+        pi: { extensions: ['./dist/server.mjs'] },
+      })
+      let reads = 0
+      vi.mocked(fs.open).mockImplementation(async (...args) => {
+        if (String(args[0]) === join(plugin, 'package.json') && ++reads === 3)
+          await metadata({ version: '2.0.0' })
+        return actualFs.open(...args)
+      })
+      await expect(
+        inspectNativePlugin(workspace(kind), { installationId: 'oc', path: plugin }),
+      ).rejects.toThrow('error.pluginChanged')
+    },
+  )
+  it.each(['pi', 'deepseek-harness'] as const)(
+    'rejects unsafe %s display metadata without returning its content',
+    async (kind) => {
+      await metadata({
+        name: 'private\nname',
+        main: './dist/server.mjs',
+        pi: { extensions: ['./dist/server.mjs'] },
+      })
+      await expect(
+        inspectNativePlugin(workspace(kind), { installationId: 'oc', path: plugin }),
+      ).rejects.toThrow('error.pluginMetadata')
+    },
+  )
 })

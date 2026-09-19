@@ -3,7 +3,7 @@ import { realpath, stat } from 'node:fs/promises'
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { appError, getErrorKey } from '../../../../shared/errors'
-import type { PluginInspection } from '../../../../shared/engines/plugin-inspection'
+import type { OpenCodePluginInspection } from '../../../../shared/engines/plugin-inspection'
 
 export const pluginInspectionLimits = { metadataBytes: 256 * 1024, entryBytes: 20_000_000 }
 const indexNames = ['index.ts', 'index.tsx', 'index.js', 'index.mjs', 'index.cjs']
@@ -40,7 +40,10 @@ function contained(root: string, path: string) {
 export async function inspectOpenCodePlugin(
   path: string,
 ): Promise<
-  Pick<PluginInspection, 'selectedPath' | 'resolvedPath' | 'entryKind' | 'entry' | 'package'>
+  Pick<
+    OpenCodePluginInspection,
+    'selectedPath' | 'resolvedPath' | 'entryKind' | 'entry' | 'package'
+  >
 > {
   try {
     if (!isAbsolute(path)) throw appError('error.pluginPath')
@@ -80,7 +83,7 @@ export async function inspectOpenCodePlugin(
           }
         : null
     let entryPath = selectedPath
-    let entryKind: PluginInspection['entryKind'] = 'file'
+    let entryKind: OpenCodePluginInspection['entryKind'] = 'file'
     const exports = metadata?.exports
     const server = record(exports) ? exports['./server'] : undefined
     const serverEntry =

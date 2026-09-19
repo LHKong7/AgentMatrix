@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { EngineInstallation } from '../../../shared/engines/schema'
 import type { PluginInspection } from '../../../shared/engines/plugin-inspection'
 import { formatError } from '../../../shared/errors'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
+import { isSupportedEngine } from '../../../shared/engines/contracts'
+
+const engineNames = { opencode: 'OpenCode', pi: 'Pi', 'deepseek-harness': 'DeepSeek Harness' }
 
 /** The caller keys this component by selection so an old result cannot describe a new path. */
 export function NativePluginInspection({
@@ -22,6 +25,21 @@ export function NativePluginInspection({
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<PluginInspection | null>(null)
   const [error, setError] = useState<unknown>(null)
+  const supported = installation && isSupportedEngine(installation.kind)
+  const entries = result ? (result.engine === 'opencode' ? [result.entry] : result.entries) : []
+  const requirements = result
+    ? result.engine === 'opencode'
+      ? [
+          {
+            name: 'OpenCode',
+            range: result.package?.engineRange ?? null,
+            version: result.engineVersion,
+            status: result.rangeStatus,
+            source: 'saved-engine',
+          },
+        ]
+      : result.requirements
+    : []
   useEffect(() => {
     mounted.current = true
     return () => {
@@ -48,12 +66,12 @@ export function NativePluginInspection({
       <button
         type="button"
         className="button secondary"
-        disabled={busy || !path || installation?.kind !== 'opencode'}
+        disabled={busy || !path || !supported}
         onClick={() => void inspect()}
       >
         {t(busy ? 'plugin.inspecting' : 'plugin.inspect')}
       </button>
-      {installation?.kind !== 'opencode' && <p className="hint">{t('plugin.engineHint')}</p>}
+      {!supported && <p className="hint">{t('plugin.engineHint')}</p>}
       {error !== null && (
         <p className="form-error" role="alert">
           {formatError(error, locale)}
@@ -64,7 +82,12 @@ export function NativePluginInspection({
           <p role="status">{t('plugin.filesOnly')}</p>
           <p className="hint">{t('plugin.scope')}</p>
           {result.engineVersion !== result.resolverVersion && (
-            <p className="hint">{t('plugin.versionHint', { version: result.resolverVersion })}</p>
+            <p className="hint">
+              {t('plugin.versionHint', {
+                engine: engineNames[result.engine],
+                version: result.resolverVersion,
+              })}
+            </p>
           )}
           <dl>
             <dt>{t('plugin.package')}</dt>
@@ -74,20 +97,39 @@ export function NativePluginInspection({
             <dt>{t('plugin.localSource')}</dt>
             <dd>{result.localSpecifier}</dd>
             <dt>{t('plugin.entry')}</dt>
-            <dd>{result.entry.resolvedPath}</dd>
+            <dd>
+              {entries.map((entry) => (
+                <div key={entry.path} data-testid="plugin-entry">
+                  {entry.resolvedPath}
+                </div>
+              ))}
+            </dd>
+            {result.package && (
+              <>
+                <dt>{t('plugin.metadataSource')}</dt>
+                <dd>{result.package.file.resolvedPath}</dd>
+              </>
+            )}
             <dt>{t('plugin.checkedAt')}</dt>
             <dd>{new Date(result.checkedAt).toLocaleString(locale)}</dd>
           </dl>
-          {result.package?.engineRange && (
-            <p className="hint">
-              {t('plugin.range')}: {result.package.engineRange}
-            </p>
-          )}
-          <p data-testid="plugin-engine-range" data-range-status={result.rangeStatus}>
-            {t(`plugin.range.${result.rangeStatus}`, {
-              version: result.engineVersion ?? t('plugin.unknown'),
-            })}
-          </p>
+          {requirements.map((requirement) => (
+            <div key={requirement.name} data-plugin-dependency={requirement.name}>
+              <p className="hint">
+                {t('plugin.range', { engine: requirement.name })}:{' '}
+                {requirement.range ?? t('plugin.unknown')}
+              </p>
+              <p data-testid="plugin-engine-range" data-range-status={requirement.status}>
+                {requirement.source === 'unverified-dependency' &&
+                requirement.status === 'engine-unverified'
+                  ? t('plugin.dependencyUnverified')
+                  : t(`plugin.range.${requirement.status}`, {
+                      engine: requirement.name,
+                      version: requirement.version ?? t('plugin.unknown'),
+                    })}
+              </p>
+            </div>
+          ))}
           <p className="hint">{t('plugin.rangeHint')}</p>
           {result.package?.version && result.package.version !== version && (
             <>
@@ -104,10 +146,16 @@ export function NativePluginInspection({
           <details>
             <summary>SHA-256</summary>
             <dl>
-              <dt>{t('plugin.digest')}</dt>
-              <dd>
-                <code>{result.entry.sha256}</code>
-              </dd>
+              {entries.map((entry) => (
+                <Fragment key={entry.path}>
+                  <dt>
+                    {t('plugin.digest')}: {entry.resolvedPath}
+                  </dt>
+                  <dd>
+                    <code>{entry.sha256}</code>
+                  </dd>
+                </Fragment>
+              ))}
               {result.package && (
                 <>
                   <dt>{t('plugin.metadataDigest')}</dt>

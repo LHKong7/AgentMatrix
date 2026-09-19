@@ -9,7 +9,7 @@ AgentMatrix loads explicitly selected, already installed extensions through **Pi
 3. Select the reference on an Agent and choose **unrestricted** execution. Extensions can register or enable tools, so the adapter cannot promise the shared no-tools or universal approval policy with these bindings.
 4. Start a session and inspect its configuration report. Resume repeats source, lifecycle, and session checks in a new process.
 
-The library editor's optional read-only inspection button remains OpenCode-specific. Pi inspection runs during input capture and launch. Saving a reference does not execute it. Explicit `-e` / `--extension` selectors in installation prefix arguments are rejected; select extensions through library bindings so they are captured and checked.
+The library editor provides optional [read-only Pi file inspection](native-plugin-inspection.md), including every resolved entry and each declared engine range. The capture/startup checks remain separate; saving or inspecting a reference does not execute it. Explicit `-e` / `--extension` selectors in installation prefix arguments are rejected; select extensions through library bindings so they are captured and checked.
 
 ## Supported installed sources
 

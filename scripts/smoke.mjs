@@ -326,7 +326,7 @@ try {
   await pluginDialog.getByLabel('引擎安装', { exact: true }).selectOption({ label: 'Smoke Pi' })
   assert.equal(
     await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).isDisabled(),
-    true,
+    false,
   )
   page.once('dialog', (dialog) => dialog.accept())
   await pluginDialog.getByRole('button', { name: '取消', exact: true }).click()
@@ -339,6 +339,151 @@ try {
     )
     await window.agentMatrix.saveWorkspace(workspace)
   })
+  await page.reload()
+  const additionalPlugins = []
+  const unprobedInstallations = (await state()).installations
+  // These saved versions are fixture metadata. Inspection must work without executing a CLI.
+  await page.evaluate(async () => {
+    const workspace = await window.agentMatrix.loadWorkspace()
+    for (const installation of workspace.installations) {
+      if (!['pi', 'deepseek-harness'].includes(installation.kind)) continue
+      installation.version = installation.kind === 'pi' ? '0.85.1' : '0.1.5-rc.2'
+      installation.probedAt = '2026-09-19T00:00:00Z'
+    }
+    await window.agentMatrix.saveWorkspace(workspace)
+  })
+  await page.reload()
+  for (const kind of ['pi', 'dsh']) {
+    const selected = join(pluginSource, kind)
+    await mkdir(selected)
+    const packageData = {
+      name: `@agentmatrix/${kind}-inspection`,
+      version: '2.3.4',
+      main: './first.mjs',
+      ...(kind === 'pi' ? { pi: { extensions: ['./first.mjs', './second.ts'] } } : {}),
+      peerDependencies:
+        kind === 'pi'
+          ? {
+              '@earendil-works/pi-coding-agent': '^0.85.0',
+              '@mariozechner/pi-coding-agent': '>=1.0.0',
+            }
+          : { '@deepseek-ai/dsh': '0.1.5-rc.2', '@deepseek-ai/cordis': '^4.0.0' },
+      scripts: { install: 'must not execute' },
+      privateCredential: syntheticSecret,
+    }
+    await writeFile(join(selected, 'package.json'), JSON.stringify(packageData))
+    const entryCode = `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(join(selected, 'executed'))}, 'unexpected');\nthrow new Error('Do not execute while inspecting');\n`
+    await writeFile(join(selected, 'first.mjs'), entryCode)
+    await writeFile(join(selected, 'second.ts'), entryCode)
+    const label = kind === 'pi' ? 'Smoke Pi' : 'Smoke DSH'
+    const name = `${label} Plugin`
+    await addResource('Native plugins', name, async (dialog) => {
+      await dialog.getByLabel('Engine installation', { exact: true }).selectOption({ label })
+      await dialog.getByLabel('Native plugin ID', { exact: true }).fill(`${kind}-native-id`)
+      await dialog.getByLabel('Version', { exact: true }).fill('0.9.0')
+      await dialog.getByLabel('Source', { exact: true }).fill('User-supplied origin')
+      await dialog.getByLabel('Installed path', { exact: true }).fill(selected)
+      const before = await state()
+      await dialog.getByRole('button', { name: 'Inspect installed files', exact: true }).click()
+      await dialog
+        .getByRole('status')
+        .filter({ hasText: 'Files checked · Activation unverified' })
+        .waitFor()
+      await dialog.getByText(packageData.name, { exact: true }).waitFor()
+      assert.equal(await dialog.getByTestId('plugin-entry').count(), kind === 'pi' ? 2 : 1)
+      const rows = dialog.getByTestId('plugin-engine-range')
+      assert.deepEqual(
+        await rows.evaluateAll((items) =>
+          items.map((item) => item.getAttribute('data-range-status')),
+        ),
+        kind === 'pi' ? ['matched', 'mismatched'] : ['matched', 'engine-unverified'],
+      )
+      if (kind === 'dsh')
+        await dialog
+          .getByText(
+            'This dependency version has not been inspected. The saved CLI version does not establish its compatibility.',
+            { exact: true },
+          )
+          .waitFor()
+      await dialog.getByRole('button', { name: 'Use package version', exact: true }).click()
+      assert.equal(await dialog.getByLabel('Version', { exact: true }).inputValue(), '2.3.4')
+      assert.equal(
+        await dialog.getByLabel('Native plugin ID', { exact: true }).inputValue(),
+        `${kind}-native-id`,
+      )
+      assert.equal(
+        await dialog.getByLabel('Source', { exact: true }).inputValue(),
+        'User-supplied origin',
+      )
+      await dialog.getByText('SHA-256', { exact: true }).click()
+      assert.equal(
+        await dialog.locator('.plugin-inspection code').count(),
+        (kind === 'pi' ? 2 : 1) + 1,
+      )
+      assert.ok(!(await dialog.innerText()).includes(syntheticSecret))
+      assert.deepEqual(await state(), before)
+      if (process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT) {
+        await dialog.locator('.plugin-inspection').scrollIntoViewIfNeeded()
+        await dialog.screenshot({
+          path: `${process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT}.${kind}.en.png`,
+        })
+      }
+    })
+    additionalPlugins.push((await state()).nativePlugins.find((item) => item.name === name))
+    const saved = await state()
+    const result = await page.evaluate((query) => window.agentMatrix.inspectNativePlugin(query), {
+      installationId: additionalPlugins.at(-1).engineInstallationId,
+      path: selected,
+    })
+    assert.ok(!JSON.stringify(result).includes(syntheticSecret))
+    assert.equal(result.engine, kind === 'pi' ? 'pi' : 'deepseek-harness')
+    await language('zh-CN')
+    await navigate('原生插件')
+    await page.getByRole('button', { name: `编辑 ${name}`, exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    assert.equal(await dialog.locator('.plugin-inspection').getByRole('status').count(), 0)
+    await dialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
+    await dialog.getByRole('status').filter({ hasText: '文件已检查 · 激活尚未验证' }).waitFor()
+    await dialog.getByText(packageData.name, { exact: true }).waitFor()
+    if (kind === 'dsh')
+      await dialog
+        .getByText('尚未检查此依赖的安装版本。已保存的 CLI 版本不能证明其兼容性。', { exact: true })
+        .waitFor()
+    else
+      await dialog
+        .getByText('声明的范围不包含已保存的 @mariozechner/pi-coding-agent 版本 0.85.1。', {
+          exact: true,
+        })
+        .waitFor()
+    if (process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT) {
+      await dialog.locator('.plugin-inspection').scrollIntoViewIfNeeded()
+      await dialog.screenshot({
+        path: `${process.env.AGENT_MATRIX_PLUGIN_SCREENSHOT}.${kind}.zh.png`,
+      })
+    }
+    if (kind === 'pi')
+      await writeFile(
+        join(selected, 'package.json'),
+        JSON.stringify({ ...packageData, pi: { ...packageData.pi, skills: ['skills'] } }),
+      )
+    else await writeFile(join(selected, 'cordis.patch.yml'), '[]')
+    await dialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
+    await dialog
+      .getByRole('alert')
+      .filter({ hasText: kind === 'pi' ? '此 Pi 包还声明了 Skills' : '此目录是 DSH 补丁包' })
+      .waitFor()
+    assert.equal(await dialog.getByTestId('plugin-entry').count(), 0)
+    await writeFile(join(selected, 'package.json'), JSON.stringify(packageData))
+    if (kind === 'dsh') await rm(join(selected, 'cordis.patch.yml'))
+    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    assert.deepEqual(await state(), saved)
+    assert.ok(!(await readdir(selected)).includes('executed'))
+    await language('en')
+  }
+  await page.evaluate(async (installations) => {
+    const workspace = await window.agentMatrix.loadWorkspace()
+    await window.agentMatrix.saveWorkspace({ ...workspace, installations })
+  }, unprobedInstallations)
   await page.reload()
   await addResource('Connections', 'Smoke Connection', async (dialog) => {
     await dialog.getByLabel('API protocol', { exact: true }).selectOption('anthropic-messages')
@@ -667,8 +812,42 @@ try {
     current,
   )
   assert.deepEqual(runtimeErrors, [])
+  for (const plugin of additionalPlugins)
+    assert.deepEqual(
+      (await state()).nativePlugins.find((item) => item.id === plugin.id),
+      plugin,
+    )
+  if (process.env.AGENT_MATRIX_PLUGIN_REPORT)
+    await writeFile(
+      process.env.AGENT_MATRIX_PLUGIN_REPORT,
+      JSON.stringify(
+        {
+          checkedAt: new Date().toISOString(),
+          platform: process.platform,
+          architecture: process.arch,
+          engines: ['opencode', 'pi', 'deepseek-harness'],
+          verification: 'files-only',
+          nativeCliExecuted: false,
+          moduleCodeExecuted: false,
+          externalRequests: false,
+          englishAndChinese: true,
+          allPiEntriesAndDigests: true,
+          separatePiPeerRanges: true,
+          dshFrameworkVersionUnknown: true,
+          engineSpecificPackageRestrictions: true,
+          packageVersionAdoption: true,
+          nativeIdAndSourceUnchanged: true,
+          inspectionDoesNotSave: true,
+          savedReferencesSurviveRestart: true,
+          secretMetadataOmitted: true,
+          staleResultsCleared: true,
+        },
+        null,
+        2,
+      ) + '\n',
+    )
   console.log(
-    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, read-only installed OpenCode plugin inspection, Pi trust/context settings, DSH instruction placement, prompt and Skill revisions, directory capture/reimport, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
+    'Desktop smoke passed: exact-byte v1 backup/migration, shared connections/models/credentials, all three engine drafts, read-only OpenCode/Pi/DSH plugin inspection, Pi trust/context settings, DSH instruction placement, prompt and Skill revisions, directory capture/reimport, pinned/latest bindings, bundles, diagnostics, reference cleanup, bilingual UI/restart, and OS credential encryption/replacement/deletion.',
   )
 } catch (error) {
   if (page && !page.isClosed()) {
