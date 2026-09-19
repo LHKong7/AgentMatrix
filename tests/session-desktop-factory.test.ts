@@ -84,6 +84,67 @@ afterEach(async () => {
   )
 })
 describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
+  it.each(
+    (['opencode', 'pi'] as const).flatMap((kind) =>
+      // The extra brace escaping belongs to OpenCode's native interpolation format.
+      (kind === 'opencode' ? ['JSON', 'URL', 'nativeTemplate'] : ['JSON', 'URL']).map(
+        (encoding) => ({ kind, encoding }),
+      ),
+    ),
+  )(
+    'blocks $kind $encoding credential arguments before native preflight',
+    async ({ kind, encoding }) => {
+      const version = kind === 'pi' ? '0.85.1' : '1.18.16'
+      const f = await fixture(version, kind)
+      const key = 'synthetic-desktop-secret/"{value}'
+      const escaped = JSON.stringify(key).slice(1, -1)
+      const argument =
+        encoding === 'URL'
+          ? encodeURIComponent(key)
+          : encoding === 'nativeTemplate'
+            ? escaped.replaceAll('{', '\\u007b')
+            : escaped
+      const calls = join(f.root, 'native-invocations')
+      await writeFile(
+        f.executable,
+        `#!/usr/bin/env node\nrequire('node:fs').appendFileSync(${JSON.stringify(calls)}, 'called\\n'); console.log(${JSON.stringify(version)})\n`,
+      )
+      const state = await f.workspace.load()
+      state.installations[0]!.prefixArgs = [`--custom=${argument}`]
+      await f.workspace.save(state)
+      f.resolveSecret.mockResolvedValue(key)
+      f.resolveSecretVersioned.mockResolvedValue({
+        value: key,
+        resolvedAt: new Date().toISOString(),
+        version: { source: 'environment' },
+      })
+      const installationId = state.installations[0]!.id
+      await f.factory.probe({ installationId })
+      const before = await readFile(calls, 'utf8')
+      expect(before).toBe('called\n')
+      const identity = await f.factory.create('argument-boundary', {
+        kind: 'create',
+        commandId: 'create',
+        agentId: state.agents[0]!.id,
+      })
+      const manifest = await readFile(join(f.runs.paths(identity.snapshotId).root, 'manifest.json'))
+      await expect(
+        f.factory.connect(
+          createSessionSnapshot({
+            ...identity,
+            id: 'session',
+            createdAt: new Date().toISOString(),
+          }),
+          new AbortController().signal,
+        ),
+      ).rejects.toMatchObject({ code: 'configuration', message: 'Agent runtime configuration' })
+      expect(f.resolveSecretVersioned).toHaveBeenCalledTimes(1)
+      expect(await readFile(calls, 'utf8')).toBe(before)
+      expect(await readFile(join(f.runs.paths(identity.snapshotId).root, 'manifest.json'))).toEqual(
+        manifest,
+      )
+    },
+  )
   it.each(['sources', 'snapshot'] as const)(
     'reports %s integrity failure before resolving credentials or spawning an engine',
     async (check) => {

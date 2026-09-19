@@ -132,12 +132,13 @@ it('rejects an unavailable backend and bounded-history overflow without discardi
   await expect(history.retain(root, identity, [])).rejects.toThrow('error.credentialsUnavailable')
 })
 
-async function storeFixture(secure = true) {
+async function storeFixture(secure = true, prefixArgs: string[] = []) {
   const executable = join(root, 'fake-engine'),
     cwd = join(root, 'project')
   await writeFile(executable, 'synthetic engine')
   await mkdir(cwd, { recursive: true })
   const workspace = openCodeWorkspace(executable, cwd)
+  workspace.installations[0]!.prefixArgs = prefixArgs
   const skills = new SkillDirectoryStore(join(root, 'skills'))
   const store = new RunInputStore(join(root, 'runs'), skills, secure ? cipher : undefined)
   const create = (id: string) =>
@@ -150,6 +151,47 @@ async function storeFixture(secure = true) {
     )
   return { store, skills, create }
 }
+
+const argumentEncodings = {
+  raw: (value: string) => value,
+  JSON: (value: string) => JSON.stringify(value).slice(1, -1),
+  URL: (value: string) => encodeURIComponent(value),
+  nativeTemplate: (value: string) => JSON.stringify(value).slice(1, -1).replaceAll('{', '\\u007b'),
+}
+it.each(
+  Object.entries(argumentEncodings).flatMap(([encoding, encode]) =>
+    (['current', 'retired', 'legacy'] as const).map((scope) => ({ encoding, encode, scope })),
+  ),
+)(
+  'rejects $scope $encoding credentials in arguments without rewriting captured inputs',
+  async ({ encode, scope }) => {
+    const { store, create } = await storeFixture(scope !== 'legacy', [`--custom=${encode(oldKey)}`])
+    const manifest = await create('argument-boundary')
+    if (scope === 'retired')
+      await store.retainRedactions(manifest, [oldKey, argumentEncodings.nativeTemplate(oldKey)])
+    const before = await readFile(join(store.paths(manifest.id).root, 'manifest.json'))
+    const resolve = vi.fn(async () => (scope === 'retired' ? currentKey : oldKey))
+    await expect(prepareRunLaunch(store, manifest.id, resolve, {})).rejects.toThrow(
+      'error.runConfiguration',
+    )
+    expect(resolve).toHaveBeenCalledTimes(1)
+    expect(await readFile(join(store.paths(manifest.id).root, 'manifest.json'))).toEqual(before)
+    expect(await store.verifyForReuse(manifest.id)).toEqual(manifest)
+  },
+)
+
+it('allows unrelated argument prefixes and resolves only current references into the environment', async () => {
+  const { store, create } = await storeFixture(true, ['--custom=r'])
+  const manifest = await create('safe-arguments')
+  const resolver = vi.fn(async () => oldKey)
+  const result = await prepareRunLaunch(store, manifest.id, resolver, {
+    UNSELECTED_API_KEY: 'unrelated-key',
+  })
+  expect(result.launch.args).toEqual(manifest.launch.args)
+  expect(result.launch.environment.UNSELECTED_API_KEY).toBeUndefined()
+  expect(result.launch.secrets).toContain(oldKey)
+  expect(resolver).toHaveBeenCalledTimes(1)
+})
 
 it('serializes history updates, never injects retired keys, and removes history with run data', async () => {
   const { store, skills, create } = await storeFixture()

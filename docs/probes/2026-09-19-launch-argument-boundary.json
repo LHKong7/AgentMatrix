@@ -1,0 +1,67 @@
+{
+  "checkedAt": "2026-09-19T14:20:34.636Z",
+  "sourceRevision": "8a485ed30b5f00482442ff6029f0a9f30cb46f89",
+  "productionSourceChanges": true,
+  "sourceSha256": {
+    "src/main/engines/run-launch.ts": "806f79977f2d6dd05025622b0977ec4c6072d3978c2fb1f96415020703d235d6",
+    "src/main/engines/process/redacted-tail.ts": "83c06321c105991e9ede7ae7b5da7518a7182faa140574fd9dbb0ca5816d705e",
+    "tests/redaction-history.test.ts": "873e2c97763a87df15887f1566ef40f27d5dd2e011fe672f9a203d5162fc50bc",
+    "tests/session-desktop-factory.test.ts": "317a8c7322246490c045d47471ac00da7f9c57a6264fe8dfc79e11302060d7a9",
+    "scripts/credential-rotation-smoke.mjs": "72ebe7d96babb29ceaa4252786dd0774e4f91968e9093a2da08a9f8d0d434aed"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "defect": {
+    "surface": "Captured command-line arguments at session attachment",
+    "failedBeforeFix": 10,
+    "rejectionMatrixCases": 12,
+    "encodings": ["raw", "JSON", "URL", "recorded OpenCode native template"],
+    "credentialScopes": ["current", "retained", "legacy-current"],
+    "manifestContentsAndDigestPreserved": true
+  },
+  "preflightChecks": {
+    "cases": 5,
+    "engines": ["OpenCode", "Pi"],
+    "executable": "Controlled local invocation-recording executable",
+    "explicitVersionProbeCallsPerCase": 1,
+    "rejectedAttachmentCallsPerCase": 0,
+    "nativeTemplateAppliesTo": "OpenCode",
+    "dshPrefixArguments": "Already rejected by configuration validation"
+  },
+  "validation": {
+    "unit": {
+      "command": "npx vitest run --maxWorkers=2",
+      "tests": 976,
+      "files": 61,
+      "exitCode": 0
+    },
+    "lint": {
+      "command": "npm run lint",
+      "exitCode": 0
+    },
+    "build": {
+      "command": "npm run build",
+      "includesTypecheck": true,
+      "exitCode": 0
+    },
+    "desktop": {
+      "command": "node --experimental-strip-types scripts/credential-rotation-smoke.mjs",
+      "report": "2026-09-19-argument-boundary-rotation.json",
+      "sha256": "0abc8ec612cadf580e1d8cee302bf1ffb5fb4350dc2dc80bb19ccff691e9e44b",
+      "exitCode": 0,
+      "overlappingNativeSuites": false,
+      "rebuildDuringRun": false,
+      "scope": "Normal four-route startup, credential rotation, exact native resume, output masking and cleanup",
+      "primaryRequests": 20
+    }
+  },
+  "externalProviderCalls": false,
+  "deliveryGatesPromoted": [],
+  "remaining": [
+    "Complete X3 surface and combined run-boundary acceptance",
+    "Saved ordinary text and prior captures are not rewritten",
+    "Independent installation probes do not resolve Agent credential references",
+    "Unknown values and unsupported key transformations remain outside known-value checks",
+    "External-provider, other-platform and packaged-application acceptance"
+  ]
+}

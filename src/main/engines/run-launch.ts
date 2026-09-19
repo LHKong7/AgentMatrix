@@ -4,6 +4,7 @@ import type { SecretReference } from '../../shared/engines/schema'
 import type { RunInputManifest } from '../../shared/engines/run-inputs'
 import { RunInputStore } from './run-input-store'
 import { baseProcessEnvironment, type ProcessLaunch } from './process/managed-process'
+import { createSecretMatcher } from './process/redacted-tail'
 
 /** Reverify saved inputs and resolve only their explicit references immediately before launch. */
 export async function prepareRunLaunch(
@@ -35,8 +36,6 @@ export async function prepareRunLaunch(
         value.encoding === 'json-string'
           ? JSON.stringify(raw).slice(1, -1).replaceAll('{', '\\u007b')
           : raw
-      if (manifest.launch.args.some((argument) => argument.includes(raw)))
-        throw appError('error.runConfiguration')
       environment[name] = encoded
       secrets.add(raw)
       secrets.add(encoded)
@@ -51,6 +50,10 @@ export async function prepareRunLaunch(
     redactions.reduce((sum, value) => sum + value.length, 0) > 1_048_576
   )
     throw appError('error.runLimit')
+  // Command-line arguments can appear in process listings. Include native encodings and
+  // retained values before returning a launch plan; never silently rewrite captured argv.
+  if (manifest.launch.args.some(createSecretMatcher(redactions)))
+    throw appError('error.runConfiguration')
   return {
     manifest,
     launch: {

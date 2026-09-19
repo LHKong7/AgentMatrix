@@ -1,0 +1,68 @@
+{
+  "checkedAt": "2026-09-19T14:19:26.572Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "passed": true,
+  "engines": ["OpenCode", "Pi", "DeepSeek Harness", "DeepSeek Harness native"],
+  "versions": {
+    "opencode": "1.18.16",
+    "pi": "0.85.1",
+    "dsh": "0.1.5-rc.2",
+    "dsh_native": "0.1.5-rc.2"
+  },
+  "provider": {
+    "service": "Local synthetic fixture",
+    "routes": [
+      {
+        "profile": "opencode",
+        "engine": "opencode",
+        "executable": "~/.opencode/bin/opencode",
+        "protocol": "openai-chat-completions",
+        "model": "rotation-opencode"
+      },
+      {
+        "profile": "pi",
+        "engine": "pi",
+        "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi",
+        "protocol": "openai-chat-completions",
+        "model": "rotation-pi"
+      },
+      {
+        "profile": "dsh",
+        "engine": "deepseek-harness",
+        "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+        "protocol": "openai-chat-completions",
+        "model": "rotation-dsh",
+        "component": "dsh-llm-pi-ai"
+      },
+      {
+        "profile": "dsh_native",
+        "engine": "deepseek-harness",
+        "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+        "protocol": "deepseek-official",
+        "model": "rotation-dsh_native",
+        "component": "dsh-llm-deepseek"
+      }
+    ]
+  },
+  "locales": ["en", "zh-CN"],
+  "initialRevision": 1,
+  "rotatedRevision": 2,
+  "activeAttachmentsRetainOldKey": true,
+  "newSessionsUseRotatedKey": true,
+  "nativeResumeUsesRotatedKey": true,
+  "deletedCredentialBlocksResume": true,
+  "historicalEvidencePreserved": true,
+  "immutableManifests": true,
+  "applicationStorageRedacted": true,
+  "applicationRegularFilesScanned": 112,
+  "nativeStateDirectoriesExcluded": 8,
+  "headerReferencesIsolatedByConnection": true,
+  "nativeHistoryContainsOriginalEcho": true,
+  "rotatedKeyEchoRedactedAfterRestart": true,
+  "retiredKeysNeverAuthenticate": true,
+  "historyApiAndExportsRedacted": true,
+  "encryptedHistoryRemovedWithCapture": true,
+  "primaryRequests": 20,
+  "externalProvider": false
+}
