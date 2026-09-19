@@ -4,6 +4,7 @@ import type {
   ConfigurationReport,
 } from '../../shared/engines/configuration-report'
 import type { RunInputManifest } from '../../shared/engines/run-inputs'
+import { buildMcpReport } from './mcp-report'
 import type { EngineWorkspace } from '../../shared/engines/workspace'
 import type { SessionSnapshot } from '../../shared/sessions/schema'
 import { resolveAgentProfile, type ProfileResolution } from '../../shared/engines/resolution'
@@ -181,6 +182,7 @@ export function buildConfigurationReport(
       : null,
     credentials: credentialReport(manifest, observation?.credentialResolutions, versions),
     capabilities: buildSessionCapabilities(manifest, snapshot),
+    mcp: buildMcpReport(manifest, observation),
     observationIsCurrent: Boolean(
       observation &&
       observation.runId === snapshot.runId &&

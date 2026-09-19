@@ -1,4 +1,18 @@
 export const reportEn = {
+  'report.mcpTitle': 'MCP connection checks',
+  'report.mcpHint':
+    'Native status sampled at the last attachment. These checks do not prove tool execution or continuing availability. OpenCode may keep the conversation usable when an MCP service fails. Saved changes apply to new sessions.',
+  'report.mcpUnobserved': 'No native MCP connection check was recorded for this attachment.',
+  'report.mcpEmpty': 'No MCP services were selected in these captured inputs.',
+  'report.mcpServer': 'Captured service',
+  'report.mcpTransport': 'Requested transport',
+  'report.mcpStatus': 'Status at check time',
+  'report.mcpStatus.connected': 'Connected',
+  'report.mcpStatus.disabled': 'Disabled by the engine',
+  'report.mcpStatus.failed': 'Connection or tool discovery failed',
+  'report.mcpStatus.authentication-required': 'Native authentication required',
+  'report.mcpStatus.registration-required': 'Native client registration required',
+  'report.mcpStatus.unknown': 'Unknown; no validated native status',
   'report.credentialTitle': 'Credential revisions',
   'report.credentialHint':
     'A running process keeps the credentials resolved for its attachment. A new start or resume resolves them again. Recorded revisions identify stored inputs, not provider acceptance or continuing native use. Environment values are not compared.',

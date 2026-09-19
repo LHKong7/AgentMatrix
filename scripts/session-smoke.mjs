@@ -52,9 +52,48 @@ await writeFile(join(alternateCwd, 'fixture.txt'), 'SMOKE_FILE_MARKER_ALTERNATE'
 const secret = 'agentmatrix-synthetic-desktop-secret'
 let behavior = 'tool',
   streamStarted = false
+let mcpRecovered = false
+let expectedMcpStatuses = ['connected', 'failed']
+let mcpRequests = 0
 const calls = []
 const server = createServer(async (request, response) => {
   try {
+    if (request.url?.startsWith('/mcp/')) {
+      mcpRequests++
+      assert.equal(request.headers.authorization, `Bearer ${secret}`)
+      if (request.url === '/mcp/recovering' && !mcpRecovered) {
+        response
+          .writeHead(401, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ error: 'PRIVATE_MCP_AUTH_FAILURE' }))
+        return
+      }
+      if (request.method !== 'POST') {
+        response.writeHead(405).end()
+        return
+      }
+      let body = ''
+      for await (const part of request) {
+        body += String(part)
+        if (body.length > 1_048_576) throw new Error('MCP request limit')
+      }
+      const message = JSON.parse(body)
+      if (message.id === undefined) {
+        response.writeHead(202).end()
+        return
+      }
+      const result =
+        message.method === 'initialize'
+          ? {
+              protocolVersion: message.params.protocolVersion,
+              serverInfo: { name: 'Desktop MCP fixture', version: '1.0.0' },
+              capabilities: { tools: {} },
+            }
+          : { tools: [] }
+      response
+        .writeHead(200, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ jsonrpc: '2.0', id: message.id, result }))
+      return
+    }
     let body = ''
     for await (const chunk of request) {
       body += String(chunk)
@@ -226,6 +265,21 @@ export default { id: 'desktop-plugin', async server() { return Object.freeze({
     },
   ]
   workspace.agents[0].nativePluginIds = ['desktop-plugin']
+}
+if (!isPi && !isDsh) {
+  workspace.mcpServers = ['available', 'recovering'].map((id) => ({
+    id,
+    name: `Desktop MCP ${id}`,
+    description: '',
+    enabled: true,
+    transport: 'streamable-http',
+    url: `http://127.0.0.1:${address.port}/mcp/${id}`,
+    headers: {},
+    secretHeaders: {},
+    timeoutMs: 5000,
+    auth: { kind: 'bearer', secret: { kind: 'environment', name: 'AGENT_MATRIX_SESSION_KEY' } },
+  }))
+  workspace.agents[0].mcpServerIds = ['available', 'recovering']
 }
 workspace.installations[0].version = null
 workspace.installations[0].probedAt = null
@@ -508,6 +562,7 @@ async function verifyLongHistory(sourceId) {
   await page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true }).last().click()
 }
 async function configurationReport(title = 'Configuration report', close = 'Close') {
+  const beforeMcpRequests = mcpRequests
   await page.getByRole('button', { name: title, exact: true }).click()
   const dialog = page.getByRole('dialog')
   await dialog.locator('[data-report-field="model"]').waitFor()
@@ -571,6 +626,43 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     ),
   )
   const capabilities = value.capabilities
+  if (!isPi && !isDsh) {
+    assert.equal(value.mcp.source, 'opencode-acp')
+    assert.deepEqual(
+      value.mcp.entries.map((entry) => entry.status),
+      expectedMcpStatuses,
+    )
+    assert.ok(value.mcp.checkedAt)
+    assert.ok(!(await dialog.textContent()).includes('PRIVATE_MCP_AUTH_FAILURE'))
+    const mcpTable = dialog.getByRole('table', {
+      name: title === '配置报告' ? 'MCP 连接检查' : 'MCP connection checks',
+      exact: true,
+    })
+    assert.equal(await mcpTable.locator('[data-mcp-slot]').count(), 2)
+    for (const [slot, status] of expectedMcpStatuses.entries())
+      await mcpTable.locator(`[data-mcp-slot="${slot}"][data-mcp-status="${status}"]`).waitFor()
+    await mcpTable.scrollIntoViewIfNeeded()
+    if (process.env.AGENT_MATRIX_MCP_SCREENSHOT)
+      await page.screenshot({
+        path:
+          process.env.AGENT_MATRIX_MCP_SCREENSHOT + (title === '配置报告' ? '.zh.png' : '.en.png'),
+      })
+    assert.equal(mcpRequests, beforeMcpRequests, 'Report reads must not connect MCP services')
+    const row = capabilities.capabilities.find((entry) => entry.feature === 'mcp-connectivity')
+    const passed = expectedMcpStatuses.every((status) => status === 'connected')
+    assert.equal(row.verification, passed ? 'passed' : 'failed')
+    assert.equal(
+      row.availability,
+      capabilities.current ? (passed ? 'ready' : 'blocked') : 'unknown',
+    )
+  } else {
+    assert.equal(value.mcp.source, 'unknown')
+    assert.equal(value.mcp.checkedAt, null)
+    assert.equal(
+      capabilities.capabilities.find((row) => row.feature === 'mcp-connectivity').verification,
+      'untested',
+    )
+  }
   assert.equal(capabilities.contractMatches, true)
   assert.equal(capabilities.current, value.observationIsCurrent)
   assert.equal(capabilities.identity.snapshotDigest, value.snapshotDigest)
@@ -588,12 +680,7 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     assert.equal(row.verification, 'passed', feature)
     assert.equal(row.availability, capabilities.current ? 'ready' : 'unknown', feature)
   }
-  for (const feature of [
-    'model-service',
-    'mcp-connectivity',
-    'prompt-loading',
-    'policy-enforcement',
-  ])
+  for (const feature of ['model-service', 'prompt-loading', 'policy-enforcement'])
     assert.equal(
       capabilities.capabilities.find((item) => item.feature === feature).verification,
       'untested',
@@ -1323,6 +1410,7 @@ try {
   assert.equal(directoryReport.fields.find((field) => field.id === 'execution').changed, true)
   await app.close()
   app = null
+  mcpRecovered = true
   await launch()
   await language('en')
   await navigate('Sessions')
@@ -1411,7 +1499,9 @@ try {
   assert.equal(resumed.cwd, alternateCwd)
   assert.equal(resumed.snapshotId, latest.snapshotId)
   assert.equal(resumed.snapshotDigest, latest.snapshotDigest)
+  expectedMcpStatuses = ['connected', 'connected']
   const resumedReport = await configurationReport()
+  if (!isPi && !isDsh) assert.notEqual(resumedReport.mcp.checkedAt, historicalReport.mcp.checkedAt)
   assert.equal(resumedReport.diagnostic, null)
   assert.equal(
     resumedReport.fields.some((field) => field.rejected),
@@ -1563,6 +1653,20 @@ try {
       englishAndChinese: true,
       sensitiveValuesOmitted: true,
     },
+    mcpConnectionReport:
+      !isPi && !isDsh
+        ? {
+            successfulAndFailedNativeConnections: true,
+            noNativeErrorOrCredentialsInUi: true,
+            englishAndChinese: true,
+            reportReadMakesNoMcpRequest: true,
+            historicalStatusPreservedAfterServiceRecovery: true,
+            failedResumePreservesPreviousReceipt: true,
+            successfulResumeRefreshesStatuses: true,
+            connectivityScope:
+              'Native status at attachment; no continuous monitoring or tool-execution claim',
+          }
+        : { source: 'unknown' },
     skillSourceReport: {
       scope: isPi
         ? 'Native RPC Skill sources'

@@ -10,6 +10,7 @@ import {
 import { absolutePath, entityId, runtimeModeSchema } from '../engines/schema'
 import { credentialResolutionsSchema } from '../engines/credential-observation'
 import { nativeRuntimeSchema } from '../engines/session-capabilities'
+import { mcpObservationSchema } from '../engines/mcp-observation'
 
 const text = z.string().max(65_536)
 const nativeId = z.string().min(1).max(1000)
@@ -249,6 +250,7 @@ export const sessionEventDataSchema = z
         configurationChecks: configurationChecksSchema.optional(),
         credentialResolutions: credentialResolutionsSchema.optional(),
         nativeRuntime: nativeRuntimeSchema.optional(),
+        mcpConnections: mcpObservationSchema.optional(),
       })
       .strict(),
     z.object({ kind: z.literal('turn.started'), messageId: entityId, text }).strict(),

@@ -17,6 +17,7 @@ import { redactText } from '../../process/redacted-tail'
 import { prepareOpenCodePluginAttachment } from './plugins'
 import { openCodeSkillPlanPath, prepareOpenCodeSkillAttachment } from './skills'
 import { openCodeConfigPlanPath, prepareOpenCodeConfigurationAttachment } from './instance-config'
+import { observeOpenCodeMcp } from './mcp'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -177,7 +178,20 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     const id = nativeSessionId
     await instance?.verify(owned.process.pid, lifetime, id)
+    const mcpConnections =
+      hasConfigObserver && instance && manifest.mcpServers.length
+        ? await observeOpenCodeMcp(
+            instance,
+            manifest.mcpServers.map((server) => server.id),
+            owned.process.pid,
+            lifetime,
+            id,
+          )
+        : undefined
+    if (mcpConnections) await instance!.verify(owned.process.pid, lifetime, id)
+    if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     return {
+      ...(mcpConnections ? { mcpConnections } : {}),
       nativeRuntime: {
         protocol: 'acp',
         version: 1,

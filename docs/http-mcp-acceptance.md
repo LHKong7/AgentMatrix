@@ -1,6 +1,6 @@
 # HTTP MCP acceptance
 
-The shared MCP configuration now has installed-release Streamable HTTP evidence for **OpenCode 1.18.16** and **DeepSeek Harness 0.1.5-rc.2**, using both DSH provider routes. These checks exercise the production capture planners and ACP runtime adapters against local synthetic model and MCP services. They extend A4/X2 acceptance; they do not introduce a per-session connectivity receipt or pass a delivery gate.
+The shared MCP configuration now has installed-release Streamable HTTP evidence for **OpenCode 1.18.16** and **DeepSeek Harness 0.1.5-rc.2**, using both DSH provider routes. These checks exercise the production capture planners and ACP runtime adapters against local synthetic model and MCP services. They extend A4/X2 acceptance without passing a delivery gate. The subsequent [OpenCode runtime observation](opencode-mcp-status.md) adds per-service attachment receipts and bilingual reporting.
 
 ## Verified contract
 
@@ -32,9 +32,9 @@ MCP credentials and provider authorization are distinct synthetic values. The fi
 
 That authorization separation concerns request headers. Native engines can forward MCP tool content, including an error message, to their model service. This fixture does not establish outbound model-payload filtering. It also does not exercise the credential vault UI or create new encrypted storage behavior.
 
-The OpenCode probe reads `/mcp` through the existing authenticated, owned ACP listener to establish native status. This read is fixture-only: production reports continue to label **MCP connectivity as unknown**, separately from configuration mapping. A Ready conversation is not evidence that all selected MCP servers connected. DSH startup rejection is presently a general runtime failure, not a dedicated per-server authentication diagnostic.
+The OpenCode probe reads `/mcp` through the existing authenticated, owned ACP listener to establish native status. The original probe read was fixture-only. The subsequent [runtime observer](opencode-mcp-status.md) now persists selected-server status at attachment; older reports and DSH connectivity remain unknown without their own receipt. A Ready conversation is not evidence that all selected MCP servers connected. DSH startup rejection is presently a general runtime failure, not a dedicated per-server authentication diagnostic.
 
-Pi core continues to reject MCP bindings, including HTTP definitions. No extension is selected implicitly. DSH rejects OAuth and legacy SSE before launch. OpenCode can map engine-owned OAuth scopes, but browser login, registration, token persistence/refresh and authenticated OAuth tool calls remain unverified. External servers, TLS/proxies, timeout enforcement, mid-turn disconnections, legacy SSE negotiation, per-server runtime receipts and other platforms remain separate acceptance work.
+Pi core continues to reject MCP bindings, including HTTP definitions. No extension is selected implicitly. DSH rejects OAuth and legacy SSE before launch. OpenCode can map engine-owned OAuth scopes, but browser login, registration, token persistence/refresh and authenticated OAuth tool calls remain unverified. External servers, TLS/proxies, timeout enforcement, mid-turn disconnections, legacy SSE negotiation, DSH per-server runtime receipts and other platforms remain separate acceptance work.
 
 ## Reproduction and records
 

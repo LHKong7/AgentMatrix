@@ -534,6 +534,7 @@ export class SessionCoordinator {
             kind: 'run.ready',
             nativeSessionId: runtime.nativeSessionId,
             ...(runtime.nativeRuntime ? { nativeRuntime: runtime.nativeRuntime } : {}),
+            ...(runtime.mcpConnections ? { mcpConnections: runtime.mcpConnections } : {}),
             ...(runtime.credentialResolutions
               ? { credentialResolutions: runtime.credentialResolutions }
               : {}),

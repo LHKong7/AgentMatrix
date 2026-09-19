@@ -19,6 +19,10 @@ import { isMessageKey, catalogs } from '../src/shared/i18n'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
 import { piWorkspace } from './helpers/pi-fixture'
 import { dshWorkspace } from './helpers/dsh-fixture'
+import {
+  mcpObservationSchema,
+  type McpConnectionStatus,
+} from '../src/shared/engines/mcp-observation'
 
 const at = '2026-09-19T00:00:00.000Z'
 function fixture(kind: SupportedEngine = 'opencode') {
@@ -114,6 +118,104 @@ const row = (
 ) => report.capabilities.find((item) => item.feature === feature)!
 
 describe('native session capability aggregation', () => {
+  it.each([
+    [['connected', 'connected'], 'passed', 'ready'],
+    [['connected', 'unknown'], 'untested', 'unknown'],
+    [['unknown', 'unknown'], 'untested', 'unknown'],
+    [['connected', 'failed'], 'failed', 'blocked'],
+    [['authentication-required', 'unknown'], 'failed', 'blocked'],
+    [['disabled', 'registration-required'], 'failed', 'blocked'],
+  ] as const)(
+    'scopes MCP states %j to the captured attachment',
+    (statuses, verification, availability) => {
+      const f = fixture(),
+        session = f.ready()
+      f.manifest.mcpServers = ['one', 'two'].map((id) => ({
+        id,
+        name: id,
+        description: '',
+        enabled: true,
+        transport: 'streamable-http',
+        url: 'https://private.invalid/SECRET',
+        headers: {},
+        secretHeaders: {},
+        auth: { kind: 'none' },
+      }))
+      session.configuration!.mcpConnections = {
+        source: 'opencode-acp',
+        checkedAt: at,
+        statuses: [...statuses] as McpConnectionStatus[],
+      }
+      const report = buildSessionCapabilities(f.manifest, session)
+      expect(row(report, 'mcp-connectivity')).toMatchObject({ verification, availability })
+      expect(isCurrentSessionCapability(report, 'mcp-connectivity', report.identity)).toBe(
+        verification === 'passed',
+      )
+      expect(row(report, 'mcp-connectivity').evidence).toContainEqual({
+        kind: 'runtime',
+        source: 'opencode.mcp-status-at-attachment',
+        checkedAt: at,
+      })
+      expect(JSON.stringify(report)).not.toContain('SECRET')
+      session.status = 'interrupted'
+      const historical = buildSessionCapabilities(f.manifest, session)
+      expect(row(historical, 'mcp-connectivity')).toMatchObject({
+        verification,
+        availability: 'unknown',
+        reason: 'capability.reason.historical',
+      })
+      expect(isCurrentSessionCapability(historical, 'mcp-connectivity', historical.identity)).toBe(
+        false,
+      )
+    },
+  )
+  it.each(['server-count', 'engine', 'config-check', 'future-time'] as const)(
+    'rejects a misplaced MCP receipt: %s',
+    (kind) => {
+      const f = fixture(kind === 'engine' ? 'deepseek-harness' : 'opencode'),
+        session = f.ready()
+      f.manifest.mcpServers = [
+        {
+          id: 'one',
+          name: 'One',
+          description: '',
+          enabled: true,
+          transport: 'stdio',
+          command: '/fixture/server',
+          args: [],
+          cwd: '',
+          environment: {},
+          envRefs: {},
+        },
+      ]
+      session.configuration!.mcpConnections = {
+        source: 'opencode-acp',
+        checkedAt: kind === 'future-time' ? '2030-01-01T00:00:00.000Z' : at,
+        statuses: kind === 'server-count' ? ['connected', 'connected'] : ['connected'],
+      }
+      if (kind === 'config-check') session.configuration!.checks = ['opencode.config']
+      expect(() => buildSessionCapabilities(f.manifest, session)).toThrow('report.mcp-identity')
+    },
+  )
+  it('rejects raw status details, unbounded receipts and unknown sources at the persistence boundary', () => {
+    const valid = { source: 'opencode-acp', checkedAt: at, statuses: ['connected'] }
+    expect(mcpObservationSchema.safeParse(valid).success).toBe(true)
+    for (const value of [
+      { ...valid, error: 'PRIVATE' },
+      { ...valid, statuses: [] },
+      { ...valid, statuses: Array(201).fill('connected') },
+      { ...valid, statuses: [{ status: 'connected', error: 'PRIVATE' }] },
+      { ...valid, source: 'remote-http' },
+      { ...valid, statuses: ['future-status'] },
+    ])
+      expect(
+        sessionEventDataSchema.safeParse({
+          kind: 'run.ready',
+          nativeSessionId: 'native',
+          mcpConnections: value,
+        }).success,
+      ).toBe(false)
+  })
   it.each(['opencode', 'pi', 'deepseek-harness'] as const)(
     'separates %s configuration evidence from model/Prompt/MCP/policy acceptance',
     (kind) => {

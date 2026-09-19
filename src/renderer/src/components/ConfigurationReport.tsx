@@ -7,6 +7,7 @@ import { api } from '../lib/api'
 import { Modal } from './Modal'
 import { SessionCapabilities } from './SessionCapabilities'
 import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
+import { McpConnections } from './McpConnections'
 
 export function ConfigurationReport({
   session,
@@ -148,6 +149,7 @@ export function ConfigurationReport({
               </table>
             </div>
             <SessionCapabilities report={report.capabilities} />
+            <McpConnections report={report.mcp} current={report.capabilities.current} />
             <h3>{t('report.credentialTitle')}</h3>
             <p className="hint">{t('report.credentialHint')}</p>
             <p className="hint">

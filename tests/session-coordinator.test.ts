@@ -722,6 +722,13 @@ describe('durable session coordination', () => {
     Object.defineProperty(runtime, 'nativeRuntime', {
       value: { protocol: 'acp', version: 1, restoration: 'resume', restored: false },
     })
+    Object.defineProperty(runtime, 'mcpConnections', {
+      value: {
+        source: 'opencode-acp',
+        checkedAt: new Date().toISOString(),
+        statuses: ['connected'],
+      },
+    })
     f.factory.connect.mockResolvedValueOnce(runtime)
     const initial = await f.coordinator.command({
       kind: 'create',

@@ -1,5 +1,19 @@
 import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
+  'report.mcpTitle': 'MCP 连接检查',
+  'report.mcpHint':
+    '原生状态记录于最近一次启动或恢复时，不代表工具已执行或服务持续可用。MCP 服务失败时，OpenCode 仍可能继续会话。已保存的配置变更适用于新会话。',
+  'report.mcpUnobserved': '这次运行尚无原生 MCP 连接检查记录。',
+  'report.mcpEmpty': '本次捕获的配置未选择 MCP 服务。',
+  'report.mcpServer': '捕获的服务',
+  'report.mcpTransport': '请求的传输方式',
+  'report.mcpStatus': '检查时的状态',
+  'report.mcpStatus.connected': '已连接',
+  'report.mcpStatus.disabled': '已被引擎禁用',
+  'report.mcpStatus.failed': '连接或工具发现失败',
+  'report.mcpStatus.authentication-required': '需要原生登录认证',
+  'report.mcpStatus.registration-required': '需要原生客户端注册',
+  'report.mcpStatus.unknown': '未知，尚无有效的原生状态',
   'report.credentialTitle': '凭据版本',
   'report.credentialHint':
     '运行中的进程保留本次连接时读取的凭据；新启动或恢复会话时会重新读取。记录的版本仅说明存储输入，不代表服务商已接受认证或原生进程持续使用该值。不比较环境变量的内容。',

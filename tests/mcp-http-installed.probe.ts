@@ -240,6 +240,15 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
           expect(step).toBe(behavior === 'success' ? 4 : behavior === 'unavailable' ? 1 : 2)
         }
         let runtime = await connect()
+        expect(runtime.mcpConnections).toEqual(
+          isOpenCode
+            ? {
+                source: 'opencode-acp',
+                checkedAt: expect.any(String),
+                statuses: ['connected', 'connected', 'connected'],
+              }
+            : undefined,
+        )
         await send(runtime, 'success')
         for (const kind of httpMcpKinds) {
           expect(modelBodies.at(-1)).toContain(`HTTP_MCP_RESULT_${kind}`)
@@ -291,6 +300,7 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
           const callStart = mcp.calls.length
           if (isOpenCode) {
             runtime = await connect(failure)
+            expect(runtime.mcpConnections?.statuses).toEqual(['failed', 'failed', 'failed'])
             const observed = await statuses()
             expect(observed).toEqual(['failed', 'failed', 'failed'])
             expect(providerCalls).toBe(before)
@@ -315,6 +325,8 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
         }
         mcp.fail('none')
         runtime = await connect('capture', nativeId)
+        if (isOpenCode)
+          expect(runtime.mcpConnections?.statuses).toEqual(['connected', 'connected', 'connected'])
         await send(runtime, 'success')
         await runtime.dispose()
         expect(mcp.errors).toEqual([])
@@ -351,7 +363,7 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
                 providerCalls,
                 oauthFlowVerified: false,
                 legacySseVerified: false,
-                runtimeConnectivityReceiptImplemented: false,
+                runtimeConnectivityReceiptImplemented: isOpenCode,
               },
               null,
               2,

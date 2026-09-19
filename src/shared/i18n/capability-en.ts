@@ -1,4 +1,6 @@
 export const capabilityEn = {
+  'capability.reason.mcp-unavailable':
+    'At least one selected service was unavailable at attachment.',
   'capability.title': 'Native capability evidence',
   'capability.hint':
     'These checks belong to the captured configuration and the last successful process attachment. Saved-profile previews remain separate. Verification covers only the stated scope; native declarations do not prove successful use.',
@@ -76,7 +78,7 @@ export const capabilityEn = {
     'Pi command discovery checked names; OpenCode/DSH configuration alone cannot prove discovery.',
   'capability.scope.mcp-mapping': 'Server configuration wiring, not connection or authentication.',
   'capability.scope.mcp-connectivity':
-    'Requires server-specific connection/tool evidence; configuration and ACP flags are insufficient.',
+    'Selected-server native status at attachment; no tool-execution or continuing availability guarantee. Configuration and ACP flags alone are insufficient.',
   'capability.scope.plugin-activation':
     'Selected plugin startup and native instance checks; arbitrary hooks and full dependencies remain outside scope.',
   'capability.scope.policy-mapping':

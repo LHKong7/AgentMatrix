@@ -79,36 +79,61 @@ export async function prepareOpenCodeInstanceHttp(
     }
   }
   const sessionSchema = z.object({ id: z.string().min(1).max(1000), directory: z.string() })
+  async function withSession<T>(
+    pid: number | undefined,
+    signal: AbortSignal,
+    sessionId: string,
+    observe: (read: (path: string) => Promise<unknown>) => Promise<T>,
+  ): Promise<T> {
+    try {
+      if (!pid || !sessionId || sessionId.length > 1000) return fail()
+      const lifetime = AbortSignal.any([signal, disposed.signal, AbortSignal.timeout(10000)])
+      lifetime.throwIfAborted()
+      const sessionPath = `/session/${encodeURIComponent(sessionId)}`
+      const checkSession = async () => {
+        const session = sessionSchema.parse(await readNative(sessionPath, lifetime))
+        if (session.id !== sessionId || session.directory !== cwd) return fail()
+      }
+      await checkSession()
+      const result = await observe((path) => readNative(path, lifetime))
+      await checkSession()
+      lifetime.throwIfAborted()
+      return result
+    } catch (error) {
+      if (signal.aborted || disposed.signal.aborted) throw new RuntimeFailure('process-exit')
+      if (error instanceof RuntimeFailure) throw error
+      return fail()
+    }
+  }
   return {
     args: ['--hostname', '127.0.0.1', '--port', String(port)],
     environment: { OPENCODE_SERVER_USERNAME: 'opencode', OPENCODE_SERVER_PASSWORD: password },
     secrets: [password, encoded, authorization],
-    async verify(pid: number | undefined, signal: AbortSignal, sessionId: string) {
+    /** Optional evidence never blocks a usable conversation; interrupted attachments still abort. */
+    async observe<T>(
+      pid: number | undefined,
+      signal: AbortSignal,
+      sessionId: string,
+      observe: (read: (path: string) => Promise<unknown>) => Promise<T>,
+    ): Promise<T | null> {
       try {
-        if (!pid || !sessionId || sessionId.length > 1000) return fail()
-        const lifetime = AbortSignal.any([signal, disposed.signal, AbortSignal.timeout(10000)])
-        lifetime.throwIfAborted()
-        const sessionPath = `/session/${encodeURIComponent(sessionId)}`
-        const checkSession = async () => {
-          const session = sessionSchema.parse(await readNative(sessionPath, lifetime))
-          if (session.id !== sessionId || session.directory !== cwd) return fail()
-        }
-        await checkSession()
+        return await withSession(pid, signal, sessionId, observe)
+      } catch (error) {
+        if (signal.aborted || disposed.signal.aborted) throw error
+        return null
+      }
+    },
+    async verify(pid: number | undefined, signal: AbortSignal, sessionId: string) {
+      await withSession(pid, signal, sessionId, async (read) => {
         for (const check of checks) {
           try {
-            await check.observe((path) => readNative(path, lifetime))
+            await check.observe(read)
           } catch (error) {
             if (error instanceof RuntimeFailure) throw error
             return fail(check)
           }
         }
-        await checkSession()
-        lifetime.throwIfAborted()
-      } catch (error) {
-        if (signal.aborted || disposed.signal.aborted) throw new RuntimeFailure('process-exit')
-        if (error instanceof RuntimeFailure) throw error
-        return fail()
-      }
+      })
     },
     cleanup: async () => {
       disposed.abort()

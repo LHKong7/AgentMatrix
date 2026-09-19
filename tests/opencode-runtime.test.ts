@@ -52,6 +52,7 @@ function fixture(legacy = false, configuration = true) {
           ...(configuration ? [{ path: openCodeConfigPlanPath }] : []),
         ],
     nativePlugins: [],
+    mcpServers: [],
   } as unknown as RunInputManifest
   const signal = new AbortController(),
     lifetime = new AbortController()
@@ -108,6 +109,7 @@ function fixture(legacy = false, configuration = true) {
     args: ['--hostname', '127.0.0.1', '--port', '49123'],
     secrets: ['ephemeral-secret'],
     verify: vi.fn().mockResolvedValue(undefined),
+    observe: vi.fn().mockResolvedValue(null),
     cleanup: vi.fn().mockResolvedValue(undefined),
   }
   vi.mocked(prepareOpenCodeSkillAttachment).mockResolvedValue(observer)
@@ -140,6 +142,38 @@ const handlers = {
   output: async () => {},
   interaction: async () => ({ kind: 'cancelled' as const }),
 }
+it('records an optional MCP sample at attachment while preserving checked configuration and allowing unavailable services', async () => {
+  const f = fixture()
+  f.manifest.mcpServers = [
+    {
+      id: 'http',
+      name: 'HTTP',
+      description: '',
+      enabled: true,
+      transport: 'streamable-http',
+      url: 'https://example.invalid/mcp',
+      headers: {},
+      secretHeaders: {},
+      auth: { kind: 'none' },
+    },
+  ]
+  f.observer.observe.mockResolvedValue(['failed'])
+  const runtime = await f.connect()
+  expect(runtime.mcpConnections).toMatchObject({ source: 'opencode-acp', statuses: ['failed'] })
+  expect(f.observer.verify).toHaveBeenCalledTimes(2)
+  expect(f.observer.verify.mock.invocationCallOrder[0]).toBeLessThan(
+    f.observer.observe.mock.invocationCallOrder[0]!,
+  )
+  expect(f.observer.verify.mock.invocationCallOrder[1]).toBeGreaterThan(
+    f.observer.observe.mock.invocationCallOrder[0]!,
+  )
+  expect(f.client.prompt).not.toHaveBeenCalled()
+  await expect(
+    runtime.send('A failed MCP does not prevent a prompt', handlers),
+  ).resolves.toMatchObject({ outcome: 'completed' })
+  expect(f.observer.observe).toHaveBeenCalledOnce()
+  await runtime.dispose()
+})
 it('checks the current instance on start/resume and before and after turns', async () => {
   const f = fixture(),
     runtime = await f.connect('ses_fixture')

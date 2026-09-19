@@ -153,7 +153,12 @@ export function applySessionEvent(previous: SessionSnapshot, input: SessionEvent
       )
         throw appError('error.sessionStale')
       state.nativeSessionId = data.nativeSessionId
-      if (data.configurationChecks || data.credentialResolutions || data.nativeRuntime)
+      if (
+        data.configurationChecks ||
+        data.credentialResolutions ||
+        data.nativeRuntime ||
+        data.mcpConnections
+      )
         state.configuration = {
           runId: event.runId!,
           snapshotDigest: state.snapshotDigest,
@@ -161,6 +166,7 @@ export function applySessionEvent(previous: SessionSnapshot, input: SessionEvent
           checkedAt: event.timestamp,
           checks: data.configurationChecks ?? [],
           ...(data.nativeRuntime ? { nativeRuntime: data.nativeRuntime } : {}),
+          ...(data.mcpConnections ? { mcpConnections: data.mcpConnections } : {}),
           ...(data.credentialResolutions
             ? { credentialResolutions: data.credentialResolutions }
             : {}),

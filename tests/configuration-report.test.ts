@@ -21,7 +21,7 @@ const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
-async function fixture(credential = false) {
+async function fixture(credential = false, mcp = false) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-config-report-')))
   roots.push(root)
   const cwd = join(root, 'project'),
@@ -29,6 +29,22 @@ async function fixture(credential = false) {
   await mkdir(cwd)
   await writeFile(executable, 'Never executed by this fixture.')
   const workspace = openCodeWorkspace(executable, cwd)
+  if (mcp) {
+    workspace.mcpServers = [
+      {
+        id: 'http',
+        name: 'Captured HTTP',
+        description: '',
+        enabled: true,
+        transport: 'streamable-http',
+        url: 'https://private.invalid/SECRET',
+        headers: {},
+        secretHeaders: {},
+        auth: { kind: 'none' },
+      },
+    ]
+    workspace.agents[0]!.mcpServerIds = ['http']
+  }
   if (credential)
     workspace.connections[0]!.auth = {
       kind: 'bearer',
@@ -80,6 +96,89 @@ async function fixture(credential = false) {
   return { root, manifest, workspace, initial, ready, store }
 }
 describe('configuration report evidence and updates', () => {
+  it('preserves attachment MCP evidence across restart and failed resume, then replaces it on successful resume', async () => {
+    const f = await fixture(false, true),
+      directory = join(f.root, 'journal')
+    const journal = new SessionJournal(directory)
+    await journal.create(f.initial)
+    await journal.append('session', 0, {
+      runId: 'run',
+      turnId: null,
+      data: { kind: 'run.starting' },
+    })
+    const checkedAt = f.initial.createdAt
+    await journal.append('session', 1, {
+      runId: 'run',
+      turnId: null,
+      data: {
+        kind: 'run.ready',
+        nativeSessionId: 'native-id',
+        configurationChecks: ['opencode.instance-config'],
+        mcpConnections: { source: 'opencode-acp', checkedAt, statuses: ['connected'] },
+      },
+    })
+    const restarted = new SessionJournal(directory)
+    const previous = await restarted.get('session')
+    f.workspace.mcpServers[0]!.name = 'Edited library label'
+    const report = buildConfigurationReport(f.manifest, previous, f.workspace)
+    expect(report.mcp).toEqual({
+      source: 'opencode-acp',
+      checkedAt,
+      entries: [
+        { slot: 0, name: 'Captured HTTP', transport: 'streamable-http', status: 'connected' },
+      ],
+    })
+    expect(report.observationIsCurrent).toBe(false)
+    expect(report.observation).not.toHaveProperty('mcpConnections')
+    expect(JSON.stringify(report.mcp)).not.toContain('SECRET')
+    await restarted.append('session', previous.cursor, {
+      runId: 'failed-resume',
+      turnId: null,
+      data: { kind: 'run.resuming' },
+    })
+    const resuming = await restarted.get('session')
+    await restarted.append('session', resuming.cursor, {
+      runId: 'failed-resume',
+      turnId: null,
+      data: { kind: 'run.failed', failure: { code: 'engine', detail: '' } },
+    })
+    const failed = await restarted.get('session')
+    expect(buildConfigurationReport(f.manifest, failed, f.workspace).mcp).toEqual(report.mcp)
+    await restarted.append('session', failed.cursor, {
+      runId: 'resume',
+      turnId: null,
+      data: { kind: 'run.resuming' },
+    })
+    const next = await restarted.get('session')
+    await restarted.append('session', next.cursor, {
+      runId: 'resume',
+      turnId: null,
+      data: {
+        kind: 'run.ready',
+        nativeSessionId: 'native-id',
+        configurationChecks: ['opencode.instance-config'],
+        mcpConnections: {
+          source: 'opencode-acp',
+          checkedAt: new Date().toISOString(),
+          statuses: ['authentication-required'],
+        },
+      },
+    })
+    const current = buildConfigurationReport(
+      f.manifest,
+      await restarted.get('session'),
+      f.workspace,
+    )
+    expect(current.observationIsCurrent).toBe(true)
+    expect(current.observation?.runId).toBe('resume')
+    expect(current.mcp.entries[0]!.status).toBe('authentication-required')
+    const older = f.ready(['opencode.config'])
+    expect(buildConfigurationReport(f.manifest, older, f.workspace).mcp).toMatchObject({
+      source: 'unknown',
+      checkedAt: null,
+      entries: [{ status: 'unknown' }],
+    })
+  })
   it('preserves instance configuration scope and historical ownership without upgrading old receipts', async () => {
     const f = await fixture()
     const old = buildConfigurationReport(f.manifest, f.ready(['opencode.config']), f.workspace)

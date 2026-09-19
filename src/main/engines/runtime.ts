@@ -11,6 +11,7 @@ import {
 } from '../../shared/engines/configuration-report'
 import type { CredentialResolution } from '../../shared/engines/credential-observation'
 import type { NativeRuntimeObservation } from '../../shared/engines/session-capabilities'
+import type { McpObservation } from '../../shared/engines/mcp-observation'
 
 export type RuntimeOutput = Extract<
   SessionEventData,
@@ -29,6 +30,7 @@ export interface RuntimeSession {
   readonly configurationChecks?: ConfigurationCheck[]
   readonly credentialResolutions?: CredentialResolution[]
   readonly nativeRuntime?: NativeRuntimeObservation
+  readonly mcpConnections?: McpObservation
   readonly nativeSessionId: string
   readonly closed: Promise<ProcessResult>
   redact(text: string): string

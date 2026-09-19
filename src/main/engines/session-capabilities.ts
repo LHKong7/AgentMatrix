@@ -10,6 +10,7 @@ import {
 import type { Capability } from '../../shared/engines/schema'
 import { credentialSlots } from './credential-report'
 import { RuntimeFailure } from './runtime'
+import { mcpObservation } from './mcp-report'
 
 /** Aggregate only the captured session's evidence. Never transfer it to a saved-profile preview. */
 export function buildSessionCapabilities(
@@ -17,6 +18,7 @@ export function buildSessionCapabilities(
   session: SessionSnapshot,
 ): SessionCapabilityReport {
   const observation = session.configuration
+  const mcp = mcpObservation(manifest, observation)
   const native = observation?.nativeRuntime
   if (
     manifest.id !== session.snapshotId ||
@@ -153,6 +155,7 @@ export function buildSessionCapabilities(
           ? required.filter((check) => observation?.checks.includes(check))
           : []
       let verified = used && checks.length > 0 && checks.length === required.length
+      let failed = false
       let advertised: boolean | null = null
       const evidence: Capability['evidence'] = [
         {
@@ -162,6 +165,15 @@ export function buildSessionCapabilities(
         },
       ]
       if (observation && contractMatches && used) {
+        if (feature === 'mcp-connectivity' && mcp) {
+          verified = mcp.statuses.every((status) => status === 'connected')
+          failed = mcp.statuses.some((status) => status !== 'connected' && status !== 'unknown')
+          evidence.push({
+            kind: 'runtime',
+            source: 'opencode.mcp-status-at-attachment',
+            checkedAt: mcp.checkedAt,
+          })
+        }
         for (const check of checks)
           evidence.push({ kind: 'runtime', source: check, checkedAt: observation.checkedAt })
         if (feature === 'credential-resolution' && credentialsResolved) {
@@ -208,7 +220,7 @@ export function buildSessionCapabilities(
             ? 'blocked'
             : !used || !current
               ? 'unknown'
-              : advertised === false
+              : advertised === false || failed
                 ? 'blocked'
                 : verified || advertised === true
                   ? 'ready'
@@ -223,20 +235,22 @@ export function buildSessionCapabilities(
               ? 'unused'
               : observation && !current
                 ? 'historical'
-                : advertised === false
-                  ? 'not-advertised'
-                  : verified
-                    ? 'verified'
-                    : advertised === true
-                      ? 'advertised'
-                      : 'unknown'
+                : failed
+                  ? 'mcp-unavailable'
+                  : advertised === false
+                    ? 'not-advertised'
+                    : verified
+                      ? 'verified'
+                      : advertised === true
+                        ? 'advertised'
+                        : 'unknown'
       return {
         feature,
         requested: used,
         advertised,
         checks,
         mechanism,
-        verification: verified && contractMatches ? 'passed' : 'untested',
+        verification: verified && contractMatches ? 'passed' : failed ? 'failed' : 'untested',
         availability,
         reason: `capability.reason.${reason}`,
         installationId: manifest.installation.id,

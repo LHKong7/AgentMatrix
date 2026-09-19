@@ -1,5 +1,6 @@
 import type { capabilityEn } from './capability-en'
 export const capabilityZhCN: Record<keyof typeof capabilityEn, string> = {
+  'capability.reason.mcp-unavailable': '启动或恢复时，至少一个已选服务不可用。',
   'capability.title': '原生能力证据',
   'capability.hint':
     '这些检查属于会话捕获的配置和最近成功连接的进程，与已保存配置的预览分别展示。验证仅覆盖所述范围；原生声明支持不代表已成功使用。',
@@ -61,7 +62,8 @@ export const capabilityZhCN: Record<keyof typeof capabilityEn, string> = {
   'capability.scope.skill-discovery':
     'Pi 命令发现已检查名称；仅 OpenCode/DSH 配置不足以证明发现结果。',
   'capability.scope.mcp-mapping': '服务配置关联，不代表连接或认证通过。',
-  'capability.scope.mcp-connectivity': '需要特定服务的连接或工具证据，配置和 ACP 标志不足以证明。',
+  'capability.scope.mcp-connectivity':
+    '启动或恢复时已选服务的原生状态，不保证工具执行或持续可用；仅有配置和 ACP 标志不足以证明。',
   'capability.scope.plugin-activation': '选中插件的启动与原生实例检查，不覆盖任意钩子及全部依赖。',
   'capability.scope.policy-mapping': '请求的原生策略读回，不提供沙箱或强制执行保证。',
   'capability.scope.policy-enforcement': '不对所有原生或插件工具提供统一保证；Pi 不提供通用审批。',
