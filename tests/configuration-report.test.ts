@@ -80,6 +80,26 @@ async function fixture(credential = false) {
   return { root, manifest, workspace, initial, ready, store }
 }
 describe('configuration report evidence and updates', () => {
+  it('preserves instance configuration scope and historical ownership without upgrading old receipts', async () => {
+    const f = await fixture()
+    const old = buildConfigurationReport(f.manifest, f.ready(['opencode.config']), f.workspace)
+    expect(old.fields.find((field) => field.id === 'prompts')!.checks).toEqual(['opencode.config'])
+    const state = f.ready(['opencode.config', 'opencode.instance-config', 'opencode.session-model'])
+    state.status = 'interrupted'
+    const report = buildConfigurationReport(f.manifest, state, f.workspace)
+    expect(report.observationIsCurrent).toBe(false)
+    expect(report.fields.find((field) => field.id === 'prompts')!.checks).toEqual([
+      'opencode.instance-config',
+    ])
+    expect(report.fields.find((field) => field.id === 'model')!.checks).toEqual([
+      'opencode.instance-config',
+      'opencode.session-model',
+    ])
+    expect(
+      report.capabilities.capabilities.find((item) => item.feature === 'prompt-mapping'),
+    ).toMatchObject({ checks: ['opencode.instance-config'], availability: 'unknown' })
+    expect(report.capabilities.current).toBe(false)
+  })
   it('keeps Skill source evidence scoped to its engine, process, and recorded attachment', async () => {
     const f = await fixture()
     const sources = (checks: ConfigurationCheck[]) =>

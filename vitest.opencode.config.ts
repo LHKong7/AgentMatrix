@@ -8,6 +8,7 @@ export default defineConfig({
       'tests/opencode-plugin-installed.probe.ts',
       'tests/opencode-plugin-activation.probe.ts',
       'tests/opencode-skill-sources-installed.probe.ts',
+      'tests/opencode-instance-config-installed.probe.ts',
     ],
     testTimeout: 120_000,
   },

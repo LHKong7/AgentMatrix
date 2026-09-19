@@ -5,6 +5,10 @@ import {
   prepareOpenCodeSkillAttachment,
 } from '../src/main/engines/adapters/opencode/skills'
 import { prepareOpenCodePluginAttachment } from '../src/main/engines/adapters/opencode/plugins'
+import {
+  openCodeConfigPlanPath,
+  prepareOpenCodeConfigurationAttachment,
+} from '../src/main/engines/adapters/opencode/instance-config'
 import { verifyOpenCodeSkillReadback } from '../src/main/engines/adapters/opencode/readback'
 import { prepareRunLaunch } from '../src/main/engines/run-launch'
 import { attachAcpProcess } from '../src/main/engines/acp/attachment'
@@ -26,9 +30,13 @@ vi.mock('../src/main/engines/adapters/opencode/skills', async (original) => ({
   ...(await original<typeof import('../src/main/engines/adapters/opencode/skills')>()),
   prepareOpenCodeSkillAttachment: vi.fn(),
 }))
+vi.mock('../src/main/engines/adapters/opencode/instance-config', async (original) => ({
+  ...(await original<typeof import('../src/main/engines/adapters/opencode/instance-config')>()),
+  prepareOpenCodeConfigurationAttachment: vi.fn(),
+}))
 afterEach(() => vi.resetAllMocks())
 
-function fixture(legacy = false) {
+function fixture(legacy = false, configuration = true) {
   const manifest = {
     adapter: { id: 'opencode-acp', version: '1' },
     installation: { kind: 'opencode', version: '1.18.16' },
@@ -37,7 +45,12 @@ function fixture(legacy = false) {
     connection: { id: 'local' },
     cwd: '/fixture/project',
     skills: [{}],
-    files: legacy ? [] : [{ path: openCodeSkillPlanPath }],
+    files: legacy
+      ? []
+      : [
+          { path: openCodeSkillPlanPath },
+          ...(configuration ? [{ path: openCodeConfigPlanPath }] : []),
+        ],
     nativePlugins: [],
   } as unknown as RunInputManifest
   const signal = new AbortController(),
@@ -98,12 +111,14 @@ function fixture(legacy = false) {
     cleanup: vi.fn().mockResolvedValue(undefined),
   }
   vi.mocked(prepareOpenCodeSkillAttachment).mockResolvedValue(observer)
+  vi.mocked(prepareOpenCodeConfigurationAttachment).mockResolvedValue(observer)
   const paths = { root: '/fixture', inputs: '/fixture/inputs', state: '/fixture/state' }
   const store = {
     paths: () => paths,
     verifyForReuse: vi.fn().mockResolvedValue(manifest),
   } as unknown as RunInputStore
   return {
+    manifest,
     launch,
     observer,
     client,
@@ -129,6 +144,8 @@ it('checks the current instance on start/resume and before and after turns', asy
   const f = fixture(),
     runtime = await f.connect('ses_fixture')
   expect(runtime.configurationChecks).toContain('opencode.instance-skills')
+  expect(runtime.configurationChecks).toContain('opencode.instance-config')
+  expect(prepareOpenCodeSkillAttachment).not.toHaveBeenCalled()
   expect(runtime.configurationChecks).not.toContain('opencode.skill-sources')
   expect(verifyOpenCodeSkillReadback).not.toHaveBeenCalled()
   expect(f.observer.verify).toHaveBeenCalledWith(
@@ -192,5 +209,47 @@ it('retains legacy separate-process evidence without claiming instance verificat
   expect(prepareOpenCodeSkillAttachment).not.toHaveBeenCalled()
   expect(runtime.configurationChecks).toContain('opencode.skill-sources')
   expect(runtime.configurationChecks).not.toContain('opencode.instance-skills')
+  expect(runtime.configurationChecks).not.toContain('opencode.instance-config')
+  expect(prepareOpenCodeConfigurationAttachment).not.toHaveBeenCalled()
+  await runtime.dispose()
+})
+it('keeps Skill-only captures resumable without claiming new configuration checks', async () => {
+  const f = fixture(false, false),
+    runtime = await f.connect('ses_fixture')
+  expect(runtime.configurationChecks).toContain('opencode.instance-skills')
+  expect(runtime.configurationChecks).not.toContain('opencode.instance-config')
+  expect(prepareOpenCodeSkillAttachment).toHaveBeenCalledOnce()
+  expect(prepareOpenCodeConfigurationAttachment).not.toHaveBeenCalled()
+  await runtime.dispose()
+})
+it('checks current configuration when no Skills are selected', async () => {
+  const f = fixture()
+  f.manifest.skills = []
+  f.manifest.files = f.manifest.files.filter((file) => file.path !== openCodeSkillPlanPath)
+  const runtime = await f.connect()
+  expect(runtime.configurationChecks).toContain('opencode.instance-config')
+  expect(runtime.configurationChecks).not.toContain('opencode.instance-skills')
+  await runtime.send('Hello', handlers)
+  expect(f.observer.verify).toHaveBeenCalledTimes(3)
+  await runtime.dispose()
+})
+it('surfaces a post-turn configuration mismatch without pretending to undo the completed native prompt', async () => {
+  const f = fixture(),
+    runtime = await f.connect()
+  f.observer.verify.mockResolvedValueOnce(undefined).mockRejectedValueOnce(
+    new RuntimeFailure('configuration', 'native.instance-config', {
+      check: 'opencode-instance-config',
+      reason: 'mismatch',
+      fields: ['prompts'],
+    }),
+  )
+  await expect(runtime.send('Post-turn drift', handlers)).rejects.toMatchObject({
+    diagnostic: {
+      check: 'opencode-instance-config',
+      reason: 'mismatch',
+      fields: ['prompts'],
+    },
+  })
+  expect(f.client.prompt).toHaveBeenCalledOnce()
   await runtime.dispose()
 })

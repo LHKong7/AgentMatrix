@@ -154,20 +154,7 @@ export async function verifyOpenCodeReadback(
       fields: ['installation'],
     })
   try {
-    let text = await readFile(join(paths.inputs, 'opencode.json'), 'utf8')
-    text = text.replace(/\{env:([^}]+)\}/g, (_match, name: string) => {
-      if (!Object.hasOwn(launch.environment, name)) throw new RuntimeFailure('configuration')
-      return launch.environment[name]!
-    })
-    // Expand only known copied Prompt references; native/user files cannot be read here.
-    for (const match of [...text.matchAll(/\{file:([^}]+)\}/g)]) {
-      const path = match[1]!.replace(/^\.\//, '')
-      if (!manifest.prompts.some((prompt) => prompt.path === path))
-        throw new RuntimeFailure('configuration')
-      const value = (await readFile(join(paths.inputs, path), 'utf8')).trim()
-      text = text.replace(match[0], () => JSON.stringify(value).slice(1, -1))
-    }
-    const expected: unknown = JSON.parse(text)
+    const expected = await capturedOpenCodeConfiguration(manifest, paths, launch.environment)
     const actual: unknown = JSON.parse(
       await captureCommand({ ...launch, args: [...prefix, 'debug', 'config'] }, signal),
     )
@@ -186,4 +173,26 @@ export async function verifyOpenCodeReadback(
       fields: [],
     })
   }
+}
+
+/** Resolve only captured generated inputs using the already prepared, JSON-encoded child environment. */
+export async function capturedOpenCodeConfiguration(
+  manifest: RunInputManifest,
+  paths: RunPaths,
+  environment: NodeJS.ProcessEnv,
+): Promise<unknown> {
+  let text = await readFile(join(paths.inputs, 'opencode.json'), 'utf8')
+  text = text.replace(/\{env:([^}]+)\}/g, (_match, name: string) => {
+    if (!Object.hasOwn(environment, name)) throw new RuntimeFailure('configuration')
+    return environment[name]!
+  })
+  // Expand only known copied Prompt references; native/user files cannot be read here.
+  for (const match of [...text.matchAll(/\{file:([^}]+)\}/g)]) {
+    const path = match[1]!.replace(/^\.\//, '')
+    if (!manifest.prompts.some((prompt) => prompt.path === path))
+      throw new RuntimeFailure('configuration')
+    const value = (await readFile(join(paths.inputs, path), 'utf8')).trim()
+    text = text.replace(match[0], () => JSON.stringify(value).slice(1, -1))
+  }
+  return JSON.parse(text) as unknown
 }

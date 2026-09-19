@@ -16,6 +16,7 @@ import { verifyOpenCodeReadback, verifyOpenCodeSkillReadback } from './readback'
 import { redactText } from '../../process/redacted-tail'
 import { prepareOpenCodePluginAttachment } from './plugins'
 import { openCodeSkillPlanPath, prepareOpenCodeSkillAttachment } from './skills'
+import { openCodeConfigPlanPath, prepareOpenCodeConfigurationAttachment } from './instance-config'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -45,6 +46,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   )
     throw new RuntimeFailure('unsupported')
   await verifyOpenCodeReadback(manifest, store.paths(snapshotId), launch, signal)
+  const hasConfigObserver = manifest.files.some((file) => file.path === openCodeConfigPlanPath)
   const hasSkillObserver = manifest.files.some((file) => file.path === openCodeSkillPlanPath)
   if (!hasSkillObserver)
     await verifyOpenCodeSkillReadback(manifest, store.paths(snapshotId), launch, signal)
@@ -52,7 +54,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   await store.verifyForReuse(snapshotId)
   if (signal.aborted) throw new RuntimeFailure('process-exit')
   let plugins: Awaited<ReturnType<typeof prepareOpenCodePluginAttachment>> = null
-  let skillSources: Awaited<ReturnType<typeof prepareOpenCodeSkillAttachment>> | null = null
+  let instance: Awaited<ReturnType<typeof prepareOpenCodeSkillAttachment>> | null = null
   let active: AcpTurn | null = null
   let submitted = false,
     cancelled = false
@@ -87,11 +89,17 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   try {
     plugins = await prepareOpenCodePluginAttachment(manifest, store.paths(snapshotId))
     if (plugins) Object.assign(launch.environment, plugins.environment)
-    if (hasSkillObserver) {
-      skillSources = await prepareOpenCodeSkillAttachment(manifest, store.paths(snapshotId))
-      Object.assign(launch.environment, skillSources.environment)
-      launch.args.push(...skillSources.args)
-      launch.secrets = [...(launch.secrets ?? []), ...skillSources.secrets]
+    if (hasConfigObserver || hasSkillObserver) {
+      instance = hasConfigObserver
+        ? await prepareOpenCodeConfigurationAttachment(
+            manifest,
+            store.paths(snapshotId),
+            launch.environment,
+          )
+        : await prepareOpenCodeSkillAttachment(manifest, store.paths(snapshotId))
+      Object.assign(launch.environment, instance.environment)
+      launch.args.push(...instance.args)
+      launch.secrets = [...(launch.secrets ?? []), ...instance.secrets]
       // Internal HTTP credentials must fit the same redaction bounds before any child starts.
       try {
         redactText('', launch.secrets)
@@ -130,7 +138,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     const owned = attachment
     const closed = owned.closed.finally(async () => {
       signal.removeEventListener('abort', abort)
-      await Promise.all([plugins?.cleanup(), skillSources?.cleanup()])
+      await Promise.all([plugins?.cleanup(), instance?.cleanup()])
     })
     void closed.catch(() => {})
     const initialization = await owned.client.initialize('0.1.0')
@@ -168,7 +176,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       throw new RuntimeFailure('protocol')
     if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     const id = nativeSessionId
-    await skillSources?.verify(owned.process.pid, lifetime, id)
+    await instance?.verify(owned.process.pid, lifetime, id)
     return {
       nativeRuntime: {
         protocol: 'acp',
@@ -185,7 +193,8 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         'sources.unchanged',
         'cli.version',
         'opencode.config',
-        ...(skillSources
+        ...(hasConfigObserver ? ['opencode.instance-config' as const] : []),
+        ...(hasSkillObserver
           ? ['opencode.instance-skills' as const]
           : manifest.skills.length
             ? ['opencode.skill-sources' as const]
@@ -208,7 +217,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         cancelled = false
         try {
           await plugins?.verify(owned.process.pid)
-          await skillSources?.verify(owned.process.pid, lifetime, id)
+          await instance?.verify(owned.process.pid, lifetime, id)
           if (cancelled) return { outcome: 'cancelled', nativeStopReason: null, usage: null }
           submitted = true
           const result = await owned.client.prompt(
@@ -216,7 +225,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
             manifest.agent.execution.timeoutMs ?? 600_000,
           )
           await turn.finish()
-          await skillSources?.verify(owned.process.pid, lifetime, id)
+          await instance?.verify(owned.process.pid, lifetime, id)
           return turn.result(result)
         } catch (error) {
           await turn.finish()
@@ -240,7 +249,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   } catch (error) {
     signal.removeEventListener('abort', abort)
     await attachment?.close()
-    await Promise.all([plugins?.cleanup(), skillSources?.cleanup()])
+    await Promise.all([plugins?.cleanup(), instance?.cleanup()])
     if (error instanceof RuntimeFailure) throw error
     throw new RuntimeFailure(
       error instanceof AcpFailure && error.code === 'timeout' ? 'timeout' : 'protocol',

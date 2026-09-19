@@ -59,6 +59,8 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
   'report.diagnosticCheck.snapshot': '捕获输入的完整性',
   'report.diagnosticCheck.sources': '外部来源兼容性',
   'report.diagnosticCheck.installation': '已安装的引擎或协议版本',
+  'report.diagnosticCheck.opencode-instance-config': 'OpenCode ACP 实例配置',
+  'report.check.opencode.instance-config': 'ACP 服务在已确认会话目录中的配置与捕获的请求一致',
   'report.diagnosticCheck.opencode-config': 'OpenCode 配置回读',
   'report.diagnosticCheck.opencode-session': 'OpenCode 会话选项',
   'report.diagnosticCheck.pi-state': 'Pi 模型与运行状态',

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 import { isAbsolute, join } from 'node:path'
 import { parseDocument } from 'yaml'
 import { z } from 'zod'
+import { planOpenCodeConfigurationObservation } from './instance-config'
 import { appError } from '../../../../shared/errors'
 import { planOpenCodePlugins } from './plugins'
 import { planOpenCodeSkillObservation } from './skills'
@@ -283,5 +284,6 @@ export async function planOpenCode(
         '\n',
     },
   )
+  planOpenCodeConfigurationObservation(generated)
   return generated
 }

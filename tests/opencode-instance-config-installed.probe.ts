@@ -10,22 +10,21 @@ import { connectOpenCode } from '../src/main/engines/adapters/opencode/runtime'
 import type { RuntimeSession } from '../src/main/engines/runtime'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
 import { closeNativeFixture } from './helpers/close-native-fixture'
-import * as sourceObserver from '../src/main/engines/adapters/opencode/skills'
+import * as sourceObserver from '../src/main/engines/adapters/opencode/instance-config'
 
 it.runIf(Boolean(process.env.AGENT_MATRIX_TEST_OPENCODE))(
-  'checks Skills in the ACP-selected OpenCode instance and rejects an ACP-only source override',
+  'checks the ACP server configuration and rejects process-specific and active-session overrides',
   async () => {
     const root = await realpath(
-      await mkdtemp(join(tmpdir(), 'agentmatrix-opencode-instance-skills-')),
+      await mkdtemp(join(tmpdir(), 'agentmatrix-opencode-instance-config-')),
     )
     const cwd = join(root, 'project'),
       home = join(root, 'home'),
       configHome = join(root, 'config'),
       entry = join(root, 'fixture.mjs'),
-      gate = join(root, 'override'),
-      foreign = join(root, 'foreign')
+      gate = join(root, 'override')
     const runtimes: RuntimeSession[] = []
-    const attachments = vi.spyOn(sourceObserver, 'prepareOpenCodeSkillAttachment')
+    const attachments = vi.spyOn(sourceObserver, 'prepareOpenCodeConfigurationAttachment')
     let calls = 0
     const server = createServer(async (request, response) => {
       const chunks: Buffer[] = []
@@ -61,7 +60,7 @@ it.runIf(Boolean(process.env.AGENT_MATRIX_TEST_OPENCODE))(
       response.end('data: [DONE]\n\n')
     })
     try {
-      for (const path of [join(cwd, '.git'), home, configHome, foreign])
+      for (const path of [join(cwd, '.git'), home, configHome])
         await mkdir(path, { recursive: true })
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
       const address = server.address()
@@ -69,10 +68,17 @@ it.runIf(Boolean(process.env.AGENT_MATRIX_TEST_OPENCODE))(
       const workspace = openCodeWorkspace(process.env.AGENT_MATRIX_TEST_OPENCODE!, cwd)
       workspace.connections[0]!.baseUrl = `http://127.0.0.1:${address.port}/v1`
       workspace.agents[0]!.execution.approval = 'unrestricted'
+      workspace.agents[0]!.skillBindings = []
+      workspace.skills = []
       await writeFile(
         entry,
         `import {existsSync} from 'node:fs';
-export default async()=>({config(config){if(process.env.OPENCODE_SERVER_PASSWORD && existsSync(${JSON.stringify(gate)}))config.skills={paths:[${JSON.stringify(foreign)}]};}});`,
+export default async()=>({config(config){
+  if(!process.env.OPENCODE_SERVER_PASSWORD)return;
+  const original=config.agent.build.prompt;
+  const refresh=()=>{config.agent.build.prompt=existsSync(${JSON.stringify(gate)})?'PRIVATE_ACP_ONLY_OVERRIDE':original};
+  refresh();setInterval(refresh,20).unref();
+}});`,
       )
       workspace.nativePlugins = [
         {
@@ -108,21 +114,9 @@ export default async()=>({config(config){if(process.env.OPENCODE_SERVER_PASSWORD
             OPENCODE_DISABLE_EXTERNAL_SKILLS: 'true',
           }))
             plan.launch.environment[name] = { kind: 'literal', value }
-          // Exercise the existing Skill-only capture contract independently of newer config checks.
-          plan.files = plan.files.filter((file) => file.path !== 'observers/opencode-config.json')
           return plan
         },
       )
-      const mapping = JSON.parse(
-        await readFile(join(store.paths('capture').inputs, 'opencode-mappings.json'), 'utf8'),
-      )
-      for (const skill of mapping.skills) {
-        await mkdir(join(foreign, skill.name))
-        await writeFile(
-          join(foreign, skill.name, 'SKILL.md'),
-          `---\nname: ${skill.name}\ndescription: Same-name foreign Skill\n---\nPRIVATE_FOREIGN_BODY`,
-        )
-      }
       const connect = (previousNativeSessionId?: string) =>
         connectOpenCode({
           store,
@@ -135,7 +129,7 @@ export default async()=>({config(config){if(process.env.OPENCODE_SERVER_PASSWORD
       const first = await connect()
       runtimes.push(first)
       const observation = await attachments.mock.results[0]!.value
-      const nativeUrl = new URL(`http://127.0.0.1:${observation.args.at(-1)}/skill`)
+      const nativeUrl = new URL(`http://127.0.0.1:${observation.args.at(-1)}/config`)
       nativeUrl.searchParams.set('directory', cwd)
       const unauthenticated = await fetch(nativeUrl, { signal: AbortSignal.timeout(5000) })
       expect(unauthenticated.status).toBe(401)
@@ -145,11 +139,17 @@ export default async()=>({config(config){if(process.env.OPENCODE_SERVER_PASSWORD
         signal: AbortSignal.timeout(5000),
       })
       expect(authorized.status).toBe(200)
-      const nativeSkills = (await authorized.json()) as { name: string; location: string }[]
-      for (const skill of mapping.skills)
-        expect(nativeSkills.find((entry) => entry.name === skill.name)?.location).toBe(
-          join(store.paths('capture').inputs, skill.path, 'SKILL.md'),
-        )
+      const observed = (await authorized.json()) as { agent: { build: { prompt: string } } }
+      expect(observed.agent.build.prompt).toContain('ROLE_MARKER')
+      const readPrompt = async () => {
+        const response = await fetch(nativeUrl, {
+          headers: { Authorization: observation.secrets[2]! },
+          signal: AbortSignal.timeout(5000),
+        })
+        expect(response.status).toBe(200)
+        return ((await response.json()) as { agent: { build: { prompt: string } } }).agent.build
+          .prompt
+      }
       const captured = [
         JSON.stringify(manifest),
         ...(await Promise.all(
@@ -159,24 +159,41 @@ export default async()=>({config(config){if(process.env.OPENCODE_SERVER_PASSWORD
         )),
       ].join('\n')
       for (const value of observation.secrets) expect(captured).not.toContain(value)
-      expect(first.configurationChecks).toContain('opencode.instance-skills')
-      expect(first.configurationChecks).not.toContain('opencode.skill-sources')
+      expect(first.configurationChecks).toContain('opencode.instance-config')
+      expect(first.configurationChecks).not.toContain('opencode.instance-skills')
       const handlers = {
         output: async () => {},
         interaction: async () => ({ kind: 'cancelled' as const }),
       }
       expect((await first.send('Hello', handlers)).outcome).toBe('completed')
+      const diagnostic = {
+        diagnostic: { check: 'opencode-instance-config', reason: 'mismatch', fields: ['prompts'] },
+      }
+      const beforeDrift = calls
+      await writeFile(gate, 'override active ACP config')
+      await vi.waitFor(async () => expect(await readPrompt()).toBe('PRIVATE_ACP_ONLY_OVERRIDE'), {
+        timeout: 5000,
+      })
+      await expect(first.send('Must not call provider', handlers)).rejects.toMatchObject(diagnostic)
+      expect(calls).toBe(beforeDrift)
+      await rm(gate)
+      await vi.waitFor(async () => expect(await readPrompt()).toContain('ROLE_MARKER'), {
+        timeout: 5000,
+      })
+      expect((await first.send('Restored active configuration', handlers)).outcome).toBe(
+        'completed',
+      )
       await first.dispose()
       await expect(fetch(nativeUrl, { signal: AbortSignal.timeout(1000) })).rejects.toThrow()
       const resumed = await connect(first.nativeSessionId)
       runtimes.push(resumed)
       expect(resumed.nativeSessionId).toBe(first.nativeSessionId)
-      expect(resumed.configurationChecks).toContain('opencode.instance-skills')
+      expect(resumed.configurationChecks).toContain('opencode.instance-config')
       await resumed.dispose()
       const before = calls
       await writeFile(gate, 'override ACP only')
       const rejected = {
-        diagnostic: { check: 'opencode-instance-skills', reason: 'mismatch', fields: ['skills'] },
+        diagnostic: { check: 'opencode-instance-config', reason: 'mismatch', fields: ['prompts'] },
       }
       await expect(connect()).rejects.toMatchObject(rejected)
       await expect(connect(first.nativeSessionId)).rejects.toMatchObject(rejected)
@@ -185,11 +202,11 @@ export default async()=>({config(config){if(process.env.OPENCODE_SERVER_PASSWORD
       await rm(gate)
       const restored = await connect(first.nativeSessionId)
       runtimes.push(restored)
-      expect(restored.configurationChecks).toContain('opencode.instance-skills')
+      expect(restored.configurationChecks).toContain('opencode.instance-config')
       await restored.dispose()
-      if (process.env.AGENT_MATRIX_OPENCODE_SKILL_REPORT)
+      if (process.env.AGENT_MATRIX_OPENCODE_CONFIG_REPORT)
         await writeFile(
-          process.env.AGENT_MATRIX_OPENCODE_SKILL_REPORT,
+          process.env.AGENT_MATRIX_OPENCODE_CONFIG_REPORT,
           JSON.stringify(
             {
               checkedAt: new Date().toISOString(),
@@ -199,16 +216,19 @@ export default async()=>({config(config){if(process.env.OPENCODE_SERVER_PASSWORD
               externalProviderCalls: false,
               ownedAuthenticatedAcpServer: true,
               unauthenticatedNativeReadRejected: true,
-              authorizedNativePathsMatched: true,
+              authorizedNativeConfigMatched: true,
+              activeConfigurationOverrideRejectedBeforeSubmission: true,
+              restoredActiveConfigurationAllowsNextTurn: true,
+              configurationObservedWithoutSelectedSkills: true,
               internalAuthenticationAbsentFromCapturedFiles: true,
               listenerClosedWithAcpProcess: true,
-              boundedNativeSkillEndpoint: true,
+              boundedNativeConfigurationEndpoint: true,
               nativeSessionAndDirectoryCheckedBeforeAndAfterReadback: true,
               nativeResume: true,
-              acpOnlySourceOverrideRejectedOnNewAndResumedSessions: true,
+              acpOnlyConfigurationOverrideRejectedOnNewAndResumedSessions: true,
               rejectionMakesNoProviderCall: true,
               capturedInputsPreserved: true,
-              restoredSourceAllowsNativeResume: true,
+              restoredConfigurationAllowsNativeResume: true,
               providerCalls: calls,
             },
             null,

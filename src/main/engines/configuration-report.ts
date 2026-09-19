@@ -52,24 +52,27 @@ export function buildConfigurationReport(
   const diagnostic = snapshot.failure?.configuration ?? null
   const desired = current ? resolvedIntent(current) : null
   const captured = capturedIntent(manifest)
+  const configCheck: ConfigurationCheck = observation?.checks.includes('opencode.instance-config')
+    ? 'opencode.instance-config'
+    : 'opencode.config'
   const kind = manifest.installation.kind
   const evidence: Partial<Record<ConfigurationField, ConfigurationCheck[]>> = {
     installation: ['cli.version'],
     ...(kind === 'opencode'
       ? ({
-          connection: ['opencode.config'],
-          authentication: ['opencode.config'],
-          model: ['opencode.config', 'opencode.session-model'],
+          connection: [configCheck],
+          authentication: [configCheck],
+          model: [configCheck, 'opencode.session-model'],
           sampling:
             manifest.model.parameters.temperature !== undefined ||
             manifest.model.parameters.topP !== undefined
-              ? ['opencode.config']
+              ? [configCheck]
               : [],
-          execution: ['opencode.config'],
+          execution: [configCheck],
           'engine-options': ['opencode.session-agent'],
-          prompts: ['opencode.config'],
+          prompts: [configCheck],
           skills: [
-            'opencode.config',
+            configCheck,
             ...(observation?.checks.includes('opencode.instance-skills')
               ? ['opencode.instance-skills' as const]
               : []),
@@ -77,7 +80,7 @@ export function buildConfigurationReport(
               ? ['opencode.skill-sources' as const]
               : []),
           ],
-          mcp: ['opencode.config'],
+          mcp: [configCheck],
           plugins: manifest.nativePlugins.length ? ['opencode.plugins'] : [],
         } as Partial<Record<ConfigurationField, ConfigurationCheck[]>>)
       : kind === 'pi'

@@ -29,6 +29,7 @@ assert.ok(
   `Set AGENT_MATRIX_TEST_${engine.toUpperCase()} to the installed ${engine} ${version} executable`,
 )
 const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-desktop-session-')))
+const instanceOverride = join(root, 'instance-config-override')
 const dataDirectory = join(root, 'data'),
   cwd = join(root, 'project'),
   alternateCwd = join(root, '项目 with spaces'),
@@ -207,7 +208,9 @@ exports.apply=(ctx,config)=>ctx.systemPrompt.section({name:'desktop-plugin',orde
   const path = join(root, 'desktop-plugin.mjs')
   await writeFile(
     path,
-    `export default { id: 'desktop-plugin', async server() { return Object.freeze({
+    `import { existsSync } from 'node:fs';
+export default { id: 'desktop-plugin', async server() { return Object.freeze({
+    config(config) { if (process.env.OPENCODE_SERVER_PASSWORD && existsSync(${JSON.stringify(instanceOverride)})) config.agent.build.prompt = 'PRIVATE_ACP_PROMPT_OVERRIDE'; },
     'experimental.chat.system.transform'(_input, output) { output.system.push('DESKTOP_PLUGIN_MARKER'); }
   }); } };\n`,
   )
@@ -528,6 +531,21 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
   }
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
   assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
+  if (!isPi && !isDsh) {
+    assert.ok(value.observation.checks.includes('opencode.instance-config'))
+    assert.deepEqual(value.fields.find((field) => field.id === 'prompts').checks, [
+      'opencode.instance-config',
+    ])
+    await dialog
+      .getByText(
+        title === '配置报告'
+          ? 'ACP 服务在已确认会话目录中的配置与捕获的请求一致'
+          : 'Requested configuration matched the ACP server in the acknowledged session directory',
+        { exact: true },
+      )
+      .first()
+      .waitFor()
+  }
   const skillSource = isPi ? 'pi-rpc' : isDsh ? 'dsh-registry' : 'opencode-acp'
   const skills = value.assets.filter((asset) => asset.kind === 'skill')
   assert.ok(skills.length > 0)
@@ -1422,64 +1440,70 @@ try {
     await language('en')
     await navigate('Sessions')
     await page.getByRole('textbox', { name: 'Working directory', exact: true }).fill(cwd)
-    const nativeOverride = join(cwd, '.opencode/agents/build.md')
-    const nativeContents =
-      '---\ndescription: Native conflict fixture\n---\nPRIVATE_NATIVE_PROMPT_OVERRIDE\n'
-    await writeFile(nativeOverride, nativeContents)
-    const countBefore = (await sessions()).length
-    const callsBeforeMismatch = calls.length
-    await page.getByRole('button', { name: 'Start new session', exact: true }).click()
-    await waitForIpc(
-      async () => (await sessions()).length === countBefore + 1,
-      'native conflict capture',
-    )
-    await status('Failed')
-    const selectedId = await page.locator('.conversation').getAttribute('data-session-id')
-    const mismatch = (await sessions()).find((session) => session.id === selectedId)
-    const fieldDiagnostic = { check: 'opencode-config', reason: 'mismatch', fields: ['prompts'] }
-    assert.deepEqual(mismatch.failure.configuration, fieldDiagnostic)
-    assert.equal(mismatch.nativeSessionId, null)
-    assert.equal(calls.length, callsBeforeMismatch)
-    for (const locale of ['en', 'zh-CN']) {
-      await language(locale)
-      await page
-        .getByRole('button', {
-          name: locale === 'en' ? 'Configuration report' : '配置报告',
-          exact: true,
-        })
-        .click()
-      const dialog = page.getByRole('dialog')
-      await dialog.locator('[data-report-field="prompts"][data-rejected="true"]').waitFor()
-      await dialog.locator('[data-configuration-check="opencode-config"]').waitFor()
-      const report = await page.evaluate(
-        (sessionId) => window.agentMatrix.sessions.configuration({ sessionId }),
-        selectedId,
+    for (const check of ['opencode-config', 'opencode-instance-config']) {
+      const nativeOverride =
+        check === 'opencode-config' ? join(cwd, '.opencode/agents/build.md') : instanceOverride
+      const nativeContents =
+        check === 'opencode-config'
+          ? '---\ndescription: Native conflict fixture\n---\nPRIVATE_NATIVE_PROMPT_OVERRIDE\n'
+          : 'Trigger the fixture plugin only in the ACP server'
+      await writeFile(nativeOverride, nativeContents)
+      const countBefore = (await sessions()).length
+      const callsBeforeMismatch = calls.length
+      await page.getByRole('button', { name: 'Start new session', exact: true }).click()
+      await waitForIpc(
+        async () => (await sessions()).length === countBefore + 1,
+        'native conflict capture',
       )
-      assert.deepEqual(report.diagnostic, fieldDiagnostic)
-      assert.equal(report.observation, null)
-      assert.equal(report.fields.find((field) => field.id === 'prompts').status, 'planned')
-      assert.ok(!(await dialog.textContent()).includes('PRIVATE_NATIVE_PROMPT_OVERRIDE'))
-      if (process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT)
-        await page.screenshot({
-          path:
-            process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT +
-            (locale === 'en' ? '.field.en.png' : '.field.zh.png'),
-        })
-      await dialog
-        .getByRole('button', { name: locale === 'en' ? 'Close' : '关闭', exact: true })
-        .last()
-        .click()
+      await status('Failed')
+      const selectedId = await page.locator('.conversation').getAttribute('data-session-id')
+      const mismatch = (await sessions()).find((session) => session.id === selectedId)
+      const fieldDiagnostic = { check, reason: 'mismatch', fields: ['prompts'] }
+      assert.deepEqual(mismatch.failure.configuration, fieldDiagnostic)
+      assert.equal(mismatch.nativeSessionId, null)
+      assert.equal(calls.length, callsBeforeMismatch)
+      for (const locale of ['en', 'zh-CN']) {
+        await language(locale)
+        await page
+          .getByRole('button', {
+            name: locale === 'en' ? 'Configuration report' : '配置报告',
+            exact: true,
+          })
+          .click()
+        const dialog = page.getByRole('dialog')
+        await dialog.locator('[data-report-field="prompts"][data-rejected="true"]').waitFor()
+        await dialog.locator(`[data-configuration-check="${check}"]`).waitFor()
+        const report = await page.evaluate(
+          (sessionId) => window.agentMatrix.sessions.configuration({ sessionId }),
+          selectedId,
+        )
+        assert.deepEqual(report.diagnostic, fieldDiagnostic)
+        assert.equal(report.observation, null)
+        assert.equal(report.fields.find((field) => field.id === 'prompts').status, 'planned')
+        assert.ok(!/PRIVATE_(NATIVE|ACP)_PROMPT_OVERRIDE/.test(await dialog.textContent()))
+        if (process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT)
+          await page.screenshot({
+            path:
+              process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT +
+              (check === 'opencode-config' ? '.field' : '.instance') +
+              (locale === 'en' ? '.en.png' : '.zh.png'),
+          })
+        await dialog
+          .getByRole('button', { name: locale === 'en' ? 'Close' : '关闭', exact: true })
+          .last()
+          .click()
+      }
+      assert.equal(await readFile(nativeOverride, 'utf8'), nativeContents)
+      assert.ok(
+        !/PRIVATE_(NATIVE|ACP)_PROMPT_OVERRIDE/.test(
+          await readFile(join(dataDirectory, 'sessions', `${selectedId}.jsonl`), 'utf8'),
+        ),
+      )
+      await language('en')
+      await page.getByRole('button', { name: 'Close session', exact: true }).click()
+      await status('Closed')
+      await rm(nativeOverride)
     }
-    assert.equal(await readFile(nativeOverride, 'utf8'), nativeContents)
-    assert.ok(
-      !(await readFile(join(dataDirectory, 'sessions', `${selectedId}.jsonl`), 'utf8')).includes(
-        'PRIVATE_NATIVE_PROMPT_OVERRIDE',
-      ),
-    )
-    await language('en')
-    await page.getByRole('button', { name: 'Close session', exact: true }).click()
-    await status('Closed')
-    await rm(nativeOverride)
   }
   await verifyUnusedRunData()
   await verifyRetention(original, latest)
@@ -1533,6 +1557,7 @@ try {
     messageDelivery: isDsh ? 'Committed semantic messages' : 'Streaming text',
     configurationReport: {
       nativeEvidence: true,
+      currentInstanceConfiguration: !isPi && !isDsh ? true : 'Not part of this engine fixture',
       persistedAfterRestart: true,
       pendingAssetVersions: true,
       englishAndChinese: true,
@@ -1572,6 +1597,7 @@ try {
         : 'No directory inventory declared by this adapter',
     configurationFailure: {
       check: diagnostic.check,
+      acpOnlyPromptMismatchAtStartup: !isPi && !isDsh ? true : 'Not part of this engine fixture',
       nativePromptMismatchAtStartup: !isPi && !isDsh ? true : 'Not part of this engine fixture',
       persistedAfterRestart: true,
       englishAndChinese: true,

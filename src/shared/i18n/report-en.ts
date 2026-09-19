@@ -68,6 +68,9 @@ export const reportEn = {
   'report.diagnosticCheck.snapshot': 'Captured input integrity',
   'report.diagnosticCheck.sources': 'External source compatibility',
   'report.diagnosticCheck.installation': 'Installed engine or protocol version',
+  'report.diagnosticCheck.opencode-instance-config': 'OpenCode ACP instance configuration',
+  'report.check.opencode.instance-config':
+    'Requested configuration matched the ACP server in the acknowledged session directory',
   'report.diagnosticCheck.opencode-config': 'OpenCode configuration readback',
   'report.diagnosticCheck.opencode-session': 'OpenCode session selection',
   'report.diagnosticCheck.pi-state': 'Pi model and runtime state',

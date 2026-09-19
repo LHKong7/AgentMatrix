@@ -32,6 +32,9 @@ export function buildSessionCapabilities(
     (native && native.protocol !== manifest.launch.mode)
   )
     throw new RuntimeFailure('configuration', 'report.capability-identity')
+  const configCheck: ConfigurationCheck = observation?.checks.includes('opencode.instance-config')
+    ? 'opencode.instance-config'
+    : 'opencode.config'
   const kind = manifest.installation.kind
   const contract = isSupportedEngine(kind) ? engineContracts[kind] : null
   const contractMatches = Boolean(
@@ -74,13 +77,13 @@ export function buildSessionCapabilities(
     'installation-version': ['cli.version'],
     ...(kind === 'opencode'
       ? {
-          'model-selection': ['opencode.config', 'opencode.session-model'],
-          'connection-mapping': ['opencode.config'],
-          'sampling-mapping': ['opencode.config'],
-          'prompt-mapping': ['opencode.config'],
-          'skill-mapping': ['opencode.config'],
-          'mcp-mapping': ['opencode.config'],
-          'policy-mapping': ['opencode.config'],
+          'model-selection': [configCheck, 'opencode.session-model'],
+          'connection-mapping': [configCheck],
+          'sampling-mapping': [configCheck],
+          'prompt-mapping': [configCheck],
+          'skill-mapping': [configCheck],
+          'mcp-mapping': [configCheck],
+          'policy-mapping': [configCheck],
           'plugin-activation': ['opencode.plugins'],
         }
       : kind === 'pi'
