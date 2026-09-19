@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdtemp, mkdir, realpath, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp,
+  mkdir,
+  realpath,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
@@ -608,6 +619,160 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
   await dialog.getByRole('button', { name: close, exact: true }).last().click()
   return value
 }
+
+async function verifyRetention(original, latest) {
+  const beforeCalls = calls.length
+  const workspace = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  const exported = await readFile(join(root, 'exported-history.jsonl'))
+  const originalRoot = join(dataDirectory, 'runs', original.snapshotId)
+  const latestRoot = join(dataDirectory, 'runs', latest.snapshotId)
+  const originalJournal = join(dataDirectory, 'sessions', `${original.id}.jsonl`)
+  const creation = JSON.parse((await readFile(originalJournal, 'utf8')).split('\n')[0]).snapshot
+    .creationReceipt
+  const current = (await sessions()).find((item) => item.id === original.id)
+  assert.notEqual(current.status, 'closed')
+  assert.match(
+    await page.evaluate(
+      async (input) => {
+        try {
+          await window.agentMatrix.sessions.remove(input)
+          return 'unexpected success'
+        } catch (error) {
+          return String(error)
+        }
+      },
+      { sessionId: current.id, expectedCursor: current.cursor },
+    ),
+    /sessionState/,
+  )
+  await language('en')
+  await page.locator(`[data-session-list-id="${original.id}"]`).click()
+  await page.getByRole('button', { name: 'Close session', exact: true }).click()
+  await status('Closed')
+  const beforeCancel = await readFile(originalJournal)
+  page.once('dialog', (dialog) => dialog.dismiss())
+  await page.getByRole('button', { name: 'Delete conversation', exact: true }).click()
+  assert.deepEqual(await readFile(originalJournal), beforeCancel)
+  assert.deepEqual(await page.evaluate(() => window.agentMatrix.sessions.pendingRemovals()), [])
+
+  // The synthetic history archive references the native original's exact capture.
+  await page.locator('[data-session-list-id="history-fixture"]').click()
+  await status('Closed')
+  let confirmation = ''
+  page.once('dialog', (dialog) => {
+    confirmation = dialog.message()
+    return dialog.accept()
+  })
+  await page.getByRole('button', { name: 'Delete conversation', exact: true }).click()
+  await waitForIpc(
+    async () => !(await sessions()).some((item) => item.id === 'history-fixture'),
+    'shared capture deletion',
+  )
+  assert.match(confirmation, /captured inputs and native state/)
+  assert.ok((await stat(originalRoot)).isDirectory())
+  await assert.rejects(readFile(join(dataDirectory, 'sessions/history-fixture.jsonl')), {
+    code: 'ENOENT',
+  })
+
+  await page.locator(`[data-session-list-id="${latest.id}"]`).click()
+  await status('Closed')
+  await language('zh-CN')
+  page.once('dialog', (dialog) => {
+    confirmation = dialog.message()
+    return dialog.accept()
+  })
+  await page.getByRole('button', { name: '删除会话', exact: true }).click()
+  await waitForIpc(
+    async () => !(await sessions()).some((item) => item.id === latest.id),
+    'native state deletion',
+  )
+  assert.match(confirmation, /输入快照和原生状态/)
+  await assert.rejects(stat(latestRoot), { code: 'ENOENT' })
+  await assert.rejects(readFile(join(dataDirectory, 'sessions', `${latest.id}.jsonl`)), {
+    code: 'ENOENT',
+  })
+
+  await language('en')
+  await page.locator(`[data-session-list-id="${original.id}"]`).click()
+  await status('Closed')
+  // A substituted root must not traverse into the project; leave an authorized pending job.
+  const heldRoot = `${originalRoot}.held`
+  await rename(originalRoot, heldRoot)
+  await symlink(cwd, originalRoot)
+  page.once('dialog', (dialog) => dialog.accept())
+  await page.getByRole('button', { name: 'Delete conversation', exact: true }).click()
+  await waitForIpc(
+    async () =>
+      (await page.evaluate(() => window.agentMatrix.sessions.pendingRemovals())).length === 1,
+    'pending cleanup',
+  )
+  await page.getByRole('button', { name: 'Retry cleanup', exact: true }).click()
+  await page
+    .getByRole('alert')
+    .filter({ hasText: 'Deletion was confirmed, but local cleanup could not finish.' })
+    .waitFor()
+  assert.equal((await page.evaluate(() => window.agentMatrix.sessions.pendingRemovals())).length, 1)
+  for (const locale of ['en', 'zh-CN']) {
+    await language(locale)
+    await page
+      .getByRole('button', { name: new RegExp(locale === 'en' ? '^Retry cleanup' : '^重试清理') })
+      .waitFor()
+    if (process.env.AGENT_MATRIX_RETENTION_SCREENSHOT)
+      await page.screenshot({
+        path:
+          process.env.AGENT_MATRIX_RETENTION_SCREENSHOT + (locale === 'en' ? '.en.png' : '.zh.png'),
+      })
+  }
+  assert.equal(await readFile(join(cwd, 'fixture.txt'), 'utf8'), 'SMOKE_FILE_MARKER')
+  await app.close()
+  app = null
+  await rm(originalRoot)
+  await rename(heldRoot, originalRoot)
+  await launch()
+  await language('en')
+  await navigate('Sessions')
+  await waitForIpc(
+    async () =>
+      (await page.evaluate(() => window.agentMatrix.sessions.pendingRemovals())).length === 0,
+    'startup cleanup completion',
+  )
+  assert.deepEqual(await page.evaluate(() => window.agentMatrix.sessions.pendingRemovals()), [])
+  assert.ok(
+    !(await sessions()).some((item) =>
+      [original.id, latest.id, 'history-fixture'].includes(item.id),
+    ),
+  )
+  await assert.rejects(stat(originalRoot), { code: 'ENOENT' })
+  await assert.rejects(readFile(originalJournal), { code: 'ENOENT' })
+  const tombstone = JSON.parse(
+    await readFile(join(dataDirectory, 'sessions', `.deleted-${original.id}.json`), 'utf8'),
+  )
+  assert.deepEqual(Object.keys(tombstone).sort(), [
+    'expectedCursor',
+    'sessionId',
+    'snapshotId',
+    'version',
+  ])
+  assert.match(
+    await page.evaluate(
+      async (input) => {
+        try {
+          await window.agentMatrix.sessions.command(input)
+          return 'unexpected success'
+        } catch (error) {
+          return String(error)
+        }
+      },
+      { kind: 'create', commandId: creation.id, agentId: original.agentId },
+    ),
+    /sessionDeleted/,
+  )
+  const after = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  assert.deepEqual(after, workspace)
+  assert.deepEqual(await readFile(join(root, 'exported-history.jsonl')), exported)
+  assert.equal(await readFile(join(cwd, 'fixture.txt'), 'utf8'), 'SMOKE_FILE_MARKER')
+  assert.equal(calls.length, beforeCalls)
+}
 try {
   await launch()
   await language('en')
@@ -1157,6 +1322,7 @@ try {
     await status('Closed')
     await rm(nativeOverride)
   }
+  await verifyRetention(original, latest)
   assert.ok(
     calls.length > 5 && calls.every((call) => call.authenticated && call.model === 'fixture-model'),
   )
@@ -1254,6 +1420,19 @@ try {
     appQuitAndRestart: true,
     nativeResume: true,
     confirmedClose: true,
+    retention: {
+      closedOnly: true,
+      englishAndChineseConfirmation: true,
+      confirmationCancellation: true,
+      sharedCaptureRetained: true,
+      unreferencedCaptureAndNativeStateRemoved: true,
+      pendingCleanupVisible: true,
+      explicitCleanupRetry: true,
+      restartRecovery: true,
+      deletedCreateReplayRejected: true,
+      projectAndSharedLibraryAndExportPreserved: true,
+      noAdditionalModelCalls: true,
+    },
     sessionHistory: {
       nativeEventsReadOnly: true,
       syntheticLongHistoryPagination: true,

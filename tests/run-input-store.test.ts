@@ -80,6 +80,26 @@ afterEach(async () => {
   await fs.rm(root, { recursive: true, force: true })
 })
 
+describe('released run inputs', () => {
+  it('removes owned inputs and state idempotently without following state symlinks', async () => {
+    await store.create('released', workspace, workspace.agents[0]!.id, generate)
+    await fs.writeFile(join(root, 'project', 'keep.txt'), 'project content')
+    await fs.symlink(join(root, 'project'), join(store.paths('released').state, 'project-link'))
+    await store.remove('released')
+    await store.remove('released')
+    await expect(fs.stat(store.paths('released').root)).rejects.toThrow('ENOENT')
+    expect(await fs.readFile(join(root, 'project', 'keep.txt'), 'utf8')).toBe('project content')
+  })
+
+  it('refuses a symlinked run root and never accepts renderer paths', async () => {
+    await fs.mkdir(store.root)
+    await fs.symlink(join(root, 'project'), store.paths('linked').root)
+    await expect(store.remove('linked')).rejects.toThrow('runIntegrity')
+    expect(() => store.remove('../project')).toThrow()
+    expect((await fs.stat(join(root, 'project'))).isDirectory()).toBe(true)
+  })
+})
+
 async function generate(
   configuration: ResolvedAgentConfiguration,
   paths: RunPaths,

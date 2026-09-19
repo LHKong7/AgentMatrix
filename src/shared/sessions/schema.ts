@@ -322,6 +322,10 @@ export type SessionEvent = z.infer<typeof sessionEventSchema>
 export type SessionEventData = SessionEvent['data']
 
 export const sessionQuerySchema = z.object({ sessionId: entityId }).strict()
+export const sessionRemovalSchema = sessionQuerySchema
+  .extend({ expectedCursor: sessionCursorSchema })
+  .strict()
+export type SessionRemoval = z.infer<typeof sessionRemovalSchema>
 export const sessionEventQuerySchema = sessionQuerySchema
   .extend({
     afterCursor: sessionCursorSchema,
@@ -386,6 +390,8 @@ export type SessionDelivery =
 
 /** The preload must register its listener before invoking subscribe to avoid lost events. */
 export interface SessionApi {
+  remove(input: SessionRemoval): Promise<void>
+  pendingRemovals(): Promise<SessionRemoval[]>
   history(input: z.input<typeof sessionHistoryQuerySchema>): Promise<SessionHistoryPage>
   exportHistory(
     input: z.infer<typeof sessionExportQuerySchema>,

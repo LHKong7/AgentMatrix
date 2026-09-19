@@ -22,6 +22,12 @@ const browserApi: AgentMatrixApi = {
     throw appError('error.runtimeDesktopOnly')
   },
   sessions: {
+    async remove() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async pendingRemovals() {
+      return []
+    },
     async history() {
       throw appError('error.runtimeDesktopOnly')
     },

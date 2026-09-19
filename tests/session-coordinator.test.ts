@@ -124,7 +124,11 @@ async function fixture(cancelTimeoutMs = 100) {
     connections.push({ snapshot, signal, runtime })
     return runtime
   })
-  const factory = { create, connect }
+  const factory = {
+    create,
+    connect,
+    removeSnapshot: vi.fn<NonNullable<SessionRuntimeFactory['removeSnapshot']>>(async () => {}),
+  }
   const coordinator = new SessionCoordinator(journal, factory, { cancelTimeoutMs })
   coordinators.push(coordinator)
   const wait = async (id: string, status: SessionSnapshot['status']) => {
@@ -528,6 +532,10 @@ describe('durable session coordination', () => {
     connected.resolve(runtime)
     await vi.waitFor(() => expect(runtime.dispose).toHaveBeenCalledOnce())
     expect((await f.coordinator.get({ sessionId: created.id })).status).toBe('closing')
+    await expect(
+      f.coordinator.remove({ sessionId: created.id, expectedCursor: closing.cursor }),
+    ).rejects.toThrow('sessionState')
+    expect(f.factory.removeSnapshot).not.toHaveBeenCalled()
     cleanup.resolve()
     await f.wait(created.id, 'closed')
     expect(
@@ -535,6 +543,9 @@ describe('durable session coordination', () => {
         (event) => event.data.kind === 'run.ready',
       ),
     ).toBe(false)
+    const closed = await f.coordinator.get({ sessionId: created.id })
+    await f.coordinator.remove({ sessionId: created.id, expectedCursor: closed.cursor })
+    expect(f.factory.removeSnapshot).toHaveBeenCalledExactlyOnceWith(created.snapshotId)
   })
 
   it('keeps failed cleanup from claiming closed or opening a second attachment', async () => {
@@ -548,6 +559,10 @@ describe('durable session coordination', () => {
       runId: ready.runId,
     })
     await f.wait(ready.id, 'failed')
+    await expect(
+      f.coordinator.remove({ sessionId: ready.id, expectedCursor: ready.cursor }),
+    ).rejects.toThrow('sessionState')
+    expect(f.factory.removeSnapshot).not.toHaveBeenCalled()
     await expect(
       f.coordinator.command({
         kind: 'resume',

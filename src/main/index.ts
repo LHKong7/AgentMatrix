@@ -294,6 +294,10 @@ if (!app.requestSingleInstanceLock()) {
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
+    // Show the window before potentially lengthy cleanup. Retry only confirmed deletions;
+    // failures remain visible in the session panel, and shutdown awaits the catalog queue.
+    for (const removal of await coordinator.pendingRemovals().catch(() => []))
+      await coordinator.remove(removal).catch(() => undefined)
   })
 }
 

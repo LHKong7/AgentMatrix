@@ -245,6 +245,15 @@ export const en = {
     'Session events are missing or the cursor is invalid. Reload the session state and history.',
   'error.sessionOverflow': 'The session event or subscriber limit was exceeded.',
   'error.sessionMissing': 'The session history could not be found.',
+  'error.sessionDeleted': 'This conversation was deleted or is awaiting cleanup.',
+  'error.sessionCleanup':
+    'Deletion was confirmed, but local cleanup could not finish. Retry cleanup to complete it.',
+  'sessions.remove': 'Delete conversation',
+  'sessions.removeConfirm':
+    'Permanently delete this closed conversation and its local history? Its captured inputs and native state will also be removed if no other conversation uses them. Export history first if you need a copy. Shared assets, credentials, project files, and exported copies are kept.',
+  'sessions.removalPending':
+    '{count} confirmed deletions still need cleanup. You can retry now; cleanup is also retried when the app starts.',
+  'sessions.retryRemoval': 'Retry cleanup',
   'error.sessionExists': 'A session with this ID already exists. Its history was preserved.',
   'error.sessionStorage':
     'Session history could not be read or saved. Existing data was preserved.',

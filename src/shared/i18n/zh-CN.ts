@@ -225,6 +225,14 @@ export const zhCN = {
   'error.sessionCursor': '会话事件缺失或游标无效，请重新加载会话状态和历史。',
   'error.sessionOverflow': '会话事件或订阅数量超出限制。',
   'error.sessionMissing': '找不到此会话的历史记录。',
+  'error.sessionDeleted': '此会话已删除或正在等待清理。',
+  'error.sessionCleanup': '删除已确认，但本地清理未完成。请重试清理。',
+  'sessions.remove': '删除会话',
+  'sessions.removeConfirm':
+    '永久删除此已关闭会话及其本地历史？若没有其他会话引用，输入快照和原生状态也会一并清理。如需备份，请先导出历史。共享资源、凭据、项目文件和已导出的副本会保留。',
+  'sessions.removalPending':
+    '还有 {count} 个已确认的删除操作需要清理。可以立即重试，应用启动时也会自动重试。',
+  'sessions.retryRemoval': '重试清理',
   'error.sessionExists': '此 ID 的会话已存在，原有历史已保留。',
   'error.sessionStorage': '无法读取或保存会话历史，原有数据已保留。',
   'error.sessionJournalFull': '此会话历史已达到存储上限，请新建会话。',

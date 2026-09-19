@@ -76,6 +76,8 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run package`                  | Create an unsigned app directory for the current platform                                                                                  |
 | `npm run dist`                     | Build platform distributables into `release/`                                                                                              |
 
+Closed conversations support [confirmed deletion and recoverable cleanup](docs/session-retention.md), including reference checks before removing captured inputs and native state. Shared assets, credentials, project files, and exported histories are retained.
+
 Desktop smoke tests use a temporary configuration directory and clean it up afterward. They require a desktop graphics environment. CI runs `check`, which does not require a display.
 
 The ACP probe requires explicit executable-path environment variables; see [ACP client verification](docs/acp-client.md#verification). Its successful handshake does not validate model calls or tool execution. The separate [Pi RPC probe](docs/pi-rpc.md) verifies native turns, cancellation, restoration, and trust behavior against a local fixture; the [Pi runtime and desktop fixtures](docs/pi-runtime.md) also pass.

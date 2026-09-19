@@ -12,6 +12,7 @@ import {
   sessionQuerySchema,
   sessionEventQuerySchema,
   sessionHistoryQuerySchema,
+  sessionRemovalSchema,
   type SessionCommand,
   type SessionSnapshot,
   type SessionDelivery,
@@ -45,6 +46,7 @@ export interface SessionRuntimeFactory {
   connect(snapshot: SessionSnapshot, signal: AbortSignal): Promise<RuntimeSession>
   impact?(query: LibraryImpactQuery, snapshots: SessionSnapshot[]): Promise<LibraryImpact>
   configuration?(snapshot: SessionSnapshot): Promise<ConfigurationReport>
+  removeSnapshot?(snapshotId: string): Promise<void>
 }
 interface PendingInteraction {
   resolve(answer: InteractionResponse): void
@@ -106,6 +108,7 @@ export class SessionCoordinator {
   }
   private readonly contexts = new Map<string, Context>()
   private readonly queues = new Map<string, Promise<unknown>>()
+  private catalogQueue: Promise<unknown> = Promise.resolve()
   private stopping = false
   private shutdownTask?: Promise<void>
   private readonly cancelTimeoutMs: number
@@ -128,7 +131,7 @@ export class SessionCoordinator {
     const receipt = { id: command.commandId, digest: digest(canonical(command)) }
     const id =
       command.kind === 'create' ? `session-${digest(command.commandId)}` : command.sessionId
-    return this.serial(id, async () => {
+    const execute = async () => {
       if (this.stopping) throw appError('error.sessionStopping')
       if (command.kind === 'create') {
         let existing: SessionSnapshot | null = null
@@ -281,7 +284,31 @@ export class SessionCoordinator {
         }
       }
       return context.stream.snapshot()
-    })
+    }
+    // Capture + publication and reference-checked removal must never overlap.
+    return command.kind === 'create'
+      ? this.catalogSerial(() => this.serial(id, execute))
+      : this.serial(id, execute)
+  }
+
+  pendingRemovals() {
+    return this.journal.pendingRemovals()
+  }
+
+  remove(input: unknown): Promise<void> {
+    const query = sessionRemovalSchema.parse(input)
+    return this.catalogSerial(() =>
+      this.serial(query.sessionId, async () => {
+        if (this.stopping) throw appError('error.sessionStopping')
+        if (!this.factory.removeSnapshot) throw appError('error.runtimeUnsupported')
+        const context = this.contexts.get(query.sessionId)
+        if (context && (context.attachment || context.stream.snapshot().status !== 'closed'))
+          throw appError('error.sessionState')
+        await this.journal.remove(query, (snapshotId) => this.factory.removeSnapshot!(snapshotId))
+        context?.stream.fail()
+        this.contexts.delete(query.sessionId)
+      }),
+    )
   }
 
   get(input: unknown): Promise<SessionSnapshot> {
@@ -347,6 +374,7 @@ export class SessionCoordinator {
       ),
     )
     this.shutdownTask = (async () => {
+      await this.catalogQueue
       await Promise.allSettled([...this.queues.values()])
       const results = await Promise.allSettled(
         [...this.contexts.values()].flatMap((context) =>
@@ -369,6 +397,11 @@ export class SessionCoordinator {
     void settled.then(() => {
       if (this.queues.get(id) === settled) this.queues.delete(id)
     })
+    return task
+  }
+  private catalogSerial<T>(action: () => Promise<T>): Promise<T> {
+    const task = this.catalogQueue.then(action)
+    this.catalogQueue = task.catch(() => {})
     return task
   }
   private async context(id: string): Promise<Context> {

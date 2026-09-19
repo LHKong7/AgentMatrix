@@ -1,4 +1,6 @@
 export const sessionChannels = {
+  remove: 'sessions:remove',
+  pendingRemovals: 'sessions:pending-removals',
   history: 'sessions:history',
   exportHistory: 'sessions:export-history',
   impact: 'sessions:impact',

@@ -73,6 +73,9 @@ export function openCodeNativeLocations(environment: NodeJS.ProcessEnv): OpenCod
 
 /** Renderer input selects saved definitions; it never supplies executable arguments or credentials. */
 export class DesktopSessionFactory implements SessionRuntimeFactory {
+  removeSnapshot(snapshotId: string): Promise<void> {
+    return this.dependencies.runs.remove(snapshotId)
+  }
   private readonly lifetime = new AbortController()
   private readonly probes = new Set<Promise<unknown>>()
   constructor(private readonly dependencies: Dependencies) {}

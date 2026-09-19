@@ -17,6 +17,8 @@ const api: AgentMatrixApi = {
   previewNativeImport: (input) => ipcRenderer.invoke(channels.nativeImportPreview, input),
   applyNativeImport: (input) => ipcRenderer.invoke(channels.nativeImportApply, input),
   sessions: {
+    remove: (input) => ipcRenderer.invoke(sessionChannels.remove, input),
+    pendingRemovals: () => ipcRenderer.invoke(sessionChannels.pendingRemovals),
     history: (input) => ipcRenderer.invoke(sessionChannels.history, input),
     exportHistory: (input) => ipcRenderer.invoke(sessionChannels.exportHistory, input),
     impact: (input) => ipcRenderer.invoke(sessionChannels.impact, input),

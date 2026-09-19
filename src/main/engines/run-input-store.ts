@@ -94,6 +94,31 @@ export class RunInputStore {
     return { root, inputs: join(root, 'inputs'), state: join(root, 'state') }
   }
 
+  /** Only the retention coordinator may release an unreferenced, inactive capture. */
+  remove(id: string): Promise<void> {
+    const path = this.paths(id).root
+    const operation = this.queue.then(async () => {
+      for (const directory of [this.root, path]) {
+        const info = await lstat(directory).catch((error: NodeJS.ErrnoException) => {
+          if (error.code !== 'ENOENT') throw error
+          return null
+        })
+        if (!info) return
+        if (!info.isDirectory() || info.isSymbolicLink()) throw appError('error.runIntegrity')
+      }
+      // rm does not traverse links inside native state. External resources are never removed.
+      await rm(path, { recursive: true, force: true })
+      const directory = await open(this.root, constants.O_RDONLY)
+      try {
+        await directory.sync()
+      } finally {
+        await directory.close()
+      }
+    })
+    this.queue = operation.catch(() => {})
+    return operation
+  }
+
   create(
     id: string,
     workspace: EngineWorkspace,

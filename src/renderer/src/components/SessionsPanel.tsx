@@ -17,6 +17,7 @@ import type {
   SessionCommand,
   SessionSnapshot,
   InteractionRequest,
+  SessionRemoval,
 } from '../../../shared/sessions/schema'
 import { formatError } from '../../../shared/errors'
 import { api } from '../lib/api'
@@ -48,6 +49,7 @@ export function SessionsPanel({
     path: string
   } | null>(null)
   const [sessions, setSessions] = useState<SessionSnapshot[]>([])
+  const [pendingRemovals, setPendingRemovals] = useState<SessionRemoval[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [view, setView] = useState(emptySessionView)
   const [message, setMessage] = useState('')
@@ -103,8 +105,12 @@ export function SessionsPanel({
       if (polling) return
       polling = true
       try {
-        const values = await api.sessions.list()
+        const [values, pending] = await Promise.all([
+          api.sessions.list(),
+          api.sessions.pendingRemovals(),
+        ])
         if (!active) return
+        setPendingRemovals(pending)
         setSessions((previous) =>
           values.map((value) => {
             const old = previous.find((item) => item.id === value.id)
@@ -186,6 +192,18 @@ export function SessionsPanel({
     act(async () => {
       const snapshot = await api.sessions.command(input)
       setSessions((values) => [snapshot, ...values.filter((item) => item.id !== snapshot.id)])
+    })
+  const remove = (input: SessionRemoval) =>
+    act(async () => {
+      try {
+        await api.sessions.remove(input)
+        setSessions((values) => values.filter((item) => item.id !== input.sessionId))
+        setSelected((id) => (id === input.sessionId ? null : id))
+        setShowHistory(false)
+        setShowConfiguration(false)
+      } finally {
+        setRefresh((value) => value + 1)
+      }
     })
   const respond = (request: InteractionRequest, response: Response) => {
     if (!state?.runId || !state.activeTurn) return
@@ -370,6 +388,27 @@ export function SessionsPanel({
           {formatError(error ?? view.error, locale)}
         </div>
       )}
+      {pendingRemovals.length > 0 && (
+        <div className="session-diagnostics" role="status">
+          <p>{t('sessions.removalPending', { count: pendingRemovals.length })}</p>
+          <button
+            className="button secondary"
+            disabled={busy}
+            onClick={() =>
+              void act(async () => {
+                const results = await Promise.allSettled(
+                  pendingRemovals.map((item) => api.sessions.remove(item)),
+                )
+                setRefresh((value) => value + 1)
+                const failure = results.find((result) => result.status === 'rejected')
+                if (failure?.status === 'rejected') throw failure.reason
+              })
+            }
+          >
+            {t('sessions.retryRemoval')}
+          </button>
+        </div>
+      )}
       <div className="sessions-layout">
         <aside className="session-list" aria-label={t('nav.sessions')}>
           {!sessions.length && <p>{t('sessions.empty')}</p>}
@@ -504,6 +543,18 @@ export function SessionsPanel({
                       }
                     >
                       {t('sessions.close')}
+                    </button>
+                  )}
+                  {state.status === 'closed' && (
+                    <button
+                      className="button secondary"
+                      disabled={blocked}
+                      onClick={() => {
+                        if (window.confirm(t('sessions.removeConfirm')))
+                          void remove({ sessionId: state.id, expectedCursor: state.cursor })
+                      }}
+                    >
+                      {t('sessions.remove')}
                     </button>
                   )}
                 </div>

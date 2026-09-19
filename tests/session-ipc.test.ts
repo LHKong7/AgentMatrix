@@ -26,6 +26,8 @@ function fixture() {
   let receive: (delivery: SessionDelivery) => void = () => {}
   const unsubscribe = vi.fn()
   const coordinator = {
+    remove: vi.fn(),
+    pendingRemovals: vi.fn(async () => []),
     command: vi.fn(async () => snapshot),
     get: vi.fn(async () => snapshot),
     list: vi.fn(async () => [snapshot]),
@@ -65,6 +67,18 @@ function fixture() {
   }
 }
 describe('session IPC ownership', () => {
+  it('protects deletion and pending cleanup with the current renderer owner', async () => {
+    const f = fixture()
+    const input = { sessionId: 's', expectedCursor: 3 }
+    await f.invoke(sessionChannels.remove, input)
+    expect(f.coordinator.remove).toHaveBeenCalledWith(input)
+    expect(await f.invoke(sessionChannels.pendingRemovals)).toEqual([])
+    f.contents.emit('destroyed')
+    await expect(f.invoke(sessionChannels.remove, input)).rejects.toThrow('untrusted')
+    await expect(f.invoke(sessionChannels.pendingRemovals)).rejects.toThrow('untrusted')
+    expect(f.coordinator.remove).toHaveBeenCalledTimes(1)
+    expect(f.coordinator.pendingRemovals).toHaveBeenCalledTimes(1)
+  })
   it('routes history pages through the same sender checks as live events', async () => {
     const f = fixture()
     const query = { sessionId: 's', throughCursor: 0, fromCursor: 0, direction: 'backward' }

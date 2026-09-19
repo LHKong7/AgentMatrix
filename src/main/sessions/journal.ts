@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { constants, type Stats } from 'node:fs'
-import { link, mkdir, open, readdir, unlink, type FileHandle } from 'node:fs/promises'
+import { link, mkdir, open, readdir, rename, unlink, type FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { entityId } from '../../shared/engines/schema'
@@ -20,6 +20,8 @@ import {
   type HistoryEvent,
   type SessionHistoryPage,
   type SessionHistoryRecord,
+  sessionRemovalSchema,
+  type SessionRemoval,
 } from '../../shared/sessions/schema'
 
 const recordSchema = z.discriminatedUnion('kind', [
@@ -29,6 +31,12 @@ const recordSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('event'), event: sessionEventSchema }).strict(),
 ])
 const appendSchema = sessionEventSchema.omit({ sessionId: true, cursor: true, timestamp: true })
+const removalSchema = sessionRemovalSchema
+  .extend({
+    version: z.literal(1),
+    snapshotId: entityId,
+  })
+  .strict()
 const maxRecordBytes = 1024 * 1024
 const decoder = new TextDecoder('utf-8', { fatal: true })
 const historyPageBytes = 1024 * 1024
@@ -78,6 +86,7 @@ export class SessionJournal {
   create(input: SessionSnapshot): Promise<SessionSnapshot> {
     const snapshot = sessionSnapshotSchema.parse(input)
     return this.serial(async () => {
+      if (await this.removal(snapshot.id)) throw appError('error.sessionDeleted')
       if (
         snapshot.status !== 'created' ||
         snapshot.cursor !== 0 ||
@@ -125,21 +134,136 @@ export class SessionJournal {
   }
 
   list(): Promise<SessionSnapshot[]> {
+    return this.serial(() => this.listRetained())
+  }
+
+  pendingRemovals(): Promise<SessionRemoval[]> {
     return this.serial(async () => {
-      let names: string[]
-      try {
-        names = await readdir(this.directory)
-      } catch (error) {
-        if (isCode(error, 'ENOENT')) return []
-        throw appError('error.sessionStorage')
+      const pending: SessionRemoval[] = []
+      for (const name of await this.names()) {
+        const match = /^\.deleting-([a-zA-Z0-9_-]{1,100})\.json$/.exec(name)
+        if (!match) continue
+        const record = await this.removal(match[1]!)
+        if (!record) throw appError('error.sessionStorage')
+        pending.push({
+          sessionId: record.value.sessionId,
+          expectedCursor: record.value.expectedCursor,
+        })
       }
-      const snapshots: SessionSnapshot[] = []
-      for (const name of names.sort()) {
-        const match = /^([a-zA-Z0-9_-]{1,100})\.jsonl$/.exec(name)
-        if (match) snapshots.push(structuredClone((await this.load(match[1]!)).snapshot))
-      }
-      return snapshots.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      return pending
     })
+  }
+
+  /** Durable intent precedes cleanup; the small completed receipt prevents create replay. */
+  remove(input: SessionRemoval, release: (snapshotId: string) => Promise<void>): Promise<void> {
+    const query = sessionRemovalSchema.parse(input)
+    return this.serial(async () => {
+      const record = await this.removal(query.sessionId)
+      if (record && record.value.expectedCursor !== query.expectedCursor)
+        throw appError('error.sessionCursor')
+      if (record?.complete) return
+      let value = record?.value
+      if (!value) {
+        const snapshot = (await this.load(query.sessionId)).snapshot
+        if (snapshot.cursor !== query.expectedCursor) throw appError('error.sessionCursor')
+        if (snapshot.status !== 'closed') throw appError('error.sessionState')
+        value = { ...query, version: 1, snapshotId: snapshot.snapshotId }
+      }
+      // Refuse cleanup if any retained journal is unreadable; absence of evidence is not zero refs.
+      const retained = await this.listRetained()
+      if (!record) {
+        await this.publishExclusive(
+          this.removalPath(query.sessionId, false),
+          Buffer.from(JSON.stringify(value)),
+        )
+      }
+      this.sessions.delete(query.sessionId)
+      try {
+        if (
+          !retained.some(
+            (item) => item.id !== query.sessionId && item.snapshotId === value.snapshotId,
+          )
+        )
+          await release(value.snapshotId)
+        // Exact torn-frame backups are owned transcript bytes too.
+        for (const name of await this.names()) {
+          if (
+            name === `${query.sessionId}.jsonl` ||
+            (name.startsWith(`${query.sessionId}.jsonl.`) &&
+              /^[a-f0-9]{64}\.partial$/.test(name.slice(query.sessionId.length + 7)))
+          )
+            await unlink(join(this.directory, name)).catch((error: unknown) => {
+              if (!isCode(error, 'ENOENT')) throw error
+            })
+        }
+        await rename(
+          this.removalPath(query.sessionId, false),
+          this.removalPath(query.sessionId, true),
+        )
+        const directory = await open(this.directory, constants.O_RDONLY)
+        try {
+          await directory.sync()
+        } finally {
+          await directory.close()
+        }
+      } catch {
+        throw appError('error.sessionCleanup')
+      }
+    })
+  }
+
+  private async names(): Promise<string[]> {
+    try {
+      return (await readdir(this.directory)).sort()
+    } catch (error) {
+      if (isCode(error, 'ENOENT')) return []
+      throw appError('error.sessionStorage')
+    }
+  }
+
+  private async listRetained(): Promise<SessionSnapshot[]> {
+    const snapshots: SessionSnapshot[] = []
+    for (const name of await this.names()) {
+      const match = /^([a-zA-Z0-9_-]{1,100})\.jsonl$/.exec(name)
+      if (match && !(await this.removal(match[1]!)))
+        snapshots.push(structuredClone((await this.load(match[1]!)).snapshot))
+    }
+    return snapshots.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  private removalPath(id: string, complete: boolean): string {
+    return join(this.directory, `.${complete ? 'deleted' : 'deleting'}-${entityId.parse(id)}.json`)
+  }
+
+  private async removal(
+    id: string,
+  ): Promise<{ value: z.infer<typeof removalSchema>; complete: boolean } | null> {
+    for (const complete of [false, true]) {
+      let handle: FileHandle
+      try {
+        handle = await this.openRegular(this.removalPath(id, complete), constants.O_RDONLY)
+      } catch (error) {
+        if (error instanceof Error && error.message === appError('error.sessionMissing').message)
+          continue
+        throw error
+      }
+      try {
+        const before = await handle.stat()
+        if (before.size > 4096) throw appError('error.sessionStorage')
+        const bytes = Buffer.alloc(4097)
+        const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0)
+        if (bytesRead !== before.size || fingerprint(before) !== fingerprint(await handle.stat()))
+          throw appError('error.sessionStorage')
+        const value = removalSchema.parse(JSON.parse(decoder.decode(bytes.subarray(0, bytesRead))))
+        if (value.sessionId !== id) throw appError('error.sessionStorage')
+        return { value, complete }
+      } catch {
+        throw appError('error.sessionStorage')
+      } finally {
+        await handle.close()
+      }
+    }
+    return null
   }
 
   append(
@@ -289,6 +413,7 @@ export class SessionJournal {
   }
 
   private async load(sessionId: string): Promise<LoadedSession> {
+    if (await this.removal(sessionId)) throw appError('error.sessionDeleted')
     const path = this.path(sessionId)
     const cached = this.sessions.get(sessionId)
     if (cached) {

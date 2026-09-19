@@ -12,6 +12,8 @@ The main process accepts a session ID, inclusive `throughCursor` and `fromCursor
 
 ## Export the selected history
 
+History remains available after closing a conversation. Explicit [conversation deletion](session-retention.md) removes stored history and, when unreferenced, its captured inputs and native state. Exported copies are preserved.
+
 **Export history (JSONL)** opens the native Save dialog. The export includes all events from cursor 1 through the view's selected endpoint, regardless of which page is visible. Cancelling the dialog creates no file. Export uses a single sequential journal pass, with bounded buffers and batched writes; it does not assemble an entire conversation in the renderer or repeatedly scan one page at a time. The pass is serialized with journal appends to keep the selected prefix consistent.
 
 The UTF-8 JSON Lines format contains:

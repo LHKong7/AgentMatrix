@@ -45,6 +45,6 @@ OpenCode now also captures optional [native Markdown directory inventories](nati
 
 ## Retention
 
-Published snapshots and native state are retained together. This component has no automatic garbage collection or deletion API. Future deletion must account for every session referencing the snapshot and stop active attachments first. Normal failed staging directories are removed; abandoned staging directories after a crash are never loaded as snapshots and require a separate recovery/cleanup policy.
+Published snapshots and native state are retained together until explicit [deletion of a closed conversation](session-retention.md). The coordinator checks every retained session reference and completes process cleanup before releasing an unreferenced capture through `RunInputStore.remove`. Pending deletion receipts allow safe retry after partial cleanup or application restart. No age-based garbage collection is enabled. Normal failed staging directories are removed; abandoned staging directories and captures left before session publication remain retained and are never guessed safe to delete.
 
 Tests cover revision freezing, state isolation, complete Skill copies independent of source retention, credential references, tampered/missing/extra inputs, symlinks, publication conflicts, unsafe paths, byte limits, incomplete adapter plans, source changes during preparation, and reuse checks. These filesystem tests use a synthetic executable file and make no provider calls.
