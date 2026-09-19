@@ -1,6 +1,8 @@
 import type { configurationEn } from './configuration-en'
 
 export const configurationZh = {
+  'config.anthropicEndpoint':
+    'Anthropic：填写服务根地址或 /v1 API 基地址，可包含代理路径前缀。三个引擎会使用相同的 /v1/messages 请求目标。',
   'config.itemEngine': '运行引擎',
   'config.itemConnection': '模型连接',
   'config.itemModel': '模型配置',

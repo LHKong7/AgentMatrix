@@ -1,4 +1,6 @@
 export const supportEn = {
+  'support.issue.endpoint':
+    'For Anthropic, enter a provider root or /v1 base URL without login details, a query, fragment, or /messages suffix.',
   'support.issue.native-plugin-options':
     'These plugin options belong to a different engine. Clear or change them before starting.',
 

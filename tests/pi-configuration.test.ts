@@ -47,6 +47,61 @@ const prepare = () =>
   )
 
 describe('Pi configuration contract', () => {
+  it.each([false, true])(
+    'checks captured Anthropic endpoint semantics, legacy=%s',
+    async (legacy) => {
+      workspace.connections[0]!.protocol = 'anthropic-messages'
+      workspace.connections[0]!.baseUrl = 'https://gateway.test/proxy/v1'
+      workspace.connections[0]!.auth = {
+        kind: 'api-key',
+        header: 'x-api-key',
+        secret: { kind: 'environment', name: 'KEY' },
+      }
+      workspace.agents[0]!.skillBindings = []
+      workspace.skills = []
+      const manifest = await store.create('run', workspace, 'reviewer', async (config, paths) => {
+        const generated = await planPi(config, paths, context)
+        if (legacy) {
+          const mapping = generated.files.find((file) => file.path === 'pi-mappings.json')!
+          const parsed = JSON.parse(mapping.content as string)
+          delete parsed.nativeBaseUrl
+          mapping.content = JSON.stringify(parsed)
+          const models = generated.files.find((file) => file.path === 'pi-home/models.json')!
+          const native = JSON.parse(models.content as string)
+          native.providers['agentmatrix-local'].baseUrl = config.connection.baseUrl
+          models.content = JSON.stringify(native)
+        }
+        return generated
+      })
+      const state = {
+        model: {
+          id: 'fixture-model',
+          provider: 'agentmatrix-local',
+          api: 'anthropic-messages',
+          baseUrl: legacy ? manifest.connection.baseUrl : 'https://gateway.test/proxy',
+        },
+        thinkingLevel: 'off',
+        sessionId: 'native',
+        sessionFile: '/sessions/native.jsonl',
+        isStreaming: false,
+        isCompacting: false,
+        pendingMessageCount: 0,
+        autoCompactionEnabled: false,
+      }
+      const client = {
+        request: async (command: { type: string }) =>
+          command.type === 'get_state' ? state : { commands: [] },
+      } as unknown as PiClient
+      expect((await verifyPiReadback(client, manifest, store.paths('run'))).model.baseUrl).toBe(
+        state.model.baseUrl,
+      )
+      state.model.baseUrl = legacy ? 'https://gateway.test/proxy' : manifest.connection.baseUrl
+      await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
+        diagnostic: { check: 'pi-state', reason: 'mismatch', fields: ['connection'] },
+      })
+      expect(await store.verifyForReuse('run')).toEqual(manifest)
+    },
+  )
   it('captures explicit native mappings, preserves older inputs, and isolates each writable home', async () => {
     workspace.models[0]!.parameters = { temperature: 0, topP: 0.8 }
     const manifest = await capture()

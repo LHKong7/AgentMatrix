@@ -1,4 +1,5 @@
 import { engineContracts, piApis } from '../../../../shared/engines/contracts'
+import { nativeProviderBaseUrl } from '../../../../shared/engines/provider-endpoint'
 import {
   assertEngineConfiguration,
   selectedPiThinking,
@@ -164,7 +165,13 @@ export async function planPi(
   }
   const models = {
     providers: {
-      [providerId]: { api, baseUrl: connection.baseUrl, apiKey, headers, models: [nativeModel] },
+      [providerId]: {
+        api,
+        baseUrl: nativeProviderBaseUrl(connection.protocol, connection.baseUrl, 'pi'),
+        apiKey,
+        headers,
+        models: [nativeModel],
+      },
     },
   }
   const settings = {
@@ -238,6 +245,11 @@ export async function planPi(
       JSON.stringify(
         {
           providerId,
+          ...(connection.protocol === 'anthropic-messages'
+            ? {
+                nativeBaseUrl: nativeProviderBaseUrl(connection.protocol, connection.baseUrl, 'pi'),
+              }
+            : {}),
           api,
           modelId: model.modelId,
           thinking,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { importedProviderBaseUrl } from '../../shared/engines/provider-endpoint'
 import { credentialInputSchema } from '../../shared/credentials'
 import { openCodeProviders } from '../../shared/engines/contracts'
 import {
@@ -195,11 +196,18 @@ export function planOpenCodeImport(
           ([, npm]) => npm === native.npm,
         )?.[0] as ModelConnection['protocol']) ?? null
       const connectionId = id()
+      let baseUrl = endpoint(options.baseURL, `${path}/options/baseURL`)
+      try {
+        baseUrl = importedProviderBaseUrl(protocol, baseUrl, 'opencode')
+      } catch {
+        baseUrl = ''
+        diagnostic(`${path}/options/baseURL`, 'invalid-value')
+      }
       const connection: ModelConnection = {
         id: connectionId,
         name: label(text(native.name, 4000) ?? nativeId),
         protocol,
-        baseUrl: endpoint(options.baseURL, `${path}/options/baseURL`),
+        baseUrl,
         auth: { kind: 'unconfigured' },
         ...headerReferences(
           options.headers,

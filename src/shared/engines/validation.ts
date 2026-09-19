@@ -2,6 +2,7 @@ import { appError } from '../errors'
 import type { ConfigurationField } from './configuration-report'
 import type { ResolvedAgentConfiguration } from './resolution'
 import { engineContracts, isSupportedEngine, piApis, type SupportedEngine } from './contracts'
+import { nativeProviderBaseUrl } from './provider-endpoint'
 
 export type EngineIssueCode =
   | 'unsupported-engine'
@@ -14,6 +15,7 @@ export type EngineIssueCode =
   | 'plugins-pure-mode'
   | 'pi-plugin-policy'
   | 'protocol'
+  | 'endpoint'
   | 'authentication'
   | 'secret-reference'
   | 'sampling'
@@ -137,6 +139,13 @@ export function engineConfigurationIssues(
   if (kind === 'pi' && agent.execution.approval === 'ask')
     add('universal-approval', 'execution', 'execution.universal-approval')
   const protocol = connection.protocol
+  if (protocol === 'anthropic-messages' && connection.baseUrl) {
+    try {
+      nativeProviderBaseUrl(protocol, connection.baseUrl, kind)
+    } catch {
+      add('endpoint', 'connection', 'connection.endpoint')
+    }
+  }
   const nativeDsh = kind === 'deepseek-harness' && protocol === 'deepseek-official'
   if (
     !protocol ||

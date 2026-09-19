@@ -232,6 +232,9 @@ export function ResourceEditor({
                   placeholder="https://api.example.com/v1"
                   onChange={(baseUrl) => setDraft({ ...draft, baseUrl })}
                 />
+                {draft.protocol === 'anthropic-messages' && (
+                  <p className="hint">{t('config.anthropicEndpoint')}</p>
+                )}
                 <SelectField
                   label={t('config.auth')}
                   value={draft.auth.kind}

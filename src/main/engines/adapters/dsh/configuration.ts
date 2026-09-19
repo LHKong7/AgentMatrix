@@ -4,6 +4,7 @@ import { planDshSkillObservation } from './skills'
 import { planDshMcpObservation } from './mcp'
 import { assertEngineConfiguration } from '../../../../shared/engines/validation'
 import { createHash } from 'node:crypto'
+import { nativeProviderBaseUrl } from '../../../../shared/engines/provider-endpoint'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseDocument } from 'yaml'
@@ -154,7 +155,7 @@ export async function planDsh(
   set('agent-default-model', { config: { provider, model: model.modelId } })
   const providerConfig = {
     apiKeyEnv: key,
-    baseURL: connection.baseUrl,
+    baseURL: nativeProviderBaseUrl(connection.protocol, connection.baseUrl, 'deepseek-harness'),
     models: [{ id: model.modelId }],
     retryPolicy: { mode: 'normal', maxRetries: 0 },
   }

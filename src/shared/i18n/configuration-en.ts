@@ -1,4 +1,6 @@
 export const configurationEn = {
+  'config.anthropicEndpoint':
+    'Anthropic: use the provider root or /v1 API base, including any proxy path prefix. The three engines use the same /v1/messages request target.',
   'config.itemEngine': 'Engine',
   'config.itemConnection': 'Connection',
   'config.itemModel': 'Model',

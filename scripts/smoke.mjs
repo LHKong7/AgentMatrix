@@ -341,6 +341,23 @@ try {
   })
   await page.reload()
   await addResource('Connections', 'Smoke Connection', async (dialog) => {
+    await dialog.getByLabel('API protocol', { exact: true }).selectOption('anthropic-messages')
+    await dialog
+      .getByLabel('API Base URL', { exact: true })
+      .fill('https://gateway.example/proxy/v1')
+    for (const locale of ['en', 'zh-CN']) {
+      await language(locale)
+      await dialog
+        .getByText(
+          locale === 'en' ? /^Anthropic: use the provider root/ : /^Anthropic：填写服务根地址/,
+        )
+        .waitFor()
+      if (process.env.AGENT_MATRIX_PROVIDER_SCREENSHOT)
+        await page.screenshot({
+          path: `${process.env.AGENT_MATRIX_PROVIDER_SCREENSHOT}.${locale}.png`,
+        })
+    }
+    await language('en')
     await dialog.getByLabel('API protocol', { exact: true }).selectOption('openai-chat-completions')
     await dialog.getByLabel('API Base URL', { exact: true }).fill('http://localhost:12345/v1')
     await dialog.getByLabel('Authentication', { exact: true }).selectOption('bearer')

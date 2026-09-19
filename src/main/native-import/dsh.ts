@@ -1,6 +1,7 @@
 import { credentialInputSchema } from '../../shared/credentials'
 import { appError } from '../../shared/errors'
 import { piApis } from '../../shared/engines/contracts'
+import { importedProviderBaseUrl } from '../../shared/engines/provider-endpoint'
 import {
   agentProfileSchema,
   environmentName,
@@ -168,7 +169,7 @@ export function planDshImport(
           url.hash
         )
           throw new Error()
-        baseUrl = raw!
+        baseUrl = importedProviderBaseUrl(protocol, raw!, 'deepseek-harness')
       } catch {
         diagnostic(
           origin(endpoint),

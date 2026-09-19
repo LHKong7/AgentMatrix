@@ -18,13 +18,15 @@ The source record is **partial**. It is not a complete transitive dependency loc
 
 ## Model connections
 
-| Shared protocol         | DSH component / route                                       | Authentication             | Evidence                                                         |
-| ----------------------- | ----------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------- |
-| OpenAI Chat Completions | `dsh-llm-pi-ai`, private `agentmatrix-<connectionId>` route | Bearer reference           | Actual local provider, header, tool, and MCP calls               |
-| OpenAI Responses        | `dsh-llm-pi-ai`, `openai-responses` API                     | Bearer reference           | Mapping tests only                                               |
-| Anthropic Messages      | `dsh-llm-pi-ai`, `anthropic-messages` API                   | `x-api-key` reference      | Mapping tests only                                               |
-| Gemini                  | `dsh-llm-pi-ai`, `google-generative-ai` API                 | `x-goog-api-key` reference | Mapping tests only                                               |
-| DeepSeek native         | `dsh-llm-deepseek`, `deepseek-official` route               | Bearer reference           | Actual local Chat Completions calls from this installed artifact |
+| Shared protocol         | DSH component / route                                       | Authentication             | Evidence                                                           |
+| ----------------------- | ----------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------ |
+| OpenAI Chat Completions | `dsh-llm-pi-ai`, private `agentmatrix-<connectionId>` route | Bearer reference           | Actual local provider, header, tool, and MCP calls                 |
+| OpenAI Responses        | `dsh-llm-pi-ai`, `openai-responses` API                     | Bearer reference           | Mapping tests only                                                 |
+| Anthropic Messages      | `dsh-llm-pi-ai`, `anthropic-messages` API                   | `x-api-key` reference      | Actual local Messages, header, tool, cancellation and resume calls |
+| Gemini                  | `dsh-llm-pi-ai`, `google-generative-ai` API                 | `x-goog-api-key` reference | Mapping tests only                                                 |
+| DeepSeek native         | `dsh-llm-deepseek`, `deepseek-official` route               | Bearer reference           | Actual local Chat Completions calls from this installed artifact   |
+
+The separate [Anthropic Messages fixture](anthropic-provider-acceptance.md) verifies the shared root-or-`/v1` endpoint convention and this installed Pi-AI route. Existing captures retain their original native endpoint mappings.
 
 Only the selected provider component is enabled. A supplied endpoint and model ID are required. Native DeepSeek stays distinct from the generic gateway route; the protocol observations from the [lifecycle probe](dsh-acp.md) still apply. Native DeepSeek permits `off`, `low`, `high`, and `max` reasoning settings in the mapping; provider-call evidence currently covers `off` only. Generic gateway reasoning beyond `off` and sampling settings are rejected because this adapter has no verified mapping for them.
 

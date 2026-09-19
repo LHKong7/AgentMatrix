@@ -140,6 +140,8 @@ V4 and V5 are small executable probes, not full adapters. B7 requires their evid
 
 A probe task produces a recorded result, including failures or unavailable routes. That evidence can inform shared schemas without blocking unrelated engines. It does not satisfy runtime acceptance: each engine's delivery gate still requires passing checks for its required features and at least one actual custom endpoint/key route.
 
+**V2 / X2 progress:** The [Anthropic Messages fixture](anthropic-provider-acceptance.md) now verifies all three installed engines with root and versioned endpoints, selected authentication/headers, Prompt application, native tools, cancellation, restoration and failed requests. Shared endpoint normalization fixes a reproduced SDK suffix mismatch; imports preserve native request meaning and old captures retain their semantics. This expands local protocol coverage. Acceptance against the intended external endpoint/model/key remains pending and no delivery gate is promoted.
+
 ## 5. Phase A: shared configuration and session contracts
 
 | ID  | Work item                                                             | Priority | Depends on         | Deliverable and acceptance                                                                                                                                                                                                                                                                                                                                                                           |

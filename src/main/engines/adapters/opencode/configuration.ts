@@ -1,6 +1,7 @@
 import { engineContracts, openCodeProviders } from '../../../../shared/engines/contracts'
 import { assertEngineConfiguration } from '../../../../shared/engines/validation'
 import { createHash } from 'node:crypto'
+import { nativeProviderBaseUrl } from '../../../../shared/engines/provider-endpoint'
 import { isAbsolute, join } from 'node:path'
 import { parseDocument } from 'yaml'
 import { z } from 'zod'
@@ -260,7 +261,11 @@ export async function planOpenCode(
       [providerId]: {
         name: connection.name,
         npm,
-        options: { baseURL: connection.baseUrl, apiKey, headers: providerHeaders },
+        options: {
+          baseURL: nativeProviderBaseUrl(connection.protocol, connection.baseUrl, 'opencode'),
+          apiKey,
+          headers: providerHeaders,
+        },
         models: {
           selected: {
             id: model.modelId,

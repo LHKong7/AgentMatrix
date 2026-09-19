@@ -1,6 +1,7 @@
 import { credentialInputSchema } from '../../shared/credentials'
 import { appError } from '../../shared/errors'
 import { piApis } from '../../shared/engines/contracts'
+import { importedProviderBaseUrl } from '../../shared/engines/provider-endpoint'
 import type {
   ImportCollection,
   NativeImportRecord,
@@ -153,7 +154,7 @@ export function planPiImport(
           url.hash
         )
           throw new Error()
-        baseUrl = endpoint
+        baseUrl = importedProviderBaseUrl(protocol, endpoint, 'pi')
       } catch {
         diagnostic(endpointPath, 'invalid-value')
       }

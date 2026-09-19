@@ -89,7 +89,7 @@ describe('Pi import mapping and precedence', () => {
     })
     expect(result.additions.connections[1]).toMatchObject({
       protocol: 'anthropic-messages',
-      baseUrl: 'https://second.example.test',
+      baseUrl: 'https://second.example.test/v1',
       auth: { kind: 'api-key', header: 'x-api-key' },
     })
     expect(result.additions.models[0]).toMatchObject({

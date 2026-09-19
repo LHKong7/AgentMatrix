@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { RunInputManifest, RunPaths } from '../../../../shared/engines/run-inputs'
 import type { PiClient } from '../../pi/client'
 import { RuntimeFailure } from '../../runtime'
@@ -34,11 +36,19 @@ export async function verifyPiReadback(
   try {
     const state = piStateSchema.parse(await client.request({ type: 'get_state' }))
     const api = piApis[manifest.connection.protocol as keyof typeof piApis]
+    // New captures record the SDK base; earlier captures keep their original literal mapping.
+    const nativeBaseUrl =
+      manifest.connection.protocol === 'anthropic-messages'
+        ? (z
+            .object({ nativeBaseUrl: z.string().optional() })
+            .parse(JSON.parse(await readFile(join(paths.inputs, 'pi-mappings.json'), 'utf8')))
+            .nativeBaseUrl ?? manifest.connection.baseUrl)
+        : manifest.connection.baseUrl
     const fields: ConfigurationField[] = []
     if (
       state.model.provider !== `agentmatrix-${manifest.connection.id}` ||
       state.model.api !== api ||
-      state.model.baseUrl !== manifest.connection.baseUrl
+      state.model.baseUrl !== nativeBaseUrl
     )
       fields.push('connection')
     if (state.model.id !== manifest.model.modelId) fields.push('model')

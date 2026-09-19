@@ -2,6 +2,8 @@
 
 Updated: **2026-09-19**. This document describes the selected **OpenCode JSON/JSONC file and explicitly selected Prompt files** importer, interpreted against the **1.18.16** configuration contract, and the shared persistence boundaries. The [Pi 0.85.1 importer](pi-native-configuration-import.md) supports selected model, auth, settings, and Prompt files; the [DSH importer](dsh-native-configuration-import.md) supports selected YAML sources. Importing does not probe an installation or verify a delivery gate.
 
+Anthropic endpoint import accounts for each engine's native SDK suffix. Pi/DSH bases are translated to the shared API-base convention; representable OpenCode bases retain their request target. Unrepresentable OpenCode paths remain unresolved with a diagnostic instead of being redirected silently. See [endpoint semantics, examples and compatibility](anthropic-provider-acceptance.md#native-import-preserves-request-meaning).
+
 ## Desktop workflow
 
 1. Save an OpenCode installation in **Engines**. Its executable does not need to be runnable for import.

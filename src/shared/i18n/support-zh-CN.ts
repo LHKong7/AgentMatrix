@@ -1,6 +1,8 @@
 import type { supportEn } from './support-en'
 
 export const supportZhCN: Record<keyof typeof supportEn, string> = {
+  'support.issue.endpoint':
+    'Anthropic 请填写服务根地址或 /v1 基地址，不含登录信息、查询参数、片段或 /messages 后缀。',
   'support.issue.native-plugin-options': '这些插件选项属于其他引擎，请清除或修改后再启动。',
   'support.issue.pi-plugin-policy':
     '已选 Pi 扩展可以注册或启用工具，此适配器要求这些绑定使用不受限执行策略。',
