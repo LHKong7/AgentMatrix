@@ -12,6 +12,7 @@ export const configurationCheckSchema = z.enum([
   'cli.version',
   'opencode.config',
   'opencode.skill-sources',
+  'opencode.instance-skills',
   'opencode.session-model',
   'opencode.session-agent',
   'opencode.plugins',
@@ -66,6 +67,7 @@ export const configurationDiagnosticSchema = z
       'installation',
       'opencode-config',
       'opencode-skills',
+      'opencode-instance-skills',
       'opencode-session',
       'pi-state',
       'pi-skills',
@@ -120,7 +122,8 @@ export interface ConfigurationReport {
     digest: string | null
     libraryVersion: number | null
     nextVersion: number | null
-    nativeSourceVerification: 'pi-rpc' | 'opencode-probe' | 'dsh-registry' | 'unknown' | null
+    nativeSourceVerification:
+      'pi-rpc' | 'opencode-probe' | 'opencode-acp' | 'dsh-registry' | 'unknown' | null
     nativeEntry: string | null
   }[]
   sources: { path: string; exists: boolean; digest: string | null }[]

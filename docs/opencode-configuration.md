@@ -1,6 +1,6 @@
 # OpenCode configuration adapter
 
-Selected Skills now have a [native source preflight](skill-source-verification.md): `debug skill` must select the captured entry for each bound name. This runs in a separate process from ACP and is labeled accordingly. It does not prove the ACP instance's resource-cache contents or resolve every native collision.
+Selected Skills in new captures have [ACP-server source verification](opencode-skill-sources.md): the actual owned native server must select each captured entry at startup/resume and turn boundaries. Legacy captures retain their separate `debug skill` preflight and its narrower evidence. Neither check proves invocation or complete collision precedence.
 
 The current adapter targets **OpenCode 1.18.16**, with adapter contract `opencode-acp` version `1`. It generates run inputs, verifies native configuration readback, and connects new or restored ACP sessions in the main process. It is exercised against the installed CLI. The durable session coordinator is exercised with this adapter. The desktop factory, Electron IPC, installation version check, and bilingual session controls are connected. Automatic discovery of installed CLIs remains unimplemented.
 

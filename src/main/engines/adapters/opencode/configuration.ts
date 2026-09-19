@@ -6,6 +6,7 @@ import { parseDocument } from 'yaml'
 import { z } from 'zod'
 import { appError } from '../../../../shared/errors'
 import { planOpenCodePlugins } from './plugins'
+import { planOpenCodeSkillObservation } from './skills'
 import type { SecretReference } from '../../../../shared/engines/schema'
 import type {
   ResolvedAgentConfiguration,
@@ -240,6 +241,11 @@ export async function planOpenCode(
       }
     }
   }
+  planOpenCodeSkillObservation(
+    skillMappings.map((skill) => skill.name),
+    agentName,
+    generated,
+  )
   const plugins = await planOpenCodePlugins(configuration, paths, generated, agentName)
   const native = {
     $schema: 'https://opencode.ai/config.json',

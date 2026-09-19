@@ -415,6 +415,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
         signal: controller.signal,
       }
       runtime = await connectOpenCode(connectOptions)
+      expect(runtime.configurationChecks).toContain('opencode.instance-skills')
       const handlers: RuntimeTurnHandlers = {
         output: async (event) => {
           updates.push(event)

@@ -527,7 +527,7 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
   }
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
   assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
-  const skillSource = isPi ? 'pi-rpc' : isDsh ? 'dsh-registry' : 'opencode-probe'
+  const skillSource = isPi ? 'pi-rpc' : isDsh ? 'dsh-registry' : 'opencode-acp'
   const skills = value.assets.filter((asset) => asset.kind === 'skill')
   assert.ok(skills.length > 0)
   assert.ok(skills.every((asset) => asset.nativeSourceVerification === skillSource))
@@ -535,7 +535,7 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
   await dialog.locator(`[data-skill-source="${skillSource}"]`).first().waitFor()
   assert.ok(
     value.observation.checks.includes(
-      isPi ? 'pi.skill-sources' : isDsh ? 'dsh.skill-sources' : 'opencode.skill-sources',
+      isPi ? 'pi.skill-sources' : isDsh ? 'dsh.skill-sources' : 'opencode.instance-skills',
     ),
   )
   if (process.env.AGENT_MATRIX_SKILL_SOURCE_SCREENSHOT) {
@@ -1402,7 +1402,7 @@ try {
         ? 'Native RPC Skill sources'
         : isDsh
           ? 'Native session-scoped Skill registry'
-          : 'Separate native-process preflight only',
+          : 'Owned ACP server and captured-directory Skill service',
       englishAndChinese: true,
       historicalReceiptAfterRestart: true,
       freshReceiptAfterResume: true,

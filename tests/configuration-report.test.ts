@@ -103,12 +103,39 @@ describe('configuration report evidence and updates', () => {
         .filter((asset) => asset.kind === 'skill')
         .every((asset) => asset.nativeSourceVerification === 'opencode-probe'),
     ).toBe(true)
+    expect(historical.fields.find((field) => field.id === 'skills')?.checks).not.toContain(
+      'opencode.instance-skills',
+    )
+    const current = sources(['opencode.config', 'opencode.instance-skills'])
+    expect(current.observationIsCurrent).toBe(true)
+    expect(
+      current.assets
+        .filter((asset) => asset.kind === 'skill')
+        .map((asset) => asset.nativeSourceVerification),
+    ).toEqual(f.manifest.skills.map(() => 'opencode-acp'))
+    expect(current.fields.find((field) => field.id === 'skills')?.checks).toContain(
+      'opencode.instance-skills',
+    )
+    const interrupted = f.ready(['opencode.instance-skills'])
+    interrupted.status = 'interrupted'
+    const recorded = buildConfigurationReport(f.manifest, interrupted, f.workspace)
+    expect(recorded.observationIsCurrent).toBe(false)
+    expect(
+      recorded.assets
+        .filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'opencode-acp'),
+    ).toBe(true)
     expect(
       historical.assets
         .filter((asset) => asset.kind === 'prompt')
         .every((asset) => asset.nativeSourceVerification === null),
     ).toBe(true)
     f.manifest.installation.kind = 'pi'
+    expect(
+      sources(['opencode.instance-skills'])
+        .assets.filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'unknown'),
+    ).toBe(true)
     expect(
       sources(['pi.skills', 'pi.skill-sources'])
         .assets.filter((asset) => asset.kind === 'skill')
@@ -128,7 +155,7 @@ describe('configuration report evidence and updates', () => {
     ).toBe(true)
     expect(dsh.fields.find((field) => field.id === 'skills')?.checks).toContain('dsh.skill-sources')
     expect(
-      sources(['pi.skill-sources', 'opencode.skill-sources'])
+      sources(['pi.skill-sources', 'opencode.skill-sources', 'opencode.instance-skills'])
         .assets.filter((asset) => asset.kind === 'skill')
         .every((asset) => asset.nativeSourceVerification === 'unknown'),
     ).toBe(true)

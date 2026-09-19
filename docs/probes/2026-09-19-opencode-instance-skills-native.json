@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-09-19T09:46:12.483Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engineVersion": "1.18.16",
+  "externalProviderCalls": false,
+  "ownedAuthenticatedAcpServer": true,
+  "unauthenticatedNativeReadRejected": true,
+  "authorizedNativePathsMatched": true,
+  "internalAuthenticationAbsentFromCapturedFiles": true,
+  "listenerClosedWithAcpProcess": true,
+  "boundedNativeSkillEndpoint": true,
+  "nativeSessionAndDirectoryCheckedBeforeAndAfterReadback": true,
+  "nativeResume": true,
+  "acpOnlySourceOverrideRejectedOnNewAndResumedSessions": true,
+  "rejectionMakesNoProviderCall": true,
+  "capturedInputsPreserved": true,
+  "restoredSourceAllowsNativeResume": true,
+  "providerCalls": 2
+}

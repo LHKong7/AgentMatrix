@@ -70,6 +70,9 @@ export function buildConfigurationReport(
           prompts: ['opencode.config'],
           skills: [
             'opencode.config',
+            ...(observation?.checks.includes('opencode.instance-skills')
+              ? ['opencode.instance-skills' as const]
+              : []),
             ...(observation?.checks.includes('opencode.skill-sources')
               ? ['opencode.skill-sources' as const]
               : []),
@@ -224,11 +227,13 @@ export function buildConfigurationReport(
         nativeSourceVerification:
           kind === 'pi' && observation?.checks.includes('pi.skill-sources')
             ? ('pi-rpc' as const)
-            : kind === 'opencode' && observation?.checks.includes('opencode.skill-sources')
-              ? ('opencode-probe' as const)
-              : kind === 'deepseek-harness' && observation?.checks.includes('dsh.skill-sources')
-                ? ('dsh-registry' as const)
-                : ('unknown' as const),
+            : kind === 'opencode' && observation?.checks.includes('opencode.instance-skills')
+              ? ('opencode-acp' as const)
+              : kind === 'opencode' && observation?.checks.includes('opencode.skill-sources')
+                ? ('opencode-probe' as const)
+                : kind === 'deepseek-harness' && observation?.checks.includes('dsh.skill-sources')
+                  ? ('dsh-registry' as const)
+                  : ('unknown' as const),
         nativeEntry: manifest.files.some((file) => file.path === skillEntries[skill.assetId])
           ? skillEntries[skill.assetId]!
           : null,

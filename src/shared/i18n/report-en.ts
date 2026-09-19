@@ -82,6 +82,11 @@ export const reportEn = {
   'report.diagnosticCheck.dsh-skills': 'DSH session Skill sources',
   'report.check.dsh.skill-sources':
     'DSH session-scoped registry Skill sources matched the captured entries',
+  'report.skillSource.opencode-acp':
+    'Recorded OpenCode ACP instance selected the captured Skill entry; invocation not verified.',
+  'report.diagnosticCheck.opencode-instance-skills': 'OpenCode ACP instance Skill sources',
+  'report.check.opencode.instance-skills':
+    'Skill sources matched in the native instance acknowledged by ACP',
   'report.skillSource.unknown': 'No recorded native source check for this captured Skill.',
   'report.nativeSkillEntry': 'Mapped native entry',
   'report.diagnosticCheck.pi-controls': 'Pi managed native controls',

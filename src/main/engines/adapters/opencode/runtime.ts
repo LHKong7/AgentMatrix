@@ -15,6 +15,7 @@ import { openCodeContract } from './configuration'
 import { verifyOpenCodeReadback, verifyOpenCodeSkillReadback } from './readback'
 import { redactText } from '../../process/redacted-tail'
 import { prepareOpenCodePluginAttachment } from './plugins'
+import { openCodeSkillPlanPath, prepareOpenCodeSkillAttachment } from './skills'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -44,13 +45,17 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   )
     throw new RuntimeFailure('unsupported')
   await verifyOpenCodeReadback(manifest, store.paths(snapshotId), launch, signal)
-  await verifyOpenCodeSkillReadback(manifest, store.paths(snapshotId), launch, signal)
+  const hasSkillObserver = manifest.files.some((file) => file.path === openCodeSkillPlanPath)
+  if (!hasSkillObserver)
+    await verifyOpenCodeSkillReadback(manifest, store.paths(snapshotId), launch, signal)
   // Native config loading can itself migrate files. Such changes invalidate this captured plan.
   await store.verifyForReuse(snapshotId)
   if (signal.aborted) throw new RuntimeFailure('process-exit')
-  const plugins = await prepareOpenCodePluginAttachment(manifest, store.paths(snapshotId))
-  if (plugins) Object.assign(launch.environment, plugins.environment)
+  let plugins: Awaited<ReturnType<typeof prepareOpenCodePluginAttachment>> = null
+  let skillSources: Awaited<ReturnType<typeof prepareOpenCodeSkillAttachment>> | null = null
   let active: AcpTurn | null = null
+  let submitted = false,
+    cancelled = false
   let handlerFailure: RuntimeFailure | null = null
   let attachment: AcpAttachment | undefined
   const abort = () => {
@@ -80,6 +85,20 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       })
   }
   try {
+    plugins = await prepareOpenCodePluginAttachment(manifest, store.paths(snapshotId))
+    if (plugins) Object.assign(launch.environment, plugins.environment)
+    if (hasSkillObserver) {
+      skillSources = await prepareOpenCodeSkillAttachment(manifest, store.paths(snapshotId))
+      Object.assign(launch.environment, skillSources.environment)
+      launch.args.push(...skillSources.args)
+      launch.secrets = [...(launch.secrets ?? []), ...skillSources.secrets]
+      // Internal HTTP credentials must fit the same redaction bounds before any child starts.
+      try {
+        redactText('', launch.secrets)
+      } catch {
+        throw new RuntimeFailure('configuration', 'credentials.redaction-limit')
+      }
+    }
     attachment = await attachAcpProcess(launch, {
       update: async (notification) => {
         try {
@@ -111,7 +130,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     const owned = attachment
     const closed = owned.closed.finally(async () => {
       signal.removeEventListener('abort', abort)
-      await plugins?.cleanup()
+      await Promise.all([plugins?.cleanup(), skillSources?.cleanup()])
     })
     void closed.catch(() => {})
     const initialization = await owned.client.initialize('0.1.0')
@@ -121,6 +140,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         reason: 'mismatch',
         fields: ['installation'],
       })
+    const lifetime = AbortSignal.any([signal, owned.client.signal])
     let nativeSessionId = options.previousNativeSessionId
     if (nativeSessionId) {
       if (launch.secrets?.some((secret) => nativeSessionId!.includes(secret)))
@@ -148,6 +168,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       throw new RuntimeFailure('protocol')
     if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     const id = nativeSessionId
+    await skillSources?.verify(owned.process.pid, lifetime, id)
     return {
       nativeRuntime: {
         protocol: 'acp',
@@ -164,7 +185,11 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         'sources.unchanged',
         'cli.version',
         'opencode.config',
-        ...(manifest.skills.length ? ['opencode.skill-sources' as const] : []),
+        ...(skillSources
+          ? ['opencode.instance-skills' as const]
+          : manifest.skills.length
+            ? ['opencode.skill-sources' as const]
+            : []),
         'opencode.session-model',
         'opencode.session-agent',
         ...(plugins ? ['opencode.plugins' as const] : []),
@@ -179,13 +204,19 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
           throw new RuntimeFailure('configuration', 'turn.text')
         const turn = new AcpTurn(id, launch.secrets ?? [], handlers)
         active = turn
+        submitted = false
+        cancelled = false
         try {
           await plugins?.verify(owned.process.pid)
+          await skillSources?.verify(owned.process.pid, lifetime, id)
+          if (cancelled) return { outcome: 'cancelled', nativeStopReason: null, usage: null }
+          submitted = true
           const result = await owned.client.prompt(
             { sessionId: id, prompt: [{ type: 'text', text }] },
             manifest.agent.execution.timeoutMs ?? 600_000,
           )
           await turn.finish()
+          await skillSources?.verify(owned.process.pid, lifetime, id)
           return turn.result(result)
         } catch (error) {
           await turn.finish()
@@ -196,15 +227,20 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
           )
         } finally {
           active = null
+          submitted = false
         }
       },
-      cancel: () => owned.client.cancel(id),
+      async cancel() {
+        if (!active) return
+        cancelled = true
+        if (submitted) await owned.client.cancel(id)
+      },
       dispose: () => owned.close(),
     }
   } catch (error) {
     signal.removeEventListener('abort', abort)
     await attachment?.close()
-    await plugins?.cleanup()
+    await Promise.all([plugins?.cleanup(), skillSources?.cleanup()])
     if (error instanceof RuntimeFailure) throw error
     throw new RuntimeFailure(
       error instanceof AcpFailure && error.code === 'timeout' ? 'timeout' : 'protocol',

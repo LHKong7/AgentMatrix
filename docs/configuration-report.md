@@ -2,7 +2,7 @@
 
 Each desktop conversation now has a **Configuration report** in English and Chinese. It separates immutable captured inputs, recorded native checks, and the current saved profile. Viewing it does not start a CLI, resolve credentials, apply edits, or change the original snapshot.
 
-Each captured Skill also shows its [native source verification](skill-source-verification.md): Pi RPC source matching, OpenCode matching in a separate preflight process, DSH matching in the actual session registry, or no recorded source check. These states preserve the observation's historical/current ownership and never promote legacy name-only checks or DSH composition checks into source evidence.
+Each captured Skill also shows its [native source verification](skill-source-verification.md): Pi RPC source matching, OpenCode matching on the owned ACP server (or a separately labeled legacy preflight process), DSH matching in the actual session registry, or no recorded source check. These states preserve the observation's historical/current ownership and never promote legacy name-only checks or DSH composition checks into source evidence.
 
 ## Evidence and persistence
 
