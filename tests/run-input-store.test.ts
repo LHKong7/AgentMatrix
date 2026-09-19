@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { observeExternalFile, RunInputStore } from '../src/main/engines/run-input-store'
 import { observeResourceDirectory } from '../src/main/engines/external-sources'
@@ -10,6 +10,10 @@ import { migrateWorkspaceDocument } from '../src/shared/engines/migration'
 import type { ResolvedAgentConfiguration } from '../src/shared/engines/resolution'
 import type { GeneratedInputs, RunPaths } from '../src/shared/engines/run-inputs'
 import { createWorkspace } from '../src/shared/workspace'
+
+vi.mock('node:fs/promises', async (original) => ({
+  ...(await original<typeof import('node:fs/promises')>()),
+}))
 
 let root: string
 let workspace: ReturnType<typeof migrateWorkspaceDocument>['workspace']
@@ -77,6 +81,7 @@ beforeEach(async () => {
   }
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
   await fs.rm(root, { recursive: true, force: true })
 })
 
@@ -133,6 +138,155 @@ async function generate(
 }
 const create = (id: string, builder = generate) =>
   store.create(id, workspace, workspace.agents[0]!.id, builder)
+
+describe('unreferenced run data recovery', () => {
+  it('lists only verified unused captures and owned staging names, preserving other entries', async () => {
+    await create('retained')
+    await create('orphan')
+    const stage = randomUUID()
+    await fs.mkdir(join(store.root, `.stage-${stage}`))
+    await fs.mkdir(join(store.root, 'unknown'))
+    await fs.mkdir(join(store.root, '.stage-not-owned'))
+    await fs.symlink(join(root, 'project'), join(store.root, 'linked'))
+    const page = await store.unused(new Set(['retained']), {})
+    expect(page.items.map((item) => item.target)).toEqual([
+      { kind: 'capture', id: 'orphan' },
+      { kind: 'stage', id: stage },
+    ])
+    expect(page.skipped).toBe(3)
+    expect(page.next).toBeNull()
+    expect(JSON.stringify(page)).not.toContain(prompt)
+    expect(page.items[0]?.capture).toEqual({
+      agent: workspace.agents[0]!.name,
+      engine: workspace.installations[0]!.name,
+      cwd: await fs.realpath(workspace.agents[0]!.execution.cwd),
+    })
+  })
+  it('removes an unused capture durably and prevents a lost create request from regenerating it', async () => {
+    await create('orphan')
+    const item = (await store.unused(new Set(), {})).items[0]!
+    const request = { target: item.target, token: item.token }
+    await store.removeUnused(request, new Set())
+    const restarted = new RunInputStore(store.root, skills)
+    await restarted.removeUnused(request, new Set())
+    await expect(restarted.read('orphan')).rejects.toThrow('runDeleted')
+    const generator = vi.fn(generate)
+    await expect(
+      restarted.create('orphan', workspace, workspace.agents[0]!.id, generator),
+    ).rejects.toThrow('runDeleted')
+    expect(generator).not.toHaveBeenCalled()
+    expect((await restarted.unused(new Set(), {})).items).toEqual([])
+    expect(await fs.readdir(store.root)).toEqual(['.unused-deleted-capture-orphan.json'])
+    const receipt = await fs.readFile(
+      join(store.root, '.unused-deleted-capture-orphan.json'),
+      'utf8',
+    )
+    expect(receipt).not.toContain(prompt)
+    expect(receipt).not.toContain(root)
+    await create('distinct-new-request')
+  })
+  it.each(['reference', 'directory', 'contents'] as const)(
+    'rejects stale cleanup after a %s change',
+    async (change) => {
+      await create('orphan')
+      const { target, token } = (await store.unused(new Set(), {})).items[0]!
+      if (change === 'directory')
+        await fs.writeFile(join(store.paths('orphan').root, 'new'), 'changed')
+      if (change === 'contents')
+        await fs.writeFile(join(store.paths('orphan').inputs, 'config.json'), 'changed')
+      await expect(
+        store.removeUnused({ target, token }, new Set(change === 'reference' ? ['orphan'] : [])),
+      ).rejects.toThrow(change === 'reference' ? 'runReferenced' : 'runCleanupStale')
+      expect((await fs.stat(store.paths('orphan').root)).isDirectory()).toBe(true)
+      expect((await fs.readdir(store.root)).some((name) => name.startsWith('.unused-'))).toBe(false)
+    },
+  )
+  it('unlinks a staging symlink without visiting the project and rejects a replaced root', async () => {
+    await create('retained')
+    const id = randomUUID(),
+      path = join(store.root, `.stage-${id}`)
+    await fs.mkdir(path)
+    await fs.writeFile(join(root, 'project', 'keep'), 'untouched')
+    await fs.symlink(join(root, 'project'), join(path, 'project'))
+    const { target, token } = (await store.unused(new Set(['retained']), {})).items[0]!
+    await store.removeUnused({ target, token }, new Set(['retained']))
+    expect(await fs.readFile(join(root, 'project', 'keep'), 'utf8')).toBe('untouched')
+    await fs.symlink(join(root, 'project'), path)
+    const page = await store.unused(new Set(['retained']), {})
+    expect(page.items).toEqual([])
+    await store.removeUnused({ target, token }, new Set(['retained']))
+    expect((await fs.lstat(path)).isSymbolicLink()).toBe(true)
+  })
+  it.each(['partial', 'missing', 'replacement'] as const)(
+    'recovers an explicitly confirmed %s cleanup across restart',
+    async (mode) => {
+      await create('orphan')
+      const { target, token } = (await store.unused(new Set(), {})).items[0]!
+      const actual = fs.rm
+      const failure = vi.spyOn(fs, 'rm').mockImplementation(async (path, options) => {
+        if (path === store.paths('orphan').root) throw new Error('synthetic removal failure')
+        return actual(path, options)
+      })
+      await expect(store.removeUnused({ target, token }, new Set())).rejects.toThrow(
+        'runCleanupPending',
+      )
+      failure.mockRestore()
+      const restarted = new RunInputStore(store.root, skills)
+      expect((await restarted.unused(new Set(), {})).items).toEqual([
+        { target, token, pending: true, modifiedAt: null },
+      ])
+      await expect(restarted.removeUnused({ target, token }, new Set(['orphan']))).rejects.toThrow(
+        'runReferenced',
+      )
+      if (mode === 'missing') await fs.rm(store.paths('orphan').root, { recursive: true })
+      if (mode === 'partial') await fs.rm(store.paths('orphan').inputs, { recursive: true })
+      if (mode === 'replacement') {
+        await fs.rename(store.paths('orphan').root, join(root, 'original'))
+        await fs.mkdir(store.paths('orphan').root)
+        await fs.writeFile(join(store.paths('orphan').root, 'keep'), 'replacement')
+        await expect(restarted.removeUnused({ target, token }, new Set())).rejects.toThrow(
+          'runCleanupPending',
+        )
+        expect(await fs.readFile(join(store.paths('orphan').root, 'keep'), 'utf8')).toBe(
+          'replacement',
+        )
+        await fs.rm(store.paths('orphan').root, { recursive: true })
+        await fs.rename(join(root, 'original'), store.paths('orphan').root)
+      }
+      await restarted.removeUnused({ target, token }, new Set())
+      expect((await restarted.unused(new Set(), {})).items).toEqual([])
+    },
+  )
+  it('never removes a linked run-store root or uses malformed cleanup receipts', async () => {
+    await create('orphan')
+    const { target, token } = (await store.unused(new Set(), {})).items[0]!
+    const path = join(store.root, '.unused-deleting-capture-orphan.json')
+    await fs.writeFile(path, '{broken')
+    await expect(store.removeUnused({ target, token }, new Set())).rejects.toThrow('runIntegrity')
+    await expect(store.unused(new Set(), {})).rejects.toThrow('runIntegrity')
+    await fs.rm(path)
+    await fs.rename(store.root, join(root, 'original-runs'))
+    await fs.symlink(join(root, 'original-runs'), store.root)
+    await expect(store.removeUnused({ target, token }, new Set())).rejects.toThrow('runIntegrity')
+    expect((await fs.stat(join(root, 'original-runs', 'orphan'))).isDirectory()).toBe(true)
+  })
+  it('paginates unused entries without returning more than a bounded page', async () => {
+    await fs.mkdir(store.root)
+    const ids = Array.from({ length: 101 }, () => randomUUID()).sort()
+    for (const id of ids) await fs.mkdir(join(store.root, `.stage-${id}`))
+    const first = await store.unused(new Set(), {})
+    expect(first.items).toHaveLength(100)
+    const second = await store.unused(new Set(), { after: first.next! })
+    expect(second.items.map((item) => item.target.id)).toEqual(ids.slice(100))
+    expect(second.next).toBeNull()
+    await expect(
+      store.removeUnused(
+        { target: { kind: 'capture', id: '../project' }, token: 'a'.repeat(64) },
+        new Set(),
+      ),
+    ).rejects.toThrow()
+  })
+})
 
 describe('immutable run inputs', () => {
   it('captures revisions immediately and isolates later runs and mutable native state', async () => {

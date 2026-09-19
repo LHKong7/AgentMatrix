@@ -22,7 +22,7 @@ Before removing content, the journal atomically publishes and flushes `.deleting
 
 A failed cleanup remains pending, including after partial run-directory removal. The desktop exposes **Retry cleanup** for already confirmed deletions and retries them at startup after opening the window. Each attempt rescans retained references; missing owned paths are safe to retry. Failures before the durable receipt preserve the conversation. Corrupt receipts or retained journals produce a storage error instead of guessing which content may be removed. A crash after transcript unlink but before receipt completion is recoverable from the pending receipt alone.
 
-Deletion is filesystem removal, not secure erasure. Backups, exported copies, external engine storage, and operating-system snapshots are unaffected. Automatic recovery of unassociated captures from failed session creation and abandoned staging directories is outside this change; those directories remain retained rather than being guessed safe to remove.
+Deletion is filesystem removal, not secure erasure. Backups, exported copies, external engine storage, and operating-system snapshots are unaffected. A separate [unused-run-data workflow](unused-run-data.md) now reviews unassociated captures and abandoned staging directories. It requires explicit confirmation, fresh reference checks, and valid ownership/integrity evidence. Those entries are retained until selected for cleanup; incomplete confirmed removals can be retried after restart.
 
 ## Verification
 

@@ -32,6 +32,13 @@ import { RuntimeFailure, type RuntimeSession } from '../engines/runtime'
 import { SessionJournal } from './journal'
 import { SessionEventStream } from './event-stream'
 import {
+  runDataQuerySchema,
+  runDataRemovalSchema,
+  type RunDataQuery,
+  type RunDataRemoval,
+  type UnusedRunDataPage,
+} from '../../shared/sessions/run-data'
+import {
   configurationDiagnosticSchema,
   type ConfigurationReport,
 } from '../../shared/engines/configuration-report'
@@ -47,6 +54,8 @@ export interface SessionRuntimeFactory {
   impact?(query: LibraryImpactQuery, snapshots: SessionSnapshot[]): Promise<LibraryImpact>
   configuration?(snapshot: SessionSnapshot): Promise<ConfigurationReport>
   removeSnapshot?(snapshotId: string): Promise<void>
+  unusedRunData?(references: ReadonlySet<string>, query: RunDataQuery): Promise<UnusedRunDataPage>
+  removeUnusedRunData?(query: RunDataRemoval, references: ReadonlySet<string>): Promise<void>
 }
 interface PendingInteraction {
   resolve(answer: InteractionResponse): void
@@ -293,6 +302,33 @@ export class SessionCoordinator {
 
   pendingRemovals() {
     return this.journal.pendingRemovals()
+  }
+
+  unusedRunData(input: unknown): Promise<UnusedRunDataPage> {
+    const query = runDataQuerySchema.parse(input)
+    return this.withRunReferences((references) => {
+      if (!this.factory.unusedRunData) throw appError('error.runtimeUnsupported')
+      return this.factory.unusedRunData(references, query)
+    })
+  }
+  removeUnusedRunData(input: unknown): Promise<void> {
+    const query = runDataRemovalSchema.parse(input)
+    return this.withRunReferences((references) => {
+      if (!this.factory.removeUnusedRunData) throw appError('error.runtimeUnsupported')
+      return this.factory.removeUnusedRunData(query, references)
+    })
+  }
+  private withRunReferences<T>(
+    action: (references: ReadonlySet<string>) => Promise<T>,
+  ): Promise<T> {
+    return this.catalogSerial(async () => {
+      if (this.stopping) throw appError('error.sessionStopping')
+      return this.journal.withSnapshotReferences((references) => {
+        for (const context of this.contexts.values())
+          if (context.attachment) references.add(context.stream.snapshot().snapshotId)
+        return action(references)
+      })
+    })
   }
 
   remove(input: unknown): Promise<void> {

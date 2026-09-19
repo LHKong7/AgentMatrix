@@ -9,6 +9,33 @@ import { reportEn } from './report-en'
 import { nativeImportEn } from './native-import-en'
 
 export const en = {
+  'runData.title': 'Unused run data',
+  'runData.description':
+    'Review captured inputs and temporary files with no retained conversation reference.',
+  'runData.boundary':
+    'Removal deletes the selected inputs and native state. Existing conversations, shared assets, credentials, project files and exports are preserved. Nothing is removed automatically.',
+  'runData.capture': 'Unreferenced run snapshot',
+  'runData.identifier': 'Data identifier',
+  'runData.stage': 'Abandoned temporary files',
+  'runData.modified': 'Directory last modified: {date}',
+  'runData.pending': 'Removal was confirmed but cleanup is unfinished.',
+  'runData.remove': 'Remove data',
+  'runData.retry': 'Retry removal',
+  'runData.confirm':
+    'Permanently remove the inputs and native state for {id}? This cannot be undone. An old creation request cannot recreate a removed snapshot. Start a new conversation if needed.',
+  'runData.refresh': 'Refresh from start',
+  'runData.next': 'Next 100 items',
+  'runData.loading': 'Checking retained conversations and captured files…',
+  'runData.empty': 'No removable unused run data on this page.',
+  'runData.skipped':
+    'Unrecognized, linked or unreadable entries were preserved. They require separate inspection.',
+  'error.runDeleted':
+    'This run snapshot was explicitly removed. Start a new conversation with a new request.',
+  'error.runReferenced': 'A conversation still references this snapshot. Its files were preserved.',
+  'error.runCleanupStale':
+    'The selected data changed or is no longer available. Refresh the list before removing it.',
+  'error.runCleanupPending':
+    'Removal was recorded, but cleanup is unfinished. Refresh the list and retry removal.',
   ...capabilityEn,
   ...nativeImportEn,
   ...pluginEn,

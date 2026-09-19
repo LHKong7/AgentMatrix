@@ -37,6 +37,121 @@ afterEach(async () => {
 })
 
 describe('explicit session retention', () => {
+  it('protects retained and pending-deletion captures during unused-data scans', async () => {
+    const { root, journal } = await fixture()
+    await create(journal)
+    await create(journal, 'other')
+    const request = await close(journal)
+    const release = vi.fn(async () => {
+      throw new Error('unfinished cleanup')
+    })
+    // Another retained session shares the capture; fail after publication by removing no transcript.
+    await journal.append('other', 0, {
+      runId: null,
+      turnId: null,
+      data: { kind: 'session.closing' },
+    })
+    await journal.append('other', 1, {
+      runId: null,
+      turnId: null,
+      data: { kind: 'session.closed' },
+    })
+    await journal.remove({ sessionId: 'other', expectedCursor: 2 }, async () => {})
+    await expect(journal.remove(request, release)).rejects.toThrow('sessionCleanup')
+    await rm(join(root, 's.jsonl'))
+    expect(await journal.withSnapshotReferences(async (ids) => [...ids])).toEqual(['capture'])
+  })
+  it('blocks unused-data cleanup on corrupt retained journals before invoking the factory', async () => {
+    const { root, journal } = await fixture()
+    await create(journal)
+    await writeFile(join(root, 's.jsonl'), 'corrupt')
+    const factory = {
+      create: vi.fn(),
+      connect: vi.fn(),
+      unusedRunData: vi.fn(),
+      removeUnusedRunData: vi.fn(),
+    }
+    const coordinator = new SessionCoordinator(journal, factory)
+    await expect(coordinator.unusedRunData({})).rejects.toThrow('sessionStorage')
+    await expect(
+      coordinator.removeUnusedRunData({
+        target: { kind: 'capture', id: 'capture' },
+        token: 'a'.repeat(64),
+      }),
+    ).rejects.toThrow('sessionStorage')
+    expect(factory.unusedRunData).not.toHaveBeenCalled()
+    expect(factory.removeUnusedRunData).not.toHaveBeenCalled()
+    await coordinator.shutdown()
+  })
+  it('also protects captures held by an attachment when its journal path disappears', async () => {
+    const { root, journal } = await fixture()
+    const factory = {
+      create: vi.fn(async () => identity),
+      connect: vi.fn(
+        async (_snapshot, signal: AbortSignal) =>
+          new Promise<never>((_resolve, reject) => {
+            if (signal.aborted) reject(new Error('aborted'))
+            else
+              signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+          }),
+      ),
+      unusedRunData: vi.fn(async (references: ReadonlySet<string>) => {
+        expect(references.has('capture')).toBe(true)
+        return { items: [], next: null, skipped: 0 }
+      }),
+    } satisfies SessionRuntimeFactory
+    const coordinator = new SessionCoordinator(journal, factory)
+    const session = await coordinator.command({
+      kind: 'create',
+      commandId: 'active-reference',
+      agentId: 'profile',
+    })
+    await coordinator.command({ kind: 'start', commandId: 'start', sessionId: session.id })
+    await vi.waitFor(() => expect(factory.connect).toHaveBeenCalledOnce())
+    const path = join(root, `${session.id}.jsonl`)
+    const bytes = await readFile(path)
+    await rm(path)
+    await coordinator.unusedRunData({})
+    await writeFile(path, bytes)
+    // A changed inode invalidates the cached journal; shutdown still terminates owned work.
+    await coordinator.shutdown().catch(() => {})
+  })
+  it('serializes capture publication with unused-data discovery and repeats the reference scan for deletion', async () => {
+    const { journal } = await fixture()
+    let release = () => {}
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const factory = {
+      create: vi.fn(async () => {
+        await waiting
+        return identity
+      }),
+      connect: vi.fn(),
+      unusedRunData: vi.fn(async (references: ReadonlySet<string>) => {
+        expect(references.has('capture')).toBe(true)
+        return { items: [], next: null, skipped: 0 }
+      }),
+      removeUnusedRunData: vi.fn(async (_query: unknown, references: ReadonlySet<string>) => {
+        expect(references.has('capture')).toBe(true)
+      }),
+    }
+    const coordinator = new SessionCoordinator(journal, factory)
+    const creating = coordinator.command({ kind: 'create', commandId: 'race', agentId: 'profile' })
+    await vi.waitFor(() => expect(factory.create).toHaveBeenCalledOnce())
+    const listing = coordinator.unusedRunData({})
+    const removing = coordinator.removeUnusedRunData({
+      target: { kind: 'capture', id: 'capture' },
+      token: 'a'.repeat(64),
+    })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(factory.unusedRunData).not.toHaveBeenCalled()
+    expect(factory.removeUnusedRunData).not.toHaveBeenCalled()
+    release()
+    await Promise.all([creating, listing, removing])
+    await coordinator.shutdown()
+    await expect(coordinator.unusedRunData({})).rejects.toThrow('sessionStopping')
+  })
   it('requires a closed session and its exact durable cursor before committing deletion', async () => {
     const { root, journal } = await fixture()
     await create(journal)

@@ -1,0 +1,129 @@
+{
+  "checkedAt": "2026-09-19T10:00:35.075Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "dsh",
+  "version": "0.1.5-rc.2",
+  "route": "Local Chat Completions protocol fixture",
+  "externalProviderCalls": false,
+  "desktopVersionProbe": true,
+  "configurationPreflight": {
+    "blockedBeforeCapture": true,
+    "startDisabled": true,
+    "draftStillEditable": true,
+    "capabilityDimensions": true,
+    "englishAndChinese": true
+  },
+  "profileToSession": true,
+  "workingDirectory": {
+    "typedAndNativeChooser": true,
+    "invalidAndMissingPathsRejected": true,
+    "chooserCancellationPreservesSelection": true,
+    "profileSwitchResetsOverride": true,
+    "savedDefaultUnchanged": true,
+    "relativeFileReadInSelectedDirectory": true,
+    "unicodeAndSpaces": true,
+    "capturedDirectoryOnNativeResume": true,
+    "englishAndChinese": true
+  },
+  "permissionReply": true,
+  "toolResult": true,
+  "rendererReloadWithoutResubmit": true,
+  "selectedPluginActivation": {
+    "capturedBinding": true,
+    "nativeHookReachedProvider": true,
+    "newAndResumedInstanceVerified": true,
+    "englishAndChineseReport": true,
+    "extensionCommandsAndInputHandling": "not part of this engine fixture",
+    "nativeOptionsEditor": {
+      "englishAndChinese": true,
+      "persisted": true
+    }
+  },
+  "streamingCancellation": true,
+  "messageDelivery": "Committed semantic messages",
+  "configurationReport": {
+    "nativeEvidence": true,
+    "persistedAfterRestart": true,
+    "pendingAssetVersions": true,
+    "englishAndChinese": true,
+    "sensitiveValuesOmitted": true
+  },
+  "skillSourceReport": {
+    "scope": "Native session-scoped Skill registry",
+    "englishAndChinese": true,
+    "historicalReceiptAfterRestart": true,
+    "freshReceiptAfterResume": true,
+    "noNativeBodiesOrUnmatchedPaths": true,
+    "mappedNativeEntriesVisible": true
+  },
+  "sessionCapabilities": {
+    "dimensions": 18,
+    "capturedIdentityAndNativeChecks": true,
+    "advertisedRestoreIsNotVerifiedUse": true,
+    "freshEvidenceAfterNativeRestore": true,
+    "historicalAvailabilityUnknown": true,
+    "serviceAndEnforcementRemainUnverified": true,
+    "englishAndChinese": true
+  },
+  "nativeResourceInventory": "No directory inventory declared by this adapter",
+  "configurationFailure": {
+    "check": "dsh-controls",
+    "nativePromptMismatchAtStartup": "Not part of this engine fixture",
+    "persistedAfterRestart": true,
+    "englishAndChinese": true,
+    "historicalSuccessPreserved": true,
+    "noNativeValuesOrSecretContent": true,
+    "clearedAfterSuccessfulNativeResume": true
+  },
+  "permissionCancellation": true,
+  "sharedPromptOldAndNewSnapshots": true,
+  "libraryImpact": {
+    "beforeSave": true,
+    "unchangedAfterRevert": true,
+    "retainedAndProposedVersions": true,
+    "alreadyPending": true,
+    "noWorkspaceOrSessionWrites": true,
+    "englishAndChinese": true
+  },
+  "appQuitAndRestart": true,
+  "nativeResume": true,
+  "confirmedClose": true,
+  "retention": {
+    "closedOnly": true,
+    "englishAndChineseConfirmation": true,
+    "confirmationCancellation": true,
+    "sharedCaptureRetained": true,
+    "unreferencedCaptureAndNativeStateRemoved": true,
+    "pendingCleanupVisible": true,
+    "explicitCleanupRetry": true,
+    "restartRecovery": true,
+    "deletedCreateReplayRejected": true,
+    "projectAndSharedLibraryAndExportPreserved": true,
+    "noAdditionalModelCalls": true
+  },
+  "unusedRunData": {
+    "orphanCaptureAndStaging": true,
+    "retainedConversationReferencesExcluded": true,
+    "confirmationCancellationInBothLanguages": true,
+    "pendingReceiptRecoveryAfterRestart": true,
+    "rootAndNestedSymlinkBoundaries": true,
+    "deletedCaptureCreateReplayRejected": true,
+    "unknownEntriesPreserved": true,
+    "sharedWorkspaceAndProjectPreserved": true,
+    "noAdditionalModelCalls": true
+  },
+  "sessionHistory": {
+    "nativeEventsReadOnly": true,
+    "syntheticLongHistoryPagination": true,
+    "completeJsonlExport": true,
+    "selectedBoundary": true,
+    "exportCancellation": true,
+    "existingRedactionPreserved": true,
+    "reloadWithoutExecution": true,
+    "englishAndChinese": true
+  },
+  "englishAndChinese": true,
+  "journalCredentialRedaction": true,
+  "untrustedTextEscaped": true
+}

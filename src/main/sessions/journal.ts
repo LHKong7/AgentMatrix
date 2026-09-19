@@ -137,6 +137,21 @@ export class SessionJournal {
     return this.serial(() => this.listRetained())
   }
 
+  /** Hold reference stability until a catalog operation finishes; unreadable evidence blocks it. */
+  withSnapshotReferences<T>(action: (ids: Set<string>) => Promise<T>): Promise<T> {
+    return this.serial(async () => {
+      const ids = new Set((await this.listRetained()).map((session) => session.snapshotId))
+      for (const name of await this.names()) {
+        const match = /^\.deleting-([a-zA-Z0-9_-]{1,100})\.json$/.exec(name)
+        if (!match) continue
+        const receipt = await this.removal(match[1]!)
+        if (!receipt) throw appError('error.sessionStorage')
+        ids.add(receipt.value.snapshotId)
+      }
+      return action(ids)
+    })
+  }
+
   pendingRemovals(): Promise<SessionRemoval[]> {
     return this.serial(async () => {
       const pending: SessionRemoval[] = []

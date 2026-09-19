@@ -35,6 +35,7 @@ import { buildConfigurationReport } from '../engines/configuration-report'
 import { trackCredentialResolution } from '../engines/credential-report'
 import type { CredentialVersions, ResolvedCredential } from '../credentials/vault'
 import { capturedSkillSources } from '../engines/skill-readback'
+import type { RunDataQuery, RunDataRemoval } from '../../shared/sessions/run-data'
 
 interface Dependencies {
   workspace: {
@@ -74,6 +75,12 @@ export function openCodeNativeLocations(environment: NodeJS.ProcessEnv): OpenCod
 
 /** Renderer input selects saved definitions; it never supplies executable arguments or credentials. */
 export class DesktopSessionFactory implements SessionRuntimeFactory {
+  unusedRunData(references: ReadonlySet<string>, query: RunDataQuery) {
+    return this.dependencies.runs.unused(references, query)
+  }
+  removeUnusedRunData(query: RunDataRemoval, references: ReadonlySet<string>) {
+    return this.dependencies.runs.removeUnused(query, references)
+  }
   removeSnapshot(snapshotId: string): Promise<void> {
     return this.dependencies.runs.remove(snapshotId)
   }

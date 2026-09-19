@@ -27,6 +27,7 @@ import { ConfigurationReport } from './ConfigurationReport'
 import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 import { Transcript } from './SessionTranscript'
 import { SessionHistory } from './SessionHistory'
+import { UnusedRunData } from './UnusedRunData'
 
 const selectedKey = 'agentmatrix.selected-session'
 type Response = Extract<SessionCommand, { kind: 'respond' }>['response']
@@ -59,6 +60,7 @@ export function SessionsPanel({
   const [refresh, setRefresh] = useState(0)
   const [showConfiguration, setShowConfiguration] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showUnusedData, setShowUnusedData] = useState(false)
   const locked = useRef(false)
   const pendingMessage = useRef<string | null>(null)
   const transcript = useRef<HTMLDivElement>(null)
@@ -411,6 +413,13 @@ export function SessionsPanel({
       )}
       <div className="sessions-layout">
         <aside className="session-list" aria-label={t('nav.sessions')}>
+          <button
+            className="button secondary"
+            disabled={!desktop || busy}
+            onClick={() => setShowUnusedData(true)}
+          >
+            {t('runData.title')}
+          </button>
           {!sessions.length && <p>{t('sessions.empty')}</p>}
           {sessions.map((session) => (
             <button
@@ -724,6 +733,7 @@ export function SessionsPanel({
           )}
         </section>
       </div>
+      {showUnusedData && <UnusedRunData onClose={() => setShowUnusedData(false)} />}
     </>
   )
 }

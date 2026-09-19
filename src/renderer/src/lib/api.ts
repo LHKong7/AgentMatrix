@@ -22,6 +22,12 @@ const browserApi: AgentMatrixApi = {
     throw appError('error.runtimeDesktopOnly')
   },
   sessions: {
+    async unusedRunData() {
+      return { items: [], next: null, skipped: 0 }
+    },
+    async removeUnusedRunData() {
+      throw appError('error.runtimeDesktopOnly')
+    },
     async remove() {
       throw appError('error.runtimeDesktopOnly')
     },

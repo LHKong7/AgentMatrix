@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import {
   mkdtemp,
   mkdir,
+  lstat,
   realpath,
   readFile,
   readdir,
@@ -792,6 +793,145 @@ async function verifyRetention(original, latest) {
   assert.equal(await readFile(join(cwd, 'fixture.txt'), 'utf8'), 'SMOKE_FILE_MARKER')
   assert.equal(calls.length, beforeCalls)
 }
+
+async function verifyUnusedRunData() {
+  const beforeCalls = calls.length
+  const beforeWorkspace = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+  const retained = (await sessions()).map((session) => session.id).sort()
+  const create = { kind: 'create', commandId: `unused-data-${engine}`, agentId: 'reviewer' }
+  const orphan = await page.evaluate(
+    (command) => window.agentMatrix.sessions.command(command),
+    create,
+  )
+  await app.close()
+  app = null
+  // Reproduce a published capture whose journal publication did not survive interruption.
+  await rm(join(dataDirectory, 'sessions', `${orphan.id}.jsonl`))
+  const runs = join(dataDirectory, 'runs'),
+    capture = join(runs, orphan.snapshotId)
+  const stageId = crypto.randomUUID(),
+    stage = join(runs, `.stage-${stageId}`)
+  await mkdir(stage)
+  await writeFile(join(stage, 'partial'), 'PRIVATE_ABANDONED_INPUT')
+  await symlink(cwd, join(stage, 'external-project'))
+  await mkdir(join(runs, 'unrecognized-entry'))
+  await launch()
+  await navigate('Sessions')
+  const open = async (locale = 'en') => {
+    await language(locale)
+    await page
+      .getByRole('button', {
+        name: locale === 'en' ? 'Unused run data' : '未使用的运行数据',
+        exact: true,
+      })
+      .click()
+    const dialog = page.getByRole('dialog')
+    await dialog.locator(`[data-unused-run="${orphan.snapshotId}"]`).waitFor()
+    return dialog
+  }
+  for (const locale of ['en', 'zh-CN']) {
+    const dialog = await open(locale)
+    const rows = await dialog.locator('[data-unused-run]').count()
+    assert.equal(rows, 2)
+    const body = await dialog.textContent()
+    assert.ok(!body.includes(secret) && !body.includes('PRIVATE_ABANDONED_INPUT'))
+    assert.ok(body.includes(orphan.cwd))
+    page.once('dialog', (confirmation) => confirmation.dismiss())
+    await dialog
+      .locator(`[data-unused-run="${orphan.snapshotId}"]`)
+      .getByRole('button', { name: locale === 'en' ? 'Remove data' : '删除数据', exact: true })
+      .click()
+    assert.ok((await stat(capture)).isDirectory())
+    if (process.env.AGENT_MATRIX_UNUSED_RUN_SCREENSHOT)
+      await page.screenshot({
+        path:
+          process.env.AGENT_MATRIX_UNUSED_RUN_SCREENSHOT +
+          (locale === 'en' ? '.en.png' : '.zh.png'),
+      })
+    await dialog
+      .getByRole('button', { name: locale === 'en' ? 'Close' : '关闭', exact: true })
+      .last()
+      .click()
+  }
+  let dialog = await open('zh-CN')
+  page.once('dialog', (confirmation) => confirmation.accept())
+  await dialog
+    .locator(`[data-unused-run="${stageId}"]`)
+    .getByRole('button', { name: '删除数据', exact: true })
+    .click()
+  await waitForIpc(
+    async () =>
+      !(await page.evaluate(() => window.agentMatrix.sessions.unusedRunData({}))).items.some(
+        (item) => item.target.id === stageId,
+      ),
+    'unused staging removal',
+  )
+  assert.equal(await readFile(join(cwd, 'fixture.txt'), 'utf8'), 'SMOKE_FILE_MARKER')
+  const candidate = (
+    await page.evaluate(() => window.agentMatrix.sessions.unusedRunData({}))
+  ).items.find((item) => item.target.id === orphan.snapshotId)
+  const info = await lstat(capture, { bigint: true })
+  await app.close()
+  app = null
+  // Seed an already confirmed receipt at its crash boundary; unit tests cover a failing rm.
+  await writeFile(
+    join(runs, `.unused-deleting-capture-${orphan.snapshotId}.json`),
+    JSON.stringify({
+      version: 1,
+      target: candidate.target,
+      token: candidate.token,
+      directoryIdentity: `${info.dev}:${info.ino}`,
+    }),
+    { mode: 0o600 },
+  )
+  const held = join(root, 'held-unused-capture')
+  await rename(capture, held)
+  await symlink(cwd, capture)
+  await launch()
+  await language('en')
+  await navigate('Sessions')
+  dialog = await open()
+  await dialog
+    .locator(`[data-unused-run="${orphan.snapshotId}"]`)
+    .getByRole('button', { name: 'Retry removal', exact: true })
+    .click()
+  await dialog
+    .getByRole('alert')
+    .filter({ hasText: 'Removal was recorded, but cleanup is unfinished.' })
+    .waitFor()
+  assert.ok((await lstat(capture)).isSymbolicLink())
+  assert.equal(await readFile(join(cwd, 'fixture.txt'), 'utf8'), 'SMOKE_FILE_MARKER')
+  await rm(capture)
+  await rename(held, capture)
+  await dialog
+    .locator(`[data-unused-run="${orphan.snapshotId}"]`)
+    .getByRole('button', { name: 'Retry removal', exact: true })
+    .click()
+  await dialog.getByText('No removable unused run data on this page.', { exact: true }).waitFor()
+  await assert.rejects(stat(capture), { code: 'ENOENT' })
+  await assert.rejects(stat(stage), { code: 'ENOENT' })
+  assert.ok((await stat(join(runs, 'unrecognized-entry'))).isDirectory())
+  const deleted = await readFile(
+    join(runs, `.unused-deleted-capture-${orphan.snapshotId}.json`),
+    'utf8',
+  )
+  assert.ok(!deleted.includes(cwd) && !deleted.includes(secret))
+  await dialog.getByRole('button', { name: 'Close', exact: true }).last().click()
+  assert.match(
+    await page.evaluate(async (command) => {
+      try {
+        await window.agentMatrix.sessions.command(command)
+        return 'unexpected success'
+      } catch (error) {
+        return String(error)
+      }
+    }, create),
+    /runDeleted/,
+  )
+  assert.deepEqual((await sessions()).map((session) => session.id).sort(), retained)
+  assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), beforeWorkspace)
+  assert.equal(calls.length, beforeCalls)
+}
 try {
   await launch()
   await language('en')
@@ -1341,6 +1481,7 @@ try {
     await status('Closed')
     await rm(nativeOverride)
   }
+  await verifyUnusedRunData()
   await verifyRetention(original, latest)
   assert.ok(
     calls.length > 5 && calls.every((call) => call.authenticated && call.model === 'fixture-model'),
@@ -1462,6 +1603,17 @@ try {
       restartRecovery: true,
       deletedCreateReplayRejected: true,
       projectAndSharedLibraryAndExportPreserved: true,
+      noAdditionalModelCalls: true,
+    },
+    unusedRunData: {
+      orphanCaptureAndStaging: true,
+      retainedConversationReferencesExcluded: true,
+      confirmationCancellationInBothLanguages: true,
+      pendingReceiptRecoveryAfterRestart: true,
+      rootAndNestedSymlinkBoundaries: true,
+      deletedCaptureCreateReplayRejected: true,
+      unknownEntriesPreserved: true,
+      sharedWorkspaceAndProjectPreserved: true,
       noAdditionalModelCalls: true,
     },
     sessionHistory: {

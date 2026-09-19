@@ -1794,3 +1794,26 @@ input[type='checkbox'] {
 .native-import-list li {
   padding: 4px 0;
 }
+.unused-run-list {
+  list-style: none;
+  padding: 0;
+}
+.unused-run-list li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.unused-run-list li > div {
+  flex: 1;
+  min-width: 0;
+}
+.unused-run-list code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 8px 0;
+}
+.unused-run-list button {
+  flex-shrink: 0;
+}

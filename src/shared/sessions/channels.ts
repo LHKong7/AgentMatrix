@@ -1,4 +1,6 @@
 export const sessionChannels = {
+  unusedRunData: 'sessions:unused-run-data',
+  removeUnusedRunData: 'sessions:remove-unused-run-data',
   remove: 'sessions:remove',
   pendingRemovals: 'sessions:pending-removals',
   history: 'sessions:history',

@@ -19,6 +19,8 @@ import {
 } from '../../shared/engines/run-inputs'
 import { SkillDirectoryStore } from '../assets/skill-directory-store'
 import { observeExternalFile, verifyExternalSources } from './external-sources'
+import { RunDataCleanup } from './run-data-cleanup'
+import type { RunDataQuery, RunDataRemoval } from '../../shared/sessions/run-data'
 export { observeExternalFile } from './external-sources'
 
 const maximumFile = 20_000_000
@@ -81,11 +83,24 @@ async function regularFile(path: string, limit: number): Promise<Buffer> {
 /** Publish once, verify before launch/resume, and keep mutable native state outside frozen inputs. */
 export class RunInputStore {
   private queue: Promise<unknown> = Promise.resolve()
+  private readonly cleanup: RunDataCleanup
   constructor(
     readonly root: string,
     private readonly skills: SkillDirectoryStore,
   ) {
     if (!isAbsolute(root)) throw appError('error.runPath')
+    this.cleanup = new RunDataCleanup(root, (id) => this.read(id))
+  }
+
+  unused(referenced: ReadonlySet<string>, query: RunDataQuery) {
+    const operation = this.queue.then(() => this.cleanup.list(referenced, query))
+    this.queue = operation.catch(() => {})
+    return operation
+  }
+  removeUnused(query: RunDataRemoval, referenced: ReadonlySet<string>) {
+    const operation = this.queue.then(() => this.cleanup.remove(query, referenced))
+    this.queue = operation.catch(() => {})
+    return operation
   }
 
   paths(id: string): RunPaths {
@@ -150,6 +165,7 @@ export class RunInputStore {
   ): Promise<RunInputManifest> {
     const paths = this.paths(id)
     await mkdir(this.root, { recursive: true, mode: 0o700 })
+    await this.cleanup.assertAvailable(id)
     const existing = await lstat(paths.root).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error
       return null
@@ -319,6 +335,7 @@ export class RunInputStore {
 
   async read(id: string): Promise<RunInputManifest> {
     const paths = this.paths(id)
+    await this.cleanup.assertAvailable(id)
     try {
       if (!(await lstat(paths.root)).isDirectory() || !(await lstat(paths.inputs)).isDirectory())
         throw appError('error.runIntegrity')

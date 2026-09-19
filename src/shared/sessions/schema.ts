@@ -1,4 +1,5 @@
 import type { LibraryImpact, LibraryImpactQuery } from '../engines/impact'
+import type { RunDataQuery, RunDataRemoval, UnusedRunDataPage } from './run-data'
 import { z } from 'zod'
 import {
   configurationChecksSchema,
@@ -390,6 +391,8 @@ export type SessionDelivery =
 
 /** The preload must register its listener before invoking subscribe to avoid lost events. */
 export interface SessionApi {
+  unusedRunData(input: RunDataQuery): Promise<UnusedRunDataPage>
+  removeUnusedRunData(input: RunDataRemoval): Promise<void>
   remove(input: SessionRemoval): Promise<void>
   pendingRemovals(): Promise<SessionRemoval[]>
   history(input: z.input<typeof sessionHistoryQuerySchema>): Promise<SessionHistoryPage>

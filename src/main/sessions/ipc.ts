@@ -53,6 +53,10 @@ export function registerSessionIpc(
     )
   }
   handle(sessionChannels.command, (_event, input) => coordinator.command(input))
+  handle(sessionChannels.unusedRunData, (_event, input) => coordinator.unusedRunData(input))
+  handle(sessionChannels.removeUnusedRunData, (_event, input) =>
+    coordinator.removeUnusedRunData(input),
+  )
   handle(sessionChannels.remove, (_event, input) => coordinator.remove(input))
   handle(sessionChannels.pendingRemovals, () => coordinator.pendingRemovals())
   handle(sessionChannels.impact, (_event, input) => coordinator.impact(input))

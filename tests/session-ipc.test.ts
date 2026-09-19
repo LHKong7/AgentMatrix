@@ -26,6 +26,8 @@ function fixture() {
   let receive: (delivery: SessionDelivery) => void = () => {}
   const unsubscribe = vi.fn()
   const coordinator = {
+    unusedRunData: vi.fn(async () => ({ items: [], next: null, skipped: 0 })),
+    removeUnusedRunData: vi.fn(),
     remove: vi.fn(),
     pendingRemovals: vi.fn(async () => []),
     command: vi.fn(async () => snapshot),
@@ -67,6 +69,19 @@ function fixture() {
   }
 }
 describe('session IPC ownership', () => {
+  it('requires current renderer ownership for unused-run discovery and removal', async () => {
+    const f = fixture(),
+      request = { target: { kind: 'capture', id: 'orphan' }, token: 'a'.repeat(64) }
+    await f.invoke(sessionChannels.unusedRunData, {})
+    await f.invoke(sessionChannels.removeUnusedRunData, request)
+    expect(f.coordinator.removeUnusedRunData).toHaveBeenCalledExactlyOnceWith(request)
+    f.contents.emit('destroyed')
+    await expect(f.invoke(sessionChannels.unusedRunData, {})).rejects.toThrow('untrusted')
+    await expect(f.invoke(sessionChannels.removeUnusedRunData, request)).rejects.toThrow(
+      'untrusted',
+    )
+    expect(f.coordinator.unusedRunData).toHaveBeenCalledOnce()
+  })
   it('protects deletion and pending cleanup with the current renderer owner', async () => {
     const f = fixture()
     const input = { sessionId: 's', expectedCursor: 3 }

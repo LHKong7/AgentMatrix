@@ -9,6 +9,28 @@ import { sessionZhCN } from './session-zh-CN'
 import { reportZhCN } from './report-zh-CN'
 
 export const zhCN = {
+  'runData.title': '未使用的运行数据',
+  'runData.description': '查看没有保留会话引用的运行快照和暂存文件。',
+  'runData.boundary':
+    '清理会删除选中的输入文件和原生状态。已有会话、共享资产、凭证、项目文件和导出记录会保留，不会自动删除数据。',
+  'runData.capture': '没有会话引用的运行快照',
+  'runData.identifier': '数据标识',
+  'runData.stage': '遗留暂存文件',
+  'runData.modified': '目录最后修改时间：{date}',
+  'runData.pending': '已确认删除，但清理尚未完成。',
+  'runData.remove': '删除数据',
+  'runData.retry': '重试删除',
+  'runData.confirm':
+    '永久删除 {id} 的输入文件和原生状态？此操作无法撤销，旧创建请求也不能重新生成已删除的快照。如有需要，请新建会话。',
+  'runData.refresh': '从头刷新',
+  'runData.next': '接下来 100 项',
+  'runData.loading': '正在检查保留会话和捕获文件…',
+  'runData.empty': '本页没有可清理的未使用运行数据。',
+  'runData.skipped': '已保留无法识别、存在链接或无法读取的条目，需要单独检查。',
+  'error.runDeleted': '此运行快照已被明确删除，请使用新请求创建会话。',
+  'error.runReferenced': '仍有会话引用此快照，文件已保留。',
+  'error.runCleanupStale': '选中的数据已更改或不再可用，请刷新列表后再删除。',
+  'error.runCleanupPending': '删除已记录，但清理尚未完成，请刷新列表并重试删除。',
   ...capabilityZhCN,
   ...nativeImportZhCN,
   ...pluginZhCN,
