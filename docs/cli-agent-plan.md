@@ -28,6 +28,8 @@ The first delivery includes shared prompts, model connections and credential ref
 
 **Native plugin scope:** distinguish resource bundles from executable plugins. Initially recognize and bind explicitly selected installed plugins, with version/source checks. Building the pinned DSH runtime composition is part of its adapter. A general plugin marketplace, arbitrary package installation, and automatic upgrades are deferred. No Pi MCP extension is selected implicitly.
 
+**HTTP MCP progress:** [Installed Streamable HTTP acceptance](http-mcp-acceptance.md) now covers OpenCode and both DSH provider routes with distinct provider/MCP credentials, real tool calls, JSON/SSE responses, error cases and native resume after recovery. OpenCode can continue a conversation when a configured MCP server fails; DSH rejects startup. Runtime per-server connectivity receipts and OAuth login remain open. Pi MCP bindings still require a separately selected and verified extension; this evidence does not complete A4/X2 or a delivery gate.
+
 ### 1.1 Shared configuration and per-engine settings
 
 The shared library owns reusable content and connection definitions. An agent profile owns its engine selection, resource bindings, and native options. Sharing a resource does not mean that every engine applies it with identical semantics. The following table defines adapter work for the initial milestone; it does not claim that these mappings are implemented or runtime-verified.

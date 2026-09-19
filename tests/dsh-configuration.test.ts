@@ -156,6 +156,11 @@ describe('DSH managed configuration', () => {
     })
     c.mcpServers[0]!.transport = 'legacy-sse'
     await expect(f.plan(c)).rejects.toThrow('dshConfiguration')
+    const remote = c.mcpServers[0]!
+    if (remote.transport === 'stdio') throw new Error('Expected remote MCP')
+    remote.transport = 'streamable-http'
+    remote.auth = { kind: 'oauth', owner: 'engine', scopes: ['tools:read'] }
+    await expect(f.plan(c)).rejects.toThrow('dshConfiguration')
   })
   it('keeps native expressions inert and distinguishes them from literal YAML strings', () => {
     const value = {

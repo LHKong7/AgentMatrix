@@ -10,6 +10,7 @@ export default defineConfig({
       'tests/dsh-plugin-installed.probe.ts',
       'tests/dsh-plugin-activation.probe.ts',
       'tests/dsh-skill-sources-installed.probe.ts',
+      'tests/mcp-http-installed.probe.ts',
     ],
     testTimeout: 120_000,
   },

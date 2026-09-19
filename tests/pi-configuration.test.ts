@@ -191,6 +191,18 @@ describe('Pi configuration contract', () => {
     ]
     workspace.agents[0]!.mcpServerIds = ['mcp']
     await expect(plan()).rejects.toThrow('mcp.extension-required')
+    workspace.mcpServers[0] = {
+      id: 'mcp',
+      name: 'HTTP MCP',
+      description: '',
+      enabled: true,
+      transport: 'streamable-http',
+      url: 'https://example.invalid/mcp',
+      headers: {},
+      secretHeaders: {},
+      auth: { kind: 'bearer', secret: { kind: 'environment', name: 'MCP_KEY' } },
+    }
+    await expect(plan()).rejects.toThrow('mcp.extension-required')
   })
   it('rejects duplicate Skills and ambiguous thinking values', async () => {
     workspace.skills[0]!.versions = [

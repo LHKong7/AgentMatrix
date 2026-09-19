@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-09-19T10:43:25.335Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "route": "dsh-deepseek-native",
+  "engineVersion": "0.1.5-rc.2",
+  "mcpProtocol": "2025-06-18",
+  "externalProviderCalls": false,
+  "externalMcpCalls": false,
+  "authModes": ["bearer", "secret-header", "none"],
+  "ordinaryHeadersPreserved": true,
+  "jsonAndSseStreamableHttpResponses": true,
+  "sessionAndProtocolHeadersVerified": true,
+  "providerAndMcpAuthorizationSeparated": true,
+  "toolResultsReachModel": true,
+  "toolAndRpcErrorsReported": true,
+  "normalizedOutputRedactsSecrets": true,
+  "secretsAbsentFromCapturedInputs": true,
+  "nativeResume": true,
+  "nativeResumeAfterMcpRecovery": true,
+  "capturedInputsPreserved": true,
+  "failures": {
+    "unauthorized": "startup-rejected",
+    "list-error": "startup-rejected"
+  },
+  "toolCalls": 11,
+  "providerCalls": 16,
+  "oauthFlowVerified": false,
+  "legacySseVerified": false,
+  "runtimeConnectivityReceiptImplemented": false
+}
