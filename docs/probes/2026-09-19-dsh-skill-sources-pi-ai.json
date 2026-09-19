@@ -1,0 +1,17 @@
+{
+  "checkedAt": "2026-09-19T09:20:37.079Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engineVersion": "0.1.5-rc.2",
+  "route": "pi-ai",
+  "externalProviderCalls": false,
+  "sameAcpProcessRegistry": true,
+  "agentScopeDiffersFromGlobalCatalog": true,
+  "nativeResume": true,
+  "sameNameForeignSourceRejectedBeforeTurn": true,
+  "sameNameForeignSourceRejectedOnStart": true,
+  "rejectionMakesNoProviderCall": true,
+  "preservedCapturedInputs": true,
+  "restoredSourceAllowsNativeResume": true,
+  "providerCalls": 1
+}

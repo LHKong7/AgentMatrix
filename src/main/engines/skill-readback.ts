@@ -33,7 +33,7 @@ export interface CapturedSkillSource {
 export async function capturedSkillSources(
   manifest: RunInputManifest,
   paths: RunPaths,
-  mappingFile: 'opencode-mappings.json' | 'pi-mappings.json',
+  mappingFile: 'opencode-mappings.json' | 'pi-mappings.json' | 'dsh-mappings.json',
 ): Promise<CapturedSkillSource[]> {
   if (!manifest.files.some((file) => file.path === mappingFile))
     throw new Error('Skill mapping missing')

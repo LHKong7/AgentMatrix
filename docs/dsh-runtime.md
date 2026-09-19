@@ -49,3 +49,5 @@ The later [plugin desktop result](probes/2026-09-18-dsh-plugin-desktop.json) add
 This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, complete effective-configuration reporting, broader plugin/bundle coverage, remote MCP, and platform coverage beyond macOS remain open.
 
 The [combined shared-asset desktop fixture](shared-asset-acceptance.md) additionally verifies one Prompt and one directory Skill across all three engines, including edits during active turns, old/new versions, bilingual reports, and native restoration after source deletion. Its local-provider result does not establish external-service acceptance.
+
+New captures with bound Skills also install the [session-scoped source observer](dsh-skill-sources.md). Ready and turn boundaries require its fresh process/session receipt. The observer is independent of selected native plugins; legacy captures without it retain their previous behavior and cannot report verified Skill sources.

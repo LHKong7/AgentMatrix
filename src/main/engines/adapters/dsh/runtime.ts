@@ -9,6 +9,7 @@ import { redactText } from '../../process/redacted-tail'
 import { prepareDshLaunch, verifyDshHome } from './launch'
 import { verifyDshOptions } from './readback'
 import { prepareDshPluginAttachment } from './plugins'
+import { dshSkillPlanPath, prepareDshSkillAttachment } from './skills'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -42,10 +43,8 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
     options.environment,
     signal,
   )
-  const plugins = manifest.nativePlugins.length
-    ? await prepareDshPluginAttachment(manifest, store.paths(snapshotId))
-    : null
-  if (plugins) Object.assign(launch.environment, plugins.environment)
+  let plugins: Awaited<ReturnType<typeof prepareDshPluginAttachment>> = null
+  let skillSources: Awaited<ReturnType<typeof prepareDshSkillAttachment>> | null = null
   let active: AcpTurn | null = null
   let submitted = false
   let cancelled = false
@@ -57,6 +56,14 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
   }
   signal.addEventListener('abort', abort, { once: true })
   try {
+    if (manifest.nativePlugins.length) {
+      plugins = await prepareDshPluginAttachment(manifest, store.paths(snapshotId))
+      if (plugins) Object.assign(launch.environment, plugins.environment)
+    }
+    if (manifest.files.some((file) => file.path === dshSkillPlanPath)) {
+      skillSources = await prepareDshSkillAttachment(manifest, store.paths(snapshotId))
+      Object.assign(launch.environment, skillSources.environment)
+    }
     attachment = await attachAcpProcess(launch, {
       update: async (notification) => {
         try {
@@ -89,7 +96,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
     const owned = attachment
     const closed = owned.closed.finally(async () => {
       signal.removeEventListener('abort', abort)
-      await plugins?.cleanup()
+      await Promise.all([plugins?.cleanup(), skillSources?.cleanup()])
     })
     void closed.catch(() => {})
     const lifetime = AbortSignal.any([signal, owned.client.signal])
@@ -133,6 +140,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
       })
       verifyDshOptions(state.configOptions, manifest)
       await plugins?.verify(owned.process.pid, lifetime, id)
+      await skillSources?.verify(owned.process.pid, lifetime, id)
       if (handlerFailure) throw handlerFailure
       if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     }
@@ -150,6 +158,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
         'cli.version',
         'dsh.composition',
         'dsh.session-model',
+        ...(skillSources ? ['dsh.skill-sources' as const] : []),
         ...(plugins ? ['dsh.plugins' as const] : []),
         ...(manifest.connection.protocol === 'deepseek-official'
           ? ['dsh.session-reasoning' as const]
@@ -179,6 +188,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
           await turn.finish()
           if (handlerFailure) throw handlerFailure
           await plugins?.verify(owned.process.pid, lifetime, id)
+          await skillSources?.verify(owned.process.pid, lifetime, id)
           // usage_update is context occupancy; DSH does not report billable prompt usage.
           return { ...turn.result({ stopReason: result.stopReason }), usage: null }
         } catch (error) {
@@ -203,7 +213,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
   } catch (error) {
     signal.removeEventListener('abort', abort)
     await attachment?.close()
-    await plugins?.cleanup()
+    await Promise.all([plugins?.cleanup(), skillSources?.cleanup()])
     throw handlerFailure ?? failureOf(error)
   }
 }

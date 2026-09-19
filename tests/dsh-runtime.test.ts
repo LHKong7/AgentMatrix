@@ -6,6 +6,10 @@ import { attachAcpProcess } from '../src/main/engines/acp/attachment'
 import { AcpFailure } from '../src/main/engines/acp/stream'
 import { prepareDshLaunch, verifyDshHome } from '../src/main/engines/adapters/dsh/launch'
 import { verifyDshOptions } from '../src/main/engines/adapters/dsh/readback'
+import {
+  prepareDshSkillAttachment,
+  dshSkillPlanPath,
+} from '../src/main/engines/adapters/dsh/skills'
 import { connectDsh } from '../src/main/engines/adapters/dsh/runtime'
 import type { RunInputStore } from '../src/main/engines/run-input-store'
 import type { RunInputManifest } from '../src/shared/engines/run-inputs'
@@ -15,6 +19,10 @@ import { dshWorkspace } from './helpers/dsh-fixture'
 vi.mock('../src/main/engines/adapters/dsh/launch', () => ({
   prepareDshLaunch: vi.fn(),
   verifyDshHome: vi.fn(),
+}))
+vi.mock('../src/main/engines/adapters/dsh/skills', async (original) => ({
+  ...(await original<typeof import('../src/main/engines/adapters/dsh/skills')>()),
+  prepareDshSkillAttachment: vi.fn(),
 }))
 vi.mock('../src/main/engines/acp/attachment', () => ({ attachAcpProcess: vi.fn() }))
 afterEach(() => vi.resetAllMocks())
@@ -27,6 +35,7 @@ function fixture() {
     model: workspace.models[0]!,
     cwd: '/fixture/project',
     nativePlugins: [],
+    files: [],
   } as unknown as RunInputManifest
   let choices: SessionConfigOption[] = [
     {
@@ -87,10 +96,15 @@ function fixture() {
   vi.mocked(verifyDshHome).mockResolvedValue()
   vi.mocked(attachAcpProcess).mockImplementation(async (_launch, received) => {
     acp = received
-    return { client, close, closed } as unknown as Awaited<ReturnType<typeof attachAcpProcess>>
+    return { client, close, closed, process: { pid: process.pid } } as unknown as Awaited<
+      ReturnType<typeof attachAcpProcess>
+    >
   })
   const options = {
-    store: { verifyForReuse: verify } as unknown as RunInputStore,
+    store: {
+      verifyForReuse: verify,
+      paths: () => ({ root: '/fixture', inputs: '/fixture/inputs', state: '/fixture/state' }),
+    } as unknown as RunInputStore,
     snapshotId: 'inputs',
     environment: {},
     resolveSecret: async () => 'synthetic-secret',
@@ -117,6 +131,51 @@ function fixture() {
 }
 
 describe('DSH runtime contract', () => {
+  it('checks selected sources at attachment and both turn boundaries, with cleanup on failure', async () => {
+    const f = fixture()
+    f.manifest.files = [{ path: dshSkillPlanPath }] as RunInputManifest['files']
+    const source = {
+      environment: {
+        AGENT_MATRIX_DSH_SKILL_NONCE: randomUUID(),
+        AGENT_MATRIX_DSH_SKILL_RECEIPTS: '/fixture/receipts',
+      },
+      verify: vi.fn().mockResolvedValue(undefined),
+      cleanup: vi.fn().mockResolvedValue(undefined),
+    }
+    vi.mocked(prepareDshSkillAttachment).mockResolvedValue(source)
+    const runtime = await f.connect()
+    expect(runtime.configurationChecks).toContain('dsh.skill-sources')
+    expect(source.verify).toHaveBeenCalledWith(process.pid, expect.any(AbortSignal), f.nativeId)
+    await runtime.send('One turn', f.handlers)
+    expect(source.verify).toHaveBeenCalledTimes(3)
+    source.verify.mockRejectedValueOnce(
+      new RuntimeFailure('configuration', 'dsh.skill-source', {
+        check: 'dsh-skills',
+        reason: 'mismatch',
+        fields: ['skills'],
+      }),
+    )
+    await expect(runtime.send('Blocked turn', f.handlers)).rejects.toMatchObject({
+      diagnostic: { check: 'dsh-skills' },
+    })
+    expect(f.client.prompt).toHaveBeenCalledTimes(1)
+    await runtime.dispose()
+    await runtime.closed
+    expect(source.cleanup).toHaveBeenCalled()
+    const second = fixture()
+    second.manifest.files = f.manifest.files
+    source.verify.mockRejectedValueOnce(new RuntimeFailure('configuration', 'dsh.skill-source'))
+    await expect(second.connect()).rejects.toThrow('dsh.skill-source')
+    expect(second.close).toHaveBeenCalled()
+    expect(second.client.prompt).not.toHaveBeenCalled()
+  })
+  it('keeps legacy captures usable without fabricating source evidence', async () => {
+    const f = fixture(),
+      runtime = await f.connect()
+    expect(runtime.configurationChecks).not.toContain('dsh.skill-sources')
+    expect(prepareDshSkillAttachment).not.toHaveBeenCalled()
+    await runtime.dispose()
+  })
   it('checks the ACP component version separately and leaves billing unknown', async () => {
     const f = fixture(),
       runtime = await f.connect()

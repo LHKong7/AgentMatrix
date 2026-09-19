@@ -2,7 +2,7 @@
 
 Each desktop conversation now has a **Configuration report** in English and Chinese. It separates immutable captured inputs, recorded native checks, and the current saved profile. Viewing it does not start a CLI, resolve credentials, apply edits, or change the original snapshot.
 
-Each captured Skill also shows its [native source verification](skill-source-verification.md): Pi RPC source matching, OpenCode matching in a separate preflight process, or no recorded source check. These states preserve the observation's historical/current ownership and never promote legacy name-only checks or DSH composition checks into source evidence.
+Each captured Skill also shows its [native source verification](skill-source-verification.md): Pi RPC source matching, OpenCode matching in a separate preflight process, DSH matching in the actual session registry, or no recorded source check. These states preserve the observation's historical/current ownership and never promote legacy name-only checks or DSH composition checks into source evidence.
 
 ## Evidence and persistence
 
@@ -61,3 +61,5 @@ The extended `scripts/session-smoke.mjs` checks each installed engine's report i
 Recorded desktop results: [OpenCode](probes/2026-09-18-configuration-report-opencode.json), [Pi](probes/2026-09-18-configuration-report-pi.json), and [DSH](probes/2026-09-18-configuration-report-dsh.json). The installed DSH runtime fixture additionally asserts report evidence for both the generic and native DeepSeek routes, including their different reasoning readback.
 
 The [combined three-engine desktop fixture](shared-asset-acceptance.md) now checks captured, next-session, and library versions for the same shared Prompt and directory Skill in English and Chinese, including reports during old/new session use and historical/fresh observations after native restoration.
+
+New DSH captures can now show a [session-scoped registry source match](dsh-skill-sources.md) and the mapped native Skill entry. Legacy DSH captures retain unknown source verification. Historical receipts remain tied to their original attachment; reopening a report neither launches DSH nor reloads native Skills.

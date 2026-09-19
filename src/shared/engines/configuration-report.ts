@@ -20,6 +20,7 @@ export const configurationCheckSchema = z.enum([
   'pi.skill-sources',
   'pi.plugins',
   'dsh.composition',
+  'dsh.skill-sources',
   'dsh.plugins',
   'dsh.session-model',
   'dsh.session-reasoning',
@@ -70,6 +71,7 @@ export const configurationDiagnosticSchema = z
       'pi-skills',
       'pi-controls',
       'dsh-composition',
+      'dsh-skills',
       'dsh-session',
       'dsh-controls',
     ]),
@@ -118,7 +120,7 @@ export interface ConfigurationReport {
     digest: string | null
     libraryVersion: number | null
     nextVersion: number | null
-    nativeSourceVerification: 'pi-rpc' | 'opencode-probe' | 'unknown' | null
+    nativeSourceVerification: 'pi-rpc' | 'opencode-probe' | 'dsh-registry' | 'unknown' | null
     nativeEntry: string | null
   }[]
   sources: { path: string; exists: boolean; digest: string | null }[]

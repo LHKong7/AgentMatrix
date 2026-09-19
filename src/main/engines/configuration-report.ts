@@ -99,7 +99,12 @@ export function buildConfigurationReport(
               execution: ['dsh.composition'],
               'engine-options': ['dsh.composition'],
               prompts: ['dsh.composition'],
-              skills: ['dsh.composition'],
+              skills: [
+                'dsh.composition',
+                ...(observation?.checks.includes('dsh.skill-sources')
+                  ? ['dsh.skill-sources' as const]
+                  : []),
+              ],
               mcp: ['dsh.composition'],
               plugins: manifest.nativePlugins.length ? ['dsh.plugins'] : [],
             } as Partial<Record<ConfigurationField, ConfigurationCheck[]>>)
@@ -221,7 +226,9 @@ export function buildConfigurationReport(
             ? ('pi-rpc' as const)
             : kind === 'opencode' && observation?.checks.includes('opencode.skill-sources')
               ? ('opencode-probe' as const)
-              : ('unknown' as const),
+              : kind === 'deepseek-harness' && observation?.checks.includes('dsh.skill-sources')
+                ? ('dsh-registry' as const)
+                : ('unknown' as const),
         nativeEntry: manifest.files.some((file) => file.path === skillEntries[skill.assetId])
           ? skillEntries[skill.assetId]!
           : null,

@@ -116,6 +116,18 @@ describe('configuration report evidence and updates', () => {
     ).toBe(true)
     f.manifest.installation.kind = 'deepseek-harness'
     expect(
+      sources(['dsh.composition'])
+        .assets.filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'unknown'),
+    ).toBe(true)
+    const dsh = sources(['dsh.composition', 'dsh.skill-sources'])
+    expect(
+      dsh.assets
+        .filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'dsh-registry'),
+    ).toBe(true)
+    expect(dsh.fields.find((field) => field.id === 'skills')?.checks).toContain('dsh.skill-sources')
+    expect(
       sources(['pi.skill-sources', 'opencode.skill-sources'])
         .assets.filter((asset) => asset.kind === 'skill')
         .every((asset) => asset.nativeSourceVerification === 'unknown'),

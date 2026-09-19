@@ -67,6 +67,10 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
   'report.skillSource.pi-rpc': '记录的 Pi RPC 来源与捕获的 Skill 入口一致；未验证实际调用。',
   'report.skillSource.opencode-probe':
     '独立 OpenCode 进程选中了捕获的 Skill 入口；ACP 实例与实际调用仍未验证。',
+  'report.skillSource.dsh-registry':
+    '记录的 DSH 会话注册表选中了捕获的 Skill 入口；未验证实际调用。',
+  'report.diagnosticCheck.dsh-skills': 'DSH 会话 Skill 来源',
+  'report.check.dsh.skill-sources': 'DSH 会话作用域中的 Skill 注册表来源匹配捕获的入口',
   'report.skillSource.unknown': '此 Skill 尚无已记录的原生来源检查。',
   'report.nativeSkillEntry': '映射的原生入口',
   'report.diagnosticCheck.pi-controls': 'Pi 托管原生控制文件',

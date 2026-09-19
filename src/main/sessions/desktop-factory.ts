@@ -296,11 +296,15 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
     const manifest = await runs.read(snapshot.snapshotId)
     const kind = manifest.installation.kind
     const mappings =
-      kind === 'pi' || kind === 'opencode'
+      kind === 'pi' || kind === 'opencode' || kind === 'deepseek-harness'
         ? await capturedSkillSources(
             manifest,
             runs.paths(snapshot.snapshotId),
-            kind === 'pi' ? 'pi-mappings.json' : 'opencode-mappings.json',
+            kind === 'pi'
+              ? 'pi-mappings.json'
+              : kind === 'opencode'
+                ? 'opencode-mappings.json'
+                : 'dsh-mappings.json',
           ).catch(() => [])
         : []
     return buildConfigurationReport(

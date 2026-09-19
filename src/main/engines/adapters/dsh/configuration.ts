@@ -1,5 +1,6 @@
 import { piApis as apis } from '../../../../shared/engines/contracts'
 import { planDshPlugins } from './plugins'
+import { planDshSkillObservation } from './skills'
 import { assertEngineConfiguration } from '../../../../shared/engines/validation'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -317,6 +318,12 @@ export async function planDsh(
     })
     mcpMappings.push({ id: server.id, serverName, transport: server.transport })
   }
+  planDshSkillObservation(
+    skills.map((skill) => skill.name),
+    paths,
+    generated,
+    rows,
+  )
   await planDshPlugins(configuration, paths, generated, rows)
   generated.files.push(
     {

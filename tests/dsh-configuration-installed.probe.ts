@@ -6,6 +6,7 @@ import { expect, it } from 'vitest'
 import { RunInputStore } from '../src/main/engines/run-input-store'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { inspectDshComposition } from '../src/main/engines/adapters/dsh/composition'
+import { prepareDshSkillAttachment } from '../src/main/engines/adapters/dsh/skills'
 import { planDsh } from '../src/main/engines/adapters/dsh/configuration'
 import { prepareDshLaunch, verifyDshHome } from '../src/main/engines/adapters/dsh/launch'
 import { attachAcpProcess, type AcpAttachment } from '../src/main/engines/acp/attachment'
@@ -176,6 +177,8 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
           { ...process.env, HOME: home },
           new AbortController().signal,
         )
+        const sourceObserver = await prepareDshSkillAttachment(prepared.manifest, store.paths(id))
+        Object.assign(prepared.launch.environment, sourceObserver.environment)
         const child = await attachAcpProcess(
           prepared.launch,
           {
@@ -192,6 +195,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
         attachments.push(child)
         await child.client.initialize('0.1.0')
         const session = await child.client.newSession({ cwd, mcpServers: [] })
+        await sourceObserver.verify(child.process.pid, child.client.signal, session.sessionId)
         await child.client.prompt(
           {
             sessionId: session.sessionId,
@@ -199,7 +203,9 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
           },
           30_000,
         )
+        await sourceObserver.verify(child.process.pid, child.client.signal, session.sessionId)
         await child.close()
+        await sourceObserver.cleanup()
         await verifyDshHome(store, id)
         await store.verifyForReuse(id)
         expect(serverError).toBeNull()
@@ -280,6 +286,7 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
               personaPrefixAndSuffix: true,
               projectRulesPreserved: true,
               directorySkillInvocation: true,
+              sessionScopedSkillSources: true,
               skillReferenceRead: true,
               mcpStdioSecretEnvironmentAndCwd: true,
               mcpProviderCredentialIsolation: true,

@@ -77,6 +77,11 @@ export const reportEn = {
     'Recorded Pi RPC source matched the captured Skill entry; invocation not verified.',
   'report.skillSource.opencode-probe':
     'A separate OpenCode process selected the captured Skill entry; the ACP instance and invocation remain unverified.',
+  'report.skillSource.dsh-registry':
+    'Recorded DSH session registry selected the captured Skill entry; invocation not verified.',
+  'report.diagnosticCheck.dsh-skills': 'DSH session Skill sources',
+  'report.check.dsh.skill-sources':
+    'DSH session-scoped registry Skill sources matched the captured entries',
   'report.skillSource.unknown': 'No recorded native source check for this captured Skill.',
   'report.nativeSkillEntry': 'Mapped native entry',
   'report.diagnosticCheck.pi-controls': 'Pi managed native controls',
