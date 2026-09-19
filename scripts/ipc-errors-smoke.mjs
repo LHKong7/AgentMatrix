@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
+import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
 
 // The marker is intentionally embedded in a filesystem path and forged dependency error.
 const marker = 'synthetic-ipc-private-value'
@@ -15,6 +16,10 @@ const replies = []
 const rendererErrors = []
 const cases = []
 try {
+  const project = join(root, 'project')
+  const executable = join(root, 'unused-engine')
+  await mkdir(join(project, '.git'), { recursive: true })
+  await writeFile(executable, '#!/bin/sh\nexit 99\n', { mode: 0o700 })
   app = await electron.launch({ args: ['.'], env, timeout: 30_000 })
   app.process().stderr.on('data', (bytes) => {
     stderr += bytes.toString()
@@ -30,12 +35,13 @@ try {
   for (const locale of ['en', 'zh-CN']) {
     await page.locator('.language-select select').first().selectOption(locale)
     await page.waitForFunction((expected) => document.documentElement.lang === expected, locale)
-    const workspace = await page.evaluate(() => window.agentMatrix.loadWorkspace())
+    let workspace = await page.evaluate(() => window.agentMatrix.loadWorkspace())
     const invoke = async (method, expected, input) => {
       const reply = await page.evaluate(
         async ({ method, input }) => {
           try {
-            await window.agentMatrix[method](input)
+            if (method === 'sessions.command') await window.agentMatrix.sessions.command(input)
+            else await window.agentMatrix[method](input)
             return { resolved: true }
           } catch (error) {
             return { resolved: false, message: error.message }
@@ -94,6 +100,45 @@ try {
       await rm(workspacePath, { force: true })
       await rename(backup, workspacePath)
     }
+    for (const kind of ['opencode', 'pi']) {
+      const fixture = openCodeWorkspace(executable, project)
+      fixture.revision = workspace.revision
+      fixture.prompts = []
+      fixture.agents[0].promptBindings = []
+      if (kind === 'pi') {
+        Object.assign(fixture.installations[0], {
+          kind,
+          version: '0.85.1',
+          modes: ['pi-rpc'],
+        })
+        fixture.agents[0].engineOptions = {
+          kind,
+          projectTrust: 'deny',
+          contextFiles: 'ignore',
+        }
+        fixture.agents[0].execution.approval = 'unrestricted'
+      }
+      fixture.skills[0].versions[0].content = `---\nname: ${marker}\ndescription: Example\n---\nPrivate fixture Skill.`
+      fixture.skills.push({ ...structuredClone(fixture.skills[0]), id: 'duplicate-skill' })
+      fixture.agents[0].skillBindings.push({
+        assetId: 'duplicate-skill',
+        selection: { follow: 'latest' },
+      })
+      const saved = await page.evaluate((value) => window.agentMatrix.saveWorkspace(value), fixture)
+      await invoke(
+        'sessions.command',
+        kind === 'pi' ? 'error.piConfiguration' : 'error.openCodeConfiguration',
+        { kind: 'create', agentId: 'reviewer', commandId: `${kind}-${locale}-duplicate` },
+      )
+      assert.ok(replies.at(-1).includes('skill.duplicate'))
+      assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), saved)
+      assert.deepEqual(await page.evaluate(() => window.agentMatrix.sessions.list()), [])
+      assert.deepEqual(await readdir(join(root, 'runs')), [])
+      workspace = await page.evaluate((value) => window.agentMatrix.saveWorkspace(value), {
+        ...workspace,
+        revision: saved.revision,
+      })
+    }
     assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), workspace)
   }
   // Language changes legitimately update the workspace; failure cases must not introduce the marker.
@@ -101,7 +146,7 @@ try {
   assert.ok(original.length > 0)
   await app.close()
   app = undefined
-  assert.equal(cases.length, 10)
+  assert.equal(cases.length, 14)
   assert.ok(!stderr.includes(marker))
   assert.ok(!rendererErrors.join('\n').includes(marker))
   assert.deepEqual(rendererErrors, [])
@@ -114,6 +159,8 @@ try {
     realFilesystemFailures: 6,
     forgedDependencyFailures: 2,
     trustedApplicationFailures: 2,
+    duplicateSkillFailures: 4,
+    duplicateFailuresPublishNoSessionOrCapture: true,
     busyRecoveryChecks: 6,
     repliesContainNoMarker: !replies.join('\n').includes(marker),
     stderrContainsNoMarker: true,
@@ -121,7 +168,7 @@ try {
     modelCalls: 0,
     externalProviderCalls: false,
     scope:
-      'Real Electron preload/invoke handlers, workspace read/save and Skill import; dialog results/errors are controlled. This checks exception projection, not successful payloads or arbitrary OS logs.',
+      'Real Electron preload/invoke handlers, workspace read/save, Skill import and duplicate-Skill capture rejection; dialog results/errors and installation metadata are controlled. No native runtime is attached. This checks exception projection, not successful payloads or arbitrary OS logs.',
   }
   if (process.env.AGENT_MATRIX_IPC_ERRORS_REPORT)
     await writeFile(
@@ -129,7 +176,7 @@ try {
       JSON.stringify(report, null, 2) + '\n',
     )
   console.log(
-    'IPC error smoke passed: 10 failures, both locales, six busy-state recoveries, and no marker in replies or captured stderr.',
+    'IPC error smoke passed: 14 failures, both locales, six busy-state recoveries, four duplicate-Skill capture rejections, and no marker in replies or captured stderr.',
   )
 } finally {
   await app?.close().catch(() => {})

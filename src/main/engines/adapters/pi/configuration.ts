@@ -226,7 +226,7 @@ export async function planPi(
     if (!named && skill.revision.kind === 'directory') return unsupported('skill.frontmatter')
     const name =
       named ?? `skill-${createHash('sha256').update(skill.assetId).digest('hex').slice(0, 16)}`
-    if (names.has(name)) return unsupported(`skill.duplicate:${name}`)
+    if (names.has(name)) return unsupported('skill.duplicate')
     names.add(name)
     const path = `skills/${name}`
     generated.skillPaths[skill.assetId] = named ? path : `sources/skills/${skill.assetId}`

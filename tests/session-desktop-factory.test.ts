@@ -18,7 +18,9 @@ import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
 import { piWorkspace } from './helpers/pi-fixture'
 import { createSessionSnapshot } from '../src/shared/sessions/state'
-import { appError } from '../src/shared/errors'
+import { appError, formatError } from '../src/shared/errors'
+import { safeSessionOperation } from '../src/main/sessions/ipc'
+import { translate } from '../src/shared/i18n'
 
 const cleanup: { root: string; factory: DesktopSessionFactory }[] = []
 async function fixture(version = '1.18.16', kind: 'opencode' | 'pi' = 'opencode') {
@@ -70,6 +72,7 @@ async function fixture(version = '1.18.16', kind: 'opencode' | 'pi' = 'opencode'
     workspace,
     factory,
     runs,
+    skills,
     resolveSecret,
     resolveSecretVersioned,
     credentialVersions,
@@ -84,6 +87,60 @@ afterEach(async () => {
   )
 })
 describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
+  it.each(
+    (['opencode', 'pi'] as const).flatMap((kind) =>
+      (['markdown', 'directory'] as const).map((source) => ({ kind, source })),
+    ),
+  )('keeps $kind duplicate $source Skill names out of IPC errors', async ({ kind, source }) => {
+    const f = await fixture(kind === 'pi' ? '0.85.1' : '1.18.16', kind)
+    await f.factory.probe({ installationId: kind === 'pi' ? 'pi' : 'oc' })
+    const marker = 'synthetic-private-value'
+    const content = `---\nname: ${marker}\ndescription: Example\n---\nUnchanged Skill body.`
+    const state = await f.workspace.load()
+    const skill = state.skills[0]!
+    if (source === 'directory') {
+      const path = join(f.root, 'skill-source')
+      await mkdir(path)
+      await writeFile(join(path, 'SKILL.md'), content)
+      skill.versions = [(await f.skills.capture(path)).snapshot]
+    } else skill.versions = [{ kind: 'markdown', version: 1, content }]
+    state.skills.push({ ...structuredClone(skill), id: 'other-skill' })
+    state.agents[0]!.skillBindings.push({
+      assetId: 'other-skill',
+      selection: { follow: 'latest' },
+    })
+    const saved = await f.workspace.save(state)
+    const command = { kind: 'create' as const, commandId: 'duplicate', agentId: 'reviewer' }
+    const error = await safeSessionOperation(() => f.factory.create('duplicate', command)).catch(
+      (error: unknown) => error,
+    )
+    const key = kind === 'pi' ? 'error.piConfiguration' : 'error.openCodeConfiguration'
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).not.toContain(marker)
+    for (const locale of ['en', 'zh-CN'] as const)
+      expect(formatError(error, locale)).toBe(
+        translate(locale, key, { feature: 'skill.duplicate' }),
+      )
+    expect(await f.workspace.load()).toEqual(saved)
+    expect(await readdir(f.runs.root)).toEqual([])
+    expect(f.resolveSecret).not.toHaveBeenCalled()
+    expect(f.resolveSecretVersioned).not.toHaveBeenCalled()
+
+    // Removing the duplicate binding allows capture without rewriting the original Skill.
+    saved.agents[0]!.skillBindings.pop()
+    await f.workspace.save(saved)
+    const identity = await f.factory.create('recovered', command)
+    const manifest = await f.runs.read(identity.snapshotId)
+    expect(manifest.skills).toHaveLength(1)
+    expect(
+      await readFile(
+        join(f.runs.paths(identity.snapshotId).inputs, 'skills', marker, 'SKILL.md'),
+        'utf8',
+      ),
+    ).toBe(content)
+    expect(f.resolveSecret).not.toHaveBeenCalled()
+    expect(f.resolveSecretVersioned).not.toHaveBeenCalled()
+  })
   it.each(
     (['opencode', 'pi'] as const).flatMap((kind) =>
       // The extra brace escaping belongs to OpenCode's native interpolation format.

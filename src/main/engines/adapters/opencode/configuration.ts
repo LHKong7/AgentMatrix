@@ -192,7 +192,7 @@ export async function planOpenCode(
     const named = skillName(content)
     if (!named && skill.revision.kind === 'directory') return unsupported('skill.frontmatter')
     const name = named ?? markdownSkillName(skill.assetId)
-    if (names.has(name)) return unsupported(`skill.duplicate:${name}`)
+    if (names.has(name)) return unsupported('skill.duplicate')
     names.add(name)
     const nativePath = `skills/${name}`
     generated.skillPaths[skill.assetId] = named ? nativePath : `sources/skills/${skill.assetId}`
