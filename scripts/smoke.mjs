@@ -8,6 +8,10 @@ const dataDirectory = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-'))
 const skillSource = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-skill-'))
 const pluginSource = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-plugin-'))
 const runtimeErrors = []
+const foundationMode =
+  process.argv.includes('--foundation') || Boolean(process.env.AGENT_MATRIX_FOUNDATION_REPORT)
+const foundationDrafts = []
+let credentialReplacementRestartVerified = false
 const env = { ...process.env, AGENT_MATRIX_DATA_DIR: dataDirectory }
 delete env.ELECTRON_RUN_AS_NODE
 let app
@@ -624,6 +628,63 @@ try {
     await dialog.getByRole('button', { name: 'Save Agent', exact: true }).click()
     await dialog.waitFor({ state: 'hidden' })
   }
+  if (foundationMode) {
+    for (const locale of ['en', 'zh-CN']) {
+      await language(locale)
+      await navigate(locale === 'en' ? 'Sessions' : '会话')
+      const workspace = await state()
+      for (const name of ['Smoke Agent', 'Pi Agent', 'DSH Agent']) {
+        const agent = workspace.agents.find((item) => item.name === name)
+        assert.ok(agent)
+        await page
+          .getByLabel(locale === 'en' ? 'Agent configuration' : 'Agent 配置', { exact: true })
+          .selectOption(agent.id)
+        assert.equal(
+          await page
+            .getByRole('button', {
+              name: locale === 'en' ? 'Start new session' : '启动新会话',
+              exact: true,
+            })
+            .isDisabled(),
+          true,
+        )
+        const rejection = await page.evaluate(
+          async ({ agentId, commandId }) => {
+            try {
+              await window.agentMatrix.sessions.command({ kind: 'create', agentId, commandId })
+              return null
+            } catch (error) {
+              return error.message
+            }
+          },
+          { agentId: agent.id, commandId: `foundation-${locale}-${agent.id}` },
+        )
+        assert.ok(rejection?.includes('error.runConfiguration'))
+        foundationDrafts.push({
+          locale,
+          engine: workspace.installations.find((item) => item.id === agent.engineInstallationId)
+            .kind,
+          uiLaunchBlocked: true,
+          mainProcessRejected: true,
+        })
+      }
+      assert.deepEqual(await page.evaluate(() => window.agentMatrix.sessions.list()), [])
+      assert.deepEqual(await state(), workspace)
+      assert.deepEqual(
+        await readdir(join(dataDirectory, 'runs')).catch((error) => {
+          if (error.code === 'ENOENT') return []
+          throw error
+        }),
+        [],
+      )
+      if (process.env.AGENT_MATRIX_FOUNDATION_SCREENSHOT)
+        await page.screenshot({
+          path: `${process.env.AGENT_MATRIX_FOUNDATION_SCREENSHOT}.${locale}.png`,
+          fullPage: true,
+        })
+    }
+    await language('en')
+  }
   let current = await state()
   assert.equal(current.agents.length, 4)
   assert.ok(current.installations.every((item) => item.probedAt === null))
@@ -726,6 +787,12 @@ try {
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByRole('heading', { name: 'Language', exact: true }).waitFor()
   const credentialStatus = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+  if (foundationMode)
+    assert.equal(
+      credentialStatus.available,
+      true,
+      'B0 requires real OS credential storage; unavailable storage is not a pass',
+    )
   if (credentialStatus.available) {
     await page.getByLabel('Credential name', { exact: true }).fill('Smoke credential')
     await page.getByLabel('Secret value', { exact: true }).fill(syntheticSecret)
@@ -817,6 +884,26 @@ try {
       (await page.evaluate(() => window.agentMatrix.getCredentialStatus())).credentials[0].revision,
       2,
     )
+    if (foundationMode) {
+      const replaced = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+      await app.close()
+      await launch()
+      assert.deepEqual(
+        await page.evaluate(() => window.agentMatrix.getCredentialStatus()),
+        replaced,
+      )
+      const encrypted = await readFile(join(dataDirectory, 'credentials', 'vault.json'), 'utf8')
+      assert.ok(!encrypted.includes('replacement-synthetic-secret'))
+      assert.ok(!encrypted.includes(syntheticSecret))
+      const decrypted = await app.evaluate(
+        async ({ safeStorage }, ciphertext) =>
+          (await safeStorage.decryptStringAsync(Buffer.from(ciphertext, 'base64'))).result,
+        JSON.parse(encrypted).entries[0].ciphertext,
+      )
+      assert.equal(decrypted, 'replacement-synthetic-secret')
+      credentialReplacementRestartVerified = true
+      await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    }
     page.once('dialog', (dialog) => dialog.accept())
     await page.getByRole('button', { name: 'Delete credential', exact: true }).click()
     await page.getByRole('status').filter({ hasText: 'Credential deleted.' }).waitFor()
@@ -855,6 +942,58 @@ try {
       (await state()).nativePlugins.find((item) => item.id === plugin.id),
       plugin,
     )
+  if (foundationMode) {
+    assert.equal(foundationDrafts.length, 6)
+    assert.equal(credentialReplacementRestartVerified, true)
+    const report = {
+      checkedAt: new Date().toISOString(),
+      platform: process.platform,
+      architecture: process.arch,
+      passed: true,
+      gate: 'B0',
+      scope:
+        'Development-host shared data/UI/credential/session contracts; no runtime delivery gate',
+      applicationVersion: await page.evaluate(() =>
+        window.agentMatrix.getAppInfo().then((info) => info.version),
+      ),
+      electronVersion: await app.evaluate(() => process.versions.electron),
+      exactLegacyBackup: true,
+      migrationSurvivesRestart: true,
+      unresolvedDrafts: foundationDrafts,
+      invalidCreatesLeaveNoSessionsOrCaptures: true,
+      newModelsHaveNoImplicitSampling: true,
+      sharedAndEngineSpecificEditors: true,
+      pinnedAndLatestBindings: true,
+      appendOnlyPromptAndSkillRevisions: true,
+      originalDirectoryCaptureSurvivesSourceDeletion: true,
+      dependentReferenceCleanup: true,
+      realOsStorageAvailable: credentialStatus.available,
+      initialOsDecryptionVerified: true,
+      credentialMetadataContainsNoValue: true,
+      ordinaryWorkspaceUsesCredentialReference: true,
+      replacementOsDecryptionAfterRestart: credentialReplacementRestartVerified,
+      credentialDeletionVerified: true,
+      englishAndChinese: true,
+      localeSurvivesReloadAndRestart: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      rendererSandbox: true,
+      rendererErrors: runtimeErrors.length,
+      nativeCliExecuted: false,
+      modelCalls: 0,
+      externalProviderCalls: false,
+      chooserSubstituted: true,
+      nativeRuntimeGatesPromoted: [],
+    }
+    if (process.env.AGENT_MATRIX_FOUNDATION_REPORT)
+      await writeFile(
+        process.env.AGENT_MATRIX_FOUNDATION_REPORT,
+        JSON.stringify(report, null, 2) + '\n',
+      )
+    console.log(
+      'B0 foundation smoke passed: six draft launch rejections, real OS encryption, replacement decryption after restart, and bilingual shared configuration.',
+    )
+  }
   if (process.env.AGENT_MATRIX_PLUGIN_REPORT)
     await writeFile(
       process.env.AGENT_MATRIX_PLUGIN_REPORT,

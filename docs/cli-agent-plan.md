@@ -68,6 +68,8 @@ IDs refer to this revised sequence: `V` for probes, `A` for shared foundations, 
 
 **Delivery gates:** B0 accepts the data/UI foundation; B7 accepts OpenCode and the shared abstractions; C4 accepts Pi; D4 accepts DSH and completes the initial three-engine milestone. Failed checks block the relevant gate. A gate cannot inherit another engine's verification result.
 
+**B0 acceptance:** The [shared foundation audit](foundation-acceptance.md) passes the development-host B0 gate on macOS arm64. It maps each dependency to inspected assertions and a strict Electron run requiring real OS encryption, six bilingual draft-launch rejections and replacement decryption after restart. B7/C4/D4 remain open; the foundation result does not substitute for external-service or complete X3 acceptance.
+
 ### 2.1 Incremental delivery
 
 | Milestone              | User-visible outcome                                                                                                                                   | Acceptance boundary                                                                                                                                              |

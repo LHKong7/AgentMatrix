@@ -35,7 +35,8 @@
     "package": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "test:ipc-errors": "npm run build && node scripts/ipc-errors-smoke.mjs",
-    "probe:skills": "vitest run --config vitest.skills.config.ts --maxWorkers=1"
+    "probe:skills": "vitest run --config vitest.skills.config.ts --maxWorkers=1",
+    "test:foundation": "npm run build && node scripts/smoke.mjs --foundation"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.4.0",
