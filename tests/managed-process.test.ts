@@ -4,7 +4,7 @@ import {
   baseProcessEnvironment,
   stopOwnedProcesses,
 } from '../src/main/engines/process/managed-process'
-import { RedactedTail } from '../src/main/engines/process/redacted-tail'
+import { containsSecret, RedactedTail } from '../src/main/engines/process/redacted-tail'
 import { attachAcpProcess } from '../src/main/engines/acp/attachment'
 
 const processes: ManagedProcess[] = []
@@ -44,6 +44,16 @@ function exists(pid: number) {
 }
 
 describe('bounded streaming diagnostic redaction', () => {
+  it('detects encoded credentials in metadata without rejecting unrelated trailing prefixes', () => {
+    const secret = 'token/中文"abcdef'
+    for (const value of [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret)])
+      expect(containsSecret(`native_${value}`, [secret])).toBe(true)
+    expect(containsSecret('session-ending-t', [secret])).toBe(false)
+    expect(containsSecret('session_token/中文', [secret])).toBe(false)
+    expect(containsSecret('session_without_secrets', ['', ''])).toBe(false)
+    expect(containsSecret('native_\ufffdkey', ['\ud800key'])).toBe(true)
+    expect(() => containsSecret('session', Array(257).fill('key'))).toThrow('redaction limit')
+  })
   it('handles long repetitive prefixes and invalid UTF-16 without unbounded suffix scans', () => {
     const secret = 'xy'.repeat(25_000) + 'z'
     const tail = new RedactedTail([secret, '\ud800key'])

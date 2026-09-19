@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { isAbsolute, join } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { isAbsolute, join, relative, sep } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
 
@@ -25,6 +25,13 @@ const engines = [
   {
     id: 'dsh',
     label: 'DeepSeek Harness',
+    kind: 'deepseek-harness',
+    path: process.env.AGENT_MATRIX_TEST_DSH,
+    options: { kind: 'deepseek-harness', profileTemplate: 'acp', patchReload: 'startup' },
+  },
+  {
+    id: 'dsh_native',
+    label: 'DeepSeek Harness native',
     kind: 'deepseek-harness',
     path: process.env.AGENT_MATRIX_TEST_DSH,
     options: { kind: 'deepseek-harness', profileTemplate: 'acp', patchReload: 'startup' },
@@ -66,8 +73,12 @@ const server = createServer(async (request, response) => {
           ? 2
           : null
     assert.ok(key, 'Unknown provider credential')
-    assert.equal(request.headers['x-credential'], key === 1 ? firstKey : secondKey)
-    assert.equal(request.headers['x-rotation-environment'], environmentKey)
+    const nativeDsh = input.model === 'rotation-dsh_native'
+    assert.equal(
+      request.headers['x-credential'],
+      nativeDsh ? undefined : key === 1 ? firstKey : secondKey,
+    )
+    assert.equal(request.headers['x-rotation-environment'], nativeDsh ? undefined : environmentKey)
     const primary = input.tools?.some((tool) => tool.function?.name === 'read')
     // Native context messages can follow the submitted user prompt.
     const marker = input.messages
@@ -152,6 +163,7 @@ workspace.models = engines.map((engine) => ({
   ...model,
   id: engine.id,
   modelId: `rotation-${engine.id}`,
+  connectionId: engine.id === 'dsh_native' ? 'native-deepseek' : model.connectionId,
 }))
 workspace.prompts = []
 workspace.skills = []
@@ -161,6 +173,14 @@ workspace.connections[0].secretHeaders = {
   'X-Credential': { kind: 'credential', id: credentialId },
   'X-Rotation-Environment': { kind: 'environment', name: 'ROTATION_ENVIRONMENT' },
 }
+workspace.connections.push({
+  ...structuredClone(workspace.connections[0]),
+  id: 'native-deepseek',
+  name: 'Native DeepSeek connection',
+  protocol: 'deepseek-official',
+  headers: {},
+  secretHeaders: {},
+})
 await writeFile(join(dataDirectory, 'workspace.json'), JSON.stringify(workspace))
 const env = {
   ...process.env,
@@ -253,11 +273,14 @@ function checkReport(value, state, attached, stored) {
   assert.equal(vault[0].state, state)
   assert.equal(vault[0].attachment?.revision ?? null, attached)
   assert.equal(vault[0].current?.revision ?? null, stored)
-  assert.deepEqual(vault[0].purposes, ['model-auth', 'model-header'])
-  assert.equal(
-    value.credentials.entries.find((entry) => entry.source === 'environment').state,
-    'environment',
-  )
+  const nativeDsh = value.fields
+    .find((field) => field.id === 'connection')
+    .value.startsWith('deepseek-official\n')
+  assert.deepEqual(vault[0].purposes, nativeDsh ? ['model-auth'] : ['model-auth', 'model-header'])
+  const environment = value.credentials.entries.find((entry) => entry.source === 'environment')
+  if (nativeDsh) assert.equal(environment, undefined)
+  else assert.equal(environment.state, 'environment')
+  assert.equal(value.credentials.entries.length, nativeDsh ? 1 : 2)
   assert.equal(value.observation?.credentialResolutions, undefined)
   for (const secret of [firstKey, secondKey, environmentKey, credentialId, 'ROTATION_ENVIRONMENT'])
     assert.ok(!JSON.stringify(value).includes(secret))
@@ -300,15 +323,21 @@ async function showReport(session, locale, state) {
     .last()
     .click()
 }
+const scannedFiles = [],
+  excludedNativeState = []
 async function inspectFiles(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) {
-      if (entry.name !== 'state') await inspectFiles(path)
+      const parts = relative(dataDirectory, path).split(sep)
+      if (parts.length === 3 && parts[0] === 'runs' && parts[2] === 'state')
+        excludedNativeState.push(relative(dataDirectory, path))
+      else await inspectFiles(path)
       continue
     }
-    if (!entry.isFile() || !/\.(json|jsonl|md|yml|yaml|enc)$/.test(entry.name)) continue
-    const contents = await readFile(path, 'utf8')
+    if (!entry.isFile()) continue
+    const contents = await readFile(path)
+    scannedFiles.push(relative(dataDirectory, path))
     for (const value of [firstKey, secondKey, environmentKey])
       assert.ok(
         !contents.includes(value),
@@ -358,8 +387,8 @@ try {
   }
   await page.reload()
   await page.locator('.card-grid').waitFor()
-  await showReport(originals[0], 'en', 'changed')
-  await showReport(originals[2], 'zh-CN', 'changed')
+  for (const session of originals)
+    for (const locale of ['en', 'zh-CN']) await showReport(session, locale, 'changed')
   for (const engine of engines) {
     const session = await start(engine)
     newer.push(session)
@@ -458,9 +487,22 @@ try {
     ),
     provider: {
       service: 'Local synthetic fixture',
-      protocol: 'openai-chat-completions',
-      modelIds: workspace.models.map((model) => model.modelId),
-      dshRoute: 'pi-ai',
+      routes: engines.map((engine) => {
+        const selectedModel = workspace.models.find((value) => value.id === engine.id)
+        return {
+          profile: engine.id,
+          engine: engine.kind,
+          executable: engine.path.startsWith(`${homedir()}/`)
+            ? `~${engine.path.slice(homedir().length)}`
+            : engine.path,
+          protocol: workspace.connections.find((value) => value.id === selectedModel.connectionId)
+            .protocol,
+          model: selectedModel.modelId,
+          ...(engine.kind === 'deepseek-harness'
+            ? { component: engine.id === 'dsh_native' ? 'dsh-llm-deepseek' : 'dsh-llm-pi-ai' }
+            : {}),
+        }
+      }),
     },
     locales: ['en', 'zh-CN'],
     initialRevision: 1,
@@ -472,6 +514,9 @@ try {
     historicalEvidencePreserved: true,
     immutableManifests: true,
     applicationStorageRedacted: true,
+    applicationRegularFilesScanned: scannedFiles.length,
+    nativeStateDirectoriesExcluded: excludedNativeState.length,
+    headerReferencesIsolatedByConnection: true,
     nativeHistoryContainsOriginalEcho: true,
     rotatedKeyEchoRedactedAfterRestart: true,
     retiredKeysNeverAuthenticate: true,

@@ -13,7 +13,7 @@ import {
 } from '../../runtime'
 import { openCodeContract } from './configuration'
 import { verifyOpenCodeReadback, verifyOpenCodeSkillReadback } from './readback'
-import { redactText } from '../../process/redacted-tail'
+import { containsSecret, redactText } from '../../process/redacted-tail'
 import { prepareOpenCodePluginAttachment } from './plugins'
 import { openCodeSkillPlanPath, prepareOpenCodeSkillAttachment } from './skills'
 import { openCodeConfigPlanPath, prepareOpenCodeConfigurationAttachment } from './instance-config'
@@ -160,8 +160,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     const lifetime = AbortSignal.any([signal, owned.client.signal])
     let nativeSessionId = options.previousNativeSessionId
     if (nativeSessionId) {
-      if (launch.secrets?.some((secret) => nativeSessionId!.includes(secret)))
-        throw new RuntimeFailure('protocol')
+      if (containsSecret(nativeSessionId, launch.secrets)) throw new RuntimeFailure('protocol')
       const params = { sessionId: nativeSessionId, cwd: manifest.cwd, mcpServers: [] }
       const response = initialization.agentCapabilities?.sessionCapabilities?.resume
         ? await owned.client.resumeSession(params)
@@ -180,7 +179,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
     if (
       !nativeSessionId ||
       nativeSessionId.length > 1000 ||
-      launch.secrets?.some((secret) => nativeSessionId!.includes(secret))
+      containsSecret(nativeSessionId, launch.secrets)
     )
       throw new RuntimeFailure('protocol')
     if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')

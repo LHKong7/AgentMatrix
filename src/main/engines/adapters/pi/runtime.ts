@@ -5,7 +5,7 @@ import { attachPiProcess, type PiAttachment } from '../../pi/attachment'
 import { PiFailure } from '../../pi/protocol'
 import { PiTurn, piIdleEvents } from '../../pi/turn'
 import { RuntimeFailure, type RuntimeSession } from '../../runtime'
-import { redactText } from '../../process/redacted-tail'
+import { containsSecret, redactText } from '../../process/redacted-tail'
 import { preparePiLaunch, verifyPiHome } from './launch'
 import { verifyPiReadback } from './readback'
 import { rememberPiSession, restorePiSession } from './session-state'
@@ -106,9 +106,8 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
     const state = await verifyPiReadback(owned.client, manifest, paths)
     await plugins?.verify(owned.client, owned.process.pid, state)
     if (
-      launch.secrets?.some(
-        (secret) => state.sessionId.includes(secret) || state.sessionFile.includes(secret),
-      )
+      containsSecret(state.sessionId, launch.secrets) ||
+      containsSecret(state.sessionFile, launch.secrets)
     )
       throw new RuntimeFailure('protocol')
     if (previous) {

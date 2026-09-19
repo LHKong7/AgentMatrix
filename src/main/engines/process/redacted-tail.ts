@@ -5,6 +5,34 @@ export function redactText(text: string, secrets: readonly string[]): string {
   return filter.push(Buffer.from(text)) + filter.finish()
 }
 
+/** Full-value matching for native identifiers; truncated stream prefixes are not identities. */
+export function containsSecret(value: string, secrets: readonly string[] = []): boolean {
+  return secretVariants(secrets).some((secret) => value.includes(secret))
+}
+
+function secretVariants(secrets: readonly string[]): string[] {
+  if (
+    secrets.length > 256 ||
+    secrets.some((secret) => secret.length > 65_536) ||
+    secrets.reduce((total, secret) => total + secret.length, 0) > 1_048_576
+  )
+    throw new Error('Diagnostic redaction limit exceeded')
+  return [
+    ...new Set(
+      secrets.filter(Boolean).flatMap((secret) => {
+        const utf8 = Buffer.from(secret).toString('utf8')
+        return [
+          secret,
+          utf8,
+          JSON.stringify(secret).slice(1, -1),
+          JSON.stringify(utf8).slice(1, -1),
+          encodeURIComponent(utf8),
+        ]
+      }),
+    ),
+  ].sort((left, right) => right.length - left.length)
+}
+
 function trailingPrefix(text: string, secret: string): number {
   const prefix = new Int32Array(secret.length)
   for (let index = 1, length = 0; index < secret.length; index++) {
@@ -36,26 +64,7 @@ export class RedactedTail {
   ) {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 65_536)
       throw new Error('Invalid diagnostic limit')
-    if (
-      secrets.length > 256 ||
-      secrets.some((secret) => secret.length > 65_536) ||
-      secrets.reduce((total, secret) => total + secret.length, 0) > 1_048_576
-    )
-      throw new Error('Diagnostic redaction limit exceeded')
-    this.variants = [
-      ...new Set(
-        secrets.filter(Boolean).flatMap((secret) => {
-          const utf8 = Buffer.from(secret).toString('utf8')
-          return [
-            secret,
-            utf8,
-            JSON.stringify(secret).slice(1, -1),
-            JSON.stringify(utf8).slice(1, -1),
-            encodeURIComponent(utf8),
-          ]
-        }),
-      ),
-    ].sort((left, right) => right.length - left.length)
+    this.variants = secretVariants(secrets)
     this.carry = Math.max(0, ...this.variants.map((secret) => secret.length - 1))
   }
   private consume(final: boolean): string {

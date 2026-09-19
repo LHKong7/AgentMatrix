@@ -146,6 +146,29 @@ const handlers = {
   output: async () => {},
   interaction: async () => ({ kind: 'cancelled' as const }),
 }
+it.each(
+  ['URL', 'JSON'].flatMap((encoding) => [false, true].map((resume) => ({ encoding, resume }))),
+)(
+  'rejects $encoding-encoded credentials in native identity (resume=$resume)',
+  async ({ encoding, resume }) => {
+    const f = fixture()
+    const secret = 'synthetic-identity-"key/+%'
+    const encoded =
+      encoding === 'URL' ? encodeURIComponent(secret) : JSON.stringify(secret).slice(1, -1)
+    const id = `ses_${encoded}`
+    f.launch.secrets = [secret]
+    f.client.newSession.mockResolvedValue({ sessionId: id, configOptions: f.choices })
+    await expect(
+      f.connect(resume ? id : undefined).then(async (runtime) => {
+        await runtime.dispose()
+        return runtime
+      }),
+    ).rejects.toMatchObject({ code: 'protocol' })
+    expect(f.close).toHaveBeenCalled()
+    expect(f.client.prompt).not.toHaveBeenCalled()
+    if (resume) expect(f.client.resumeSession).not.toHaveBeenCalled()
+  },
+)
 it('records an optional MCP sample at attachment while preserving checked configuration and allowing unavailable services', async () => {
   const f = fixture()
   f.manifest.mcpServers = [

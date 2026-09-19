@@ -28,7 +28,9 @@ Native transcripts, caches and tool-written files can still contain raw echoed k
 
 Unit tests cover restart, encoded retired keys, current-only environment injection, concurrent merges, capture isolation/deletion, missing/corrupt/linked/special files, wrong identity, encryption failure/retry, backend unavailability, history bounds, legacy digests and observer-persistence failure before ACP spawn.
 
-The Electron fixture uses OpenCode 1.18.16, Pi 0.85.1 and DSH 0.1.5-rc.2, local synthetic Chat Completions and real OS encryption. It echoes a synthetic key, rotates the shared credential, restarts Electron and confirms that native model context contains the old echo. A new response repeats both old and current keys. Application history and exported JSONL mask both; provider requests use only the expected attachment credential. Reports preserve revision evidence in both languages. Application files, including encrypted history, are scanned for synthetic values; native mutable state is outside that plaintext scan. Removing all six fixture conversations removes their masking histories without additional primary model requests.
+The Electron fixture uses OpenCode 1.18.16, Pi 0.85.1 and both DSH 0.1.5-rc.2 routes: Pi-AI with `openai-chat-completions` and native DeepSeek with `deepseek-official`. All routes use a local synthetic Chat Completions service and real OS encryption. The native DSH connection shares the vault authentication reference but has no custom headers; the server and reports verify that header references from the other connection do not cross that boundary.
+
+It echoes a synthetic key, rotates the shared credential, restarts Electron and confirms that native model context contains the old echo. A new response repeats both old and current keys. Application history and exported JSONL mask both; provider requests use only the expected attachment credential. Reports preserve revision evidence in both languages for all four routes. Every regular application file, including encrypted history, is scanned for synthetic values; exactly `runs/<capture>/state` is excluded as native mutable state. Removing all eight fixture conversations removes their masking histories without additional primary model requests.
 
 ```sh
 AGENT_MATRIX_TEST_OPENCODE=/absolute/path/to/opencode \
@@ -39,6 +41,8 @@ AGENT_MATRIX_ROTATION_SCREENSHOT=/absolute/path/to/report \
 npm run test:credential-rotation
 ```
 
-The fixture exercises DSH's Pi-AI route. Its native DeepSeek route, external providers, broader plugin/MCP behavior, other platforms and full X3 acceptance need separate evidence.
+External providers, broader plugin/MCP behavior, other platforms and full X3 acceptance need separate evidence. The [data-boundary audit notes](credential-data-boundaries.md) map inspected application surfaces to their current assertions and document the separate encoded-native-identity rejection fix.
 
-The [2026-09-19 macOS arm64 result](probes/2026-09-19-credential-redaction-history-desktop.json) passes all three engines with 15 primary model requests. Both report screenshots were visually inspected. The full unit suite passed 861 tests across 57 files; the final typed launch adjustment passed 24 focused history/runtime tests, and ESLint, TypeScript, production build and changed-file formatting checks passed.
+The earlier [2026-09-19 macOS arm64 result](probes/2026-09-19-credential-redaction-history-desktop.json) passes all three engines on the Pi-AI DSH route with 15 primary model requests. Its original 861-test unit result remains historical evidence.
+
+The [four-route follow-up](probes/2026-09-19-four-route-credential-rotation.json) passes 20 primary requests, scans 112 application regular files and explicitly excludes eight native state directories. The retained native DSH report screenshots were visually inspected in English and Chinese. The full unit suite passes 928 tests across 61 files with two workers; ESLint, TypeScript, production build and changed-file formatting checks pass. [Validation metadata](probes/2026-09-19-credential-boundary-validation.json) records the commands, scope and source revision.

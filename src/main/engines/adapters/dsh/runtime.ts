@@ -5,7 +5,7 @@ import { attachAcpProcess, type AcpAttachment } from '../../acp/attachment'
 import { AcpTurn } from '../../acp/turn'
 import { AcpFailure } from '../../acp/stream'
 import { RuntimeFailure, type RuntimeSession } from '../../runtime'
-import { redactText } from '../../process/redacted-tail'
+import { containsSecret, redactText } from '../../process/redacted-tail'
 import { prepareDshLaunch, verifyDshHome } from './launch'
 import { verifyDshOptions } from './readback'
 import { prepareDshPluginAttachment } from './plugins'
@@ -132,7 +132,7 @@ export async function connectDsh(options: ConnectOptions): Promise<RuntimeSessio
     nativeSessionId = previous ?? ('sessionId' in response ? String(response.sessionId) : '')
     if (
       !z.uuid().safeParse(nativeSessionId).success ||
-      launch.secrets?.some((secret) => nativeSessionId!.includes(secret))
+      containsSecret(nativeSessionId, launch.secrets)
     )
       throw new RuntimeFailure('protocol', 'dsh.session-identity')
     const id = nativeSessionId
