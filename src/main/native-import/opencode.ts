@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { credentialInputSchema, type CredentialInput } from '../../shared/credentials'
+import { credentialInputSchema } from '../../shared/credentials'
 import { openCodeProviders } from '../../shared/engines/contracts'
 import {
   agentProfileSchema,
@@ -25,12 +25,7 @@ import {
   type JsonValue,
 } from './jsonc'
 
-export interface NativeImportPlan {
-  additions: Pick<EngineWorkspace, 'connections' | 'models' | 'agents' | 'prompts' | 'mcpServers'>
-  credentials: CredentialInput[]
-  mappings: NativeImportRecord['mappings']
-  diagnostics: NativeImportRecord['diagnostics']
-}
+import type { NativeImportPlan } from './plan'
 const text = (value: JsonValue | undefined, max = 100_000) =>
   typeof value === 'string' && value.length <= max ? value : undefined
 const reference = (value: string) => /\{(?:env|file):[^}]*\}/.test(value)
@@ -138,7 +133,11 @@ export function planOpenCodeImport(
     const names = new Set<string>()
     for (const [name, entry] of Object.entries(value)) {
       const location = at(path, name)
-      if (!headerName.safeParse(name).success || names.has(name.toLowerCase())) {
+      if (
+        name === '__proto__' ||
+        !headerName.safeParse(name).success ||
+        names.has(name.toLowerCase())
+      ) {
         diagnostic(location, 'invalid-value')
         continue
       }
@@ -330,7 +329,7 @@ export function planOpenCodeImport(
         if (isObject(native.environment))
           for (const [key, value] of Object.entries(native.environment)) {
             const location = at(`${path}/environment`, key)
-            if (!environmentName.safeParse(key).success) {
+            if (key === '__proto__' || !environmentName.safeParse(key).success) {
               diagnostic(location, 'invalid-value')
               continue
             }

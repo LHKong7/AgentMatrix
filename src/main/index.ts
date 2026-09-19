@@ -150,16 +150,23 @@ if (!app.requestSingleInstanceLock()) {
       safeSessionOperation(async () => {
         verifySender(event)
         const query = nativeImportQuerySchema.parse(input)
+        const kind = (await store.load()).installations.find(
+          (entry) => entry.id === query.installationId,
+        )?.kind
+        if (kind !== 'opencode' && kind !== 'pi') throw appError('error.nativeImportEngine')
         if (choosingImport) throw appError('error.nativeImportBusy')
         choosingImport = true
         try {
           const result = await dialog.showOpenDialog(mainWindow!, {
-            properties: ['openFile'],
-            filters: [{ name: 'OpenCode JSON / JSONC', extensions: ['json', 'jsonc'] }],
+            properties: kind === 'pi' ? ['openFile', 'multiSelections'] : ['openFile'],
+            filters:
+              kind === 'pi'
+                ? [{ name: 'Pi JSON / Markdown', extensions: ['json', 'md'] }]
+                : [{ name: 'OpenCode JSON / JSONC', extensions: ['json', 'jsonc'] }],
           })
           verifySender(event)
           if (result.canceled || !result.filePaths[0]) return null
-          const preview = await nativeImports.preview(query, result.filePaths[0])
+          const preview = await nativeImports.preview(query, result.filePaths)
           verifySender(event)
           return preview
         } finally {

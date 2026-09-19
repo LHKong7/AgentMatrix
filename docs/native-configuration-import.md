@@ -1,6 +1,6 @@
 # Native configuration import
 
-Updated: **2026-09-19**. The first importer covers a selected **OpenCode JSON/JSONC file**, interpreted against the **1.18.16** configuration contract. Pi and DeepSeek Harness importers remain separate work. Importing does not probe an installation or verify a delivery gate.
+Updated: **2026-09-19**. This document describes the selected **OpenCode JSON/JSONC file** importer, interpreted against the **1.18.16** configuration contract, and the shared persistence boundaries. The [Pi 0.85.1 importer](pi-native-configuration-import.md) also supports explicitly selected model, auth, settings, and Prompt files in one transaction. DeepSeek Harness import remains separate work. Importing does not probe an installation or verify a delivery gate.
 
 ## Desktop workflow
 
@@ -58,7 +58,7 @@ Its assertions cover cancellation, read-only preview, English/Chinese UI, change
 
 **Recorded result:** the macOS arm64 fixture passed on 2026-09-19 with OpenCode 1.18.16 and one completed primary provider round trip. [Redacted result](probes/2026-09-19-opencode-native-import-desktop.json). The initial installation path deliberately points to a nonexistent executable; import succeeds before the test selects and explicitly probes the real CLI.
 
-Remaining work includes Pi/DSH importers, combined native precedence and discovery, file-based instruction/Skill ingestion, native authentication-store discovery, complete per-field runtime override provenance, expanded provider/model and OAuth mappings, import archive retention/export, and external-provider/platform acceptance. Native-file write-back and bidirectional synchronization remain deferred.
+Remaining work includes the DSH importer, combined native precedence and discovery, OpenCode file-based instruction/Skill ingestion and native authentication-store discovery, complete per-field runtime override provenance, expanded provider/model and OAuth mappings, import archive retention/export, and external-provider/platform acceptance. Native-file write-back and bidirectional synchronization remain deferred.
 
 ## Primary references
 

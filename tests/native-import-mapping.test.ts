@@ -48,6 +48,21 @@ describe('inert OpenCode configuration parsing', () => {
 })
 
 describe('OpenCode native-to-shared mapping', () => {
+  it('diagnoses unrepresentable dictionary keys instead of silently stripping configured headers or environment values', () => {
+    const result = plan(
+      '{"provider":{"custom":{"npm":"@ai-sdk/openai-compatible","options":{"headers":{"__proto__":"private-header"}}}},"mcp":{"local":{"type":"local","command":["server"],"environment":{"__proto__":"private-env"}}}}',
+    )
+    expect(result.credentials).toHaveLength(0)
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        { path: '/provider/custom/options/headers/__proto__', code: 'invalid-value' },
+        { path: '/mcp/local/environment/__proto__', code: 'invalid-value' },
+      ]),
+    )
+    expect(result.mappings.map((entry) => entry.path)).not.toContain(
+      '/mcp/local/environment/__proto__',
+    )
+  })
   it('does not label invalid values or unresolved OAuth scopes as successfully mapped', () => {
     const result = plan(
       JSON.stringify({

@@ -6,10 +6,14 @@ import { isAbsolute, join } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
 
-const executable = process.env.AGENT_MATRIX_TEST_OPENCODE
+const engine = process.env.AGENT_MATRIX_IMPORT_ENGINE ?? 'opencode'
+assert.ok(['opencode', 'pi'].includes(engine), 'Choose opencode or pi')
+const isPi = engine === 'pi'
+const version = isPi ? '0.85.1' : '1.18.16'
+const executable = process.env[isPi ? 'AGENT_MATRIX_TEST_PI' : 'AGENT_MATRIX_TEST_OPENCODE']
 assert.ok(
   executable && isAbsolute(executable),
-  'Set AGENT_MATRIX_TEST_OPENCODE to an absolute executable',
+  'Set the selected engine test executable to an absolute path',
 )
 const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-native-import-desktop-')))
 const dataDirectory = join(root, 'data'),
@@ -37,6 +41,11 @@ const server = createServer(async (request, response) => {
     assert.equal(request.url, '/v1/chat/completions')
     assert.equal(request.headers.authorization, `Bearer ${secret}`)
     assert.equal(request.headers['x-imported'], headerSecret)
+    if (isPi) {
+      assert.equal(request.headers['x-escaped'], '!literal$header')
+      assert.equal(request.headers['x-environment'], 'must-not-resolve-at-import')
+      assert.equal(input.temperature, 0.3)
+    }
     assert.equal(input.model, 'imported-model')
     const primary = input.tools?.some((tool) => tool.function?.name === 'read')
     if (primary) {
@@ -46,6 +55,12 @@ const server = createServer(async (request, response) => {
         ).includes('IMPORTED_SYSTEM_MARKER'),
       )
       primaryRequests++
+      if (isPi)
+        assert.ok(
+          JSON.stringify(
+            input.messages.filter((message) => ['system', 'developer'].includes(message.role)),
+          ).includes('IMPORTED_APPEND_MARKER'),
+        )
     }
     const content = primary ? 'IMPORTED_NATIVE_REPLY' : 'Import check'
     if (!input.stream) {
@@ -81,7 +96,8 @@ await new Promise((resolve, reject) => {
   server.once('error', reject)
   server.listen(0, '127.0.0.1', resolve)
 })
-const source = join(root, 'native-source.jsonc')
+const source = join(root, isPi ? 'models.json' : 'native-source.jsonc')
+const commandMarker = join(root, 'command-must-not-run')
 const native = {
   provider: {
     imported: {
@@ -112,9 +128,83 @@ const native = {
   plugin: ['/not-executed-plugin.js'],
   future: { credential: unknownSecret },
 }
-const sourceBytes = `// Keep this comment and exact source bytes.\n${JSON.stringify(native, null, 2)}\n`
-await writeFile(source, sourceBytes)
+const sourceBytes = isPi
+  ? '\uFEFF' +
+    JSON.stringify(
+      {
+        providers: {
+          imported: {
+            api: 'openai-completions',
+            baseUrl: native.provider.imported.options.baseURL,
+            apiKey: 'shadowed-provider-secret',
+            headers: {
+              'X-Imported': headerSecret,
+              'X-Escaped': '$!literal$$header',
+              'X-Environment': '$IMPORT_ENV_REFERENCE',
+            },
+            models: [
+              {
+                id: 'imported-model',
+                name: 'Imported model',
+                samplingParams: { temperature: 0.3 },
+              },
+            ],
+          },
+          command: {
+            api: 'openai-completions',
+            baseUrl: native.provider.imported.options.baseURL,
+            apiKey: `!touch ${commandMarker}`,
+          },
+        },
+        future: { credential: unknownSecret },
+      },
+      null,
+      2,
+    ) +
+    '\n'
+  : `// Keep this comment and exact source bytes.\n${JSON.stringify(native, null, 2)}\n`
+const sources = new Map([[source, sourceBytes]])
+if (isPi) {
+  sources.set(
+    join(root, 'auth.json'),
+    JSON.stringify({
+      imported: { type: 'api_key', key: secret },
+      unselected: {
+        type: 'oauth',
+        access: unknownSecret,
+        refresh: 'synthetic-refresh-secret',
+        expires: 1,
+      },
+    }),
+  )
+  sources.set(
+    join(root, 'settings.json'),
+    JSON.stringify({
+      defaultProvider: 'imported',
+      defaultModel: 'imported-model',
+      defaultThinkingLevel: 'off',
+      extensions: ['/not-executed-extension.ts'],
+    }),
+  )
+  sources.set(join(root, 'SYSTEM.md'), 'IMPORTED_SYSTEM_MARKER. Follow the user request.\n')
+  sources.set(join(root, 'APPEND_SYSTEM.md'), 'IMPORTED_APPEND_MARKER. Additional instructions.\n')
+}
+for (const [path, content] of sources) await writeFile(path, content)
+const secretValues = [
+  secret,
+  headerSecret,
+  unknownSecret,
+  'synthetic-mcp-secret',
+  'must-not-resolve-at-import',
+  'shadowed-provider-secret',
+  'synthetic-refresh-secret',
+  '!literal$header',
+]
+const diagnosticPath = isPi ? '/models.json/future/credential' : '/future/credential'
+const profileName = isPi ? 'Imported Pi profile' : 'imported'
 const workspace = openCodeWorkspace('/not-executed-during-import', cwd)
+workspace.installations[0].kind = engine
+workspace.installations[0].name = isPi ? 'Pi' : 'OpenCode'
 for (const collection of ['agents', 'models', 'connections', 'prompts', 'skills'])
   workspace[collection] = []
 workspace.installations[0].version = null
@@ -156,10 +246,10 @@ async function choose(locale = 'en', cancel = false) {
       const original = dialog.showOpenDialog
       dialog.showOpenDialog = async () => {
         dialog.showOpenDialog = original
-        return { canceled: selection.cancel, filePaths: selection.cancel ? [] : [selection.path] }
+        return { canceled: selection.cancel, filePaths: selection.cancel ? [] : selection.paths }
       }
     },
-    { path: source, cancel },
+    { paths: [...sources.keys()].reverse(), cancel },
   )
   await page
     .getByRole('button', {
@@ -194,19 +284,14 @@ try {
   if (process.env.AGENT_MATRIX_SMOKE_SCREENSHOT)
     await page.screenshot({ path: process.env.AGENT_MATRIX_SMOKE_SCREENSHOT, fullPage: true })
   assert.equal((await state()).nativeImports, undefined)
-  for (const value of [
-    secret,
-    headerSecret,
-    unknownSecret,
-    'synthetic-mcp-secret',
-    'must-not-resolve-at-import',
-  ])
+  for (const value of secretValues)
     assert.ok(!(await page.locator('body').innerText()).includes(value), 'Preview exposed a secret')
-  await writeFile(source, sourceBytes + '\n')
+  const changedSource = isPi ? join(root, 'auth.json') : source
+  await writeFile(changedSource, sources.get(changedSource) + '\n')
   await page.getByRole('button', { name: 'Import configuration', exact: true }).click()
   await page.getByRole('alert').filter({ hasText: 'source file or installation changed' }).waitFor()
   assert.equal((await state()).nativeImports, undefined)
-  await writeFile(source, sourceBytes)
+  await writeFile(changedSource, sources.get(changedSource))
   await language('zh-CN')
   await choose('zh-CN')
   await page.getByRole('heading', { name: '导入预览', exact: true }).waitFor()
@@ -215,24 +300,42 @@ try {
   const imported = await state()
   const record = imported.nativeImports[0]
   assert.equal(imported.nativeImports.length, 1)
-  assert.equal(imported.agents.length, 2)
+  assert.equal(imported.agents.length, isPi ? 1 : 2)
   assert.ok(imported.agents.every((entry) => !entry.enabled && entry.execution.cwd === ''))
-  assert.equal(imported.mcpServers[0].envRefs.ENV_REFERENCE.name, 'IMPORT_ENV_REFERENCE')
+  if (isPi) {
+    assert.equal(record.additionalSources.length, 4)
+    assert.equal(imported.mcpServers.length, 0)
+    assert.equal(
+      imported.connections.find((entry) => entry.name === 'imported').secretHeaders['X-Environment']
+        .name,
+      'IMPORT_ENV_REFERENCE',
+    )
+    assert.equal(
+      imported.connections.find((entry) => entry.name === 'command').auth.kind,
+      'unconfigured',
+    )
+  } else assert.equal(imported.mcpServers[0].envRefs.ENV_REFERENCE.name, 'IMPORT_ENV_REFERENCE')
   assert.equal(
     (await page.evaluate(() => window.agentMatrix.getCredentialStatus())).credentials.length,
     3,
   )
   await page.locator('.native-import-history summary').first().click()
-  await page.getByText('/future/credential', { exact: true }).waitFor()
+  await page.getByText(diagnosticPath, { exact: true }).waitFor()
   const archivePath = join(dataDirectory, 'native-imports', `${record.id}.json`)
   const encrypted = JSON.parse(await readFile(archivePath, 'utf8'))
   assert.equal(
     await app.evaluate(
-      async ({ safeStorage }, { ciphertext, expected }) => {
+      async ({ safeStorage }, { ciphertext, expected, pi }) => {
         const decrypted = await safeStorage.decryptStringAsync(Buffer.from(ciphertext, 'base64'))
-        return Buffer.from(decrypted.result, 'base64').toString('utf8') === expected
+        const payload = Buffer.from(decrypted.result, 'base64').toString('utf8')
+        if (!pi) return payload === expected[0]
+        return (
+          JSON.stringify(
+            JSON.parse(payload).map((file) => Buffer.from(file.bytes, 'base64').toString('utf8')),
+          ) === JSON.stringify(expected)
+        )
       },
-      { ciphertext: encrypted.ciphertext, expected: sourceBytes },
+      { ciphertext: encrypted.ciphertext, expected: [...sources.values()], pi: isPi },
     ),
     true,
   )
@@ -242,13 +345,7 @@ try {
     join(dataDirectory, 'credentials/vault.json'),
   ]) {
     const stored = await readFile(path, 'utf8')
-    for (const value of [
-      secret,
-      headerSecret,
-      unknownSecret,
-      'synthetic-mcp-secret',
-      'must-not-resolve-at-import',
-    ])
+    for (const value of secretValues)
       assert.ok(!stored.includes(value), 'Plaintext secret persisted')
   }
   assert.equal(await readFile(source, 'utf8'), sourceBytes)
@@ -264,7 +361,7 @@ try {
   await language('en')
   await navigate('Settings')
   await page.locator('.native-import-history summary').first().click()
-  await page.getByText('/future/credential', { exact: true }).waitFor()
+  await page.getByText(diagnosticPath, { exact: true }).waitFor()
   assert.deepEqual((await state()).nativeImports, imported.nativeImports)
   // Only after import acceptance, select a real executable and explicitly probe it.
   await page.evaluate(async (path) => {
@@ -276,15 +373,22 @@ try {
   await page.locator('.card-grid').waitFor()
   await navigate('Engines')
   await page.getByRole('button', { name: 'Check installation', exact: true }).click()
-  await poll(async () => (await state()).installations[0].version === '1.18.16', 'OpenCode probe')
+  await poll(
+    async () => (await state()).installations[0].version === version,
+    'Selected installation probe',
+  )
   await navigate('My Agents')
-  await page.getByRole('button', { name: 'Edit imported', exact: true }).click()
+  await page.getByRole('button', { name: `Edit ${profileName}`, exact: true }).click()
   const editor = page.getByRole('dialog')
   await editor.getByLabel('Working directory', { exact: true }).fill(cwd)
+  if (isPi)
+    await editor
+      .getByLabel('Requested execution policy', { exact: true })
+      .selectOption('unrestricted')
   await editor.locator('input[type="checkbox"]').first().check()
   await editor.getByRole('button', { name: 'Save Agent', exact: true }).click()
   await editor.waitFor({ state: 'hidden' })
-  const agent = (await state()).agents.find((entry) => entry.name === 'imported')
+  const agent = (await state()).agents.find((entry) => entry.name === profileName)
   await navigate('Sessions')
   await page.getByLabel('Agent configuration', { exact: true }).selectOption(agent.id)
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
@@ -316,7 +420,8 @@ try {
     .filter({ hasText: 'IMPORTED_NATIVE_REPLY' })
     .waitFor()
   assert.ok(primaryRequests > 0)
-  assert.equal(await readFile(source, 'utf8'), sourceBytes)
+  for (const [path, content] of sources) assert.equal(await readFile(path, 'utf8'), content)
+  await assert.rejects(readFile(commandMarker), { code: 'ENOENT' })
   assert.deepEqual((await state()).nativeImports, imported.nativeImports)
   assert.deepEqual(errors, [])
   passed = true
@@ -324,12 +429,21 @@ try {
     JSON.stringify(
       {
         passed: true,
-        engine: 'OpenCode 1.18.16',
+        engine: `${isPi ? 'Pi' : 'OpenCode'} ${version}`,
         locales: ['en', 'zh-CN'],
         readOnlyPreview: true,
         staleSourceRejected: true,
         exactEncryptedArchive: true,
         importedCredentials: 3,
+        sourceFiles: sources.size,
+        ...(isPi
+          ? {
+              storedAuthPrecedence: true,
+              replacementAndAppend: true,
+              escapedAndEnvironmentHeaders: true,
+              commandsNotExecuted: true,
+            }
+          : {}),
         restartAndIdempotentRetry: true,
         importedNativeTurn: true,
         primaryRequests,

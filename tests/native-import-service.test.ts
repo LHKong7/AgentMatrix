@@ -18,6 +18,8 @@ import { NativeImportService } from '../src/main/native-import/service'
 import { EngineWorkspaceStore } from '../src/main/engine-workspace-store'
 import { CredentialVault, type SecretCipher } from '../src/main/credentials/vault'
 import { createEngineWorkspace } from '../src/shared/engines/workspace'
+import { nativeImportSources, piImportKinds } from '../src/shared/engines/native-import'
+import { unpackImportArchive } from '../src/main/native-import/source-files'
 
 let root: string
 let source: string
@@ -85,6 +87,165 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true })
 })
 const preview = () => service.preview({ installationId: 'opencode' }, source)
+async function piFixture() {
+  const current = await store.load()
+  current.installations[0] = { ...current.installations[0]!, id: 'pi', kind: 'pi' }
+  await store.save(current)
+  const documents = {
+    'models.json':
+      '\uFEFF' +
+      JSON.stringify({
+        providers: {
+          imported: {
+            api: 'openai-completions',
+            baseUrl: 'https://example.test/v1',
+            apiKey: 'shadowed-secret',
+            models: [{ id: 'model' }],
+          },
+        },
+        future: { key: 'unknown-secret' },
+      }),
+    'auth.json': JSON.stringify({ imported: { type: 'api_key', key: secret } }),
+    'settings.json': JSON.stringify({
+      defaultProvider: 'imported',
+      defaultModel: 'model',
+      defaultThinkingLevel: 'off',
+      extensions: ['/never-loaded'],
+    }),
+    'SYSTEM.md': '\uFEFFNative Pi role 中文\n',
+    'APPEND_SYSTEM.md': 'Native Pi appendix\r\n',
+  }
+  for (const [name, bytes] of Object.entries(documents)) await writeFile(join(root, name), bytes)
+  return {
+    documents,
+    paths: Object.keys(documents)
+      .reverse()
+      .map((name) => join(root, name)),
+  }
+}
+
+describe('Pi multi-file import', () => {
+  it('captures five exact originals with per-file provenance and publishes one atomic import record', async () => {
+    const { documents, paths } = await piFixture()
+    const before = await readFile(store.filePath, 'utf8')
+    const captured = await service.preview({ installationId: 'pi' }, paths)
+    expect(captured.record.engine).toBe('pi')
+    expect(nativeImportSources(captured.record).map((entry) => entry.kind)).toEqual(piImportKinds)
+    expect(await readFile(store.filePath, 'utf8')).toBe(before)
+    expect(JSON.stringify(captured)).not.toMatch(
+      /shadowed-secret|unknown-secret|synthetic-import-secret|Native Pi role/,
+    )
+    const saved = await service.apply({
+      id: captured.id,
+      workspaceRevision: captured.workspaceRevision,
+    })
+    expect(saved.nativeImports).toEqual([captured.record])
+    expect(saved.prompts.map((entry) => entry.versions[0]!.content)).toEqual([
+      documents['SYSTEM.md'],
+      documents['APPEND_SYSTEM.md'],
+    ])
+    const auth = saved.connections[0]!.auth
+    if (auth.kind !== 'bearer' || !auth.secret) throw new Error('Missing imported key')
+    expect(await vault.resolve(auth.secret, {})).toBe(secret)
+    const raw = await readFile(join(root, 'native-imports', `${captured.id}.json`), 'utf8')
+    expect(raw).not.toMatch(/shadowed-secret|unknown-secret|synthetic-import-secret/)
+    const encrypted = JSON.parse(raw)
+    const payload = Buffer.from(
+      (await cipher.decrypt(Buffer.from(encrypted.ciphertext, 'base64'))).value,
+      'base64',
+    )
+    expect(
+      unpackImportArchive(captured.record, payload).map((value) => value.toString('utf8')),
+    ).toEqual(Object.values(documents))
+    for (const [name, content] of Object.entries(documents))
+      expect(await readFile(join(root, name), 'utf8')).toBe(content)
+    for (const path of paths) await unlink(path)
+    const reopened = new NativeImportService(
+      store,
+      new CredentialVault(vault.filePath, cipher),
+      archive,
+    )
+    await reopened.recover()
+    expect(
+      await reopened.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision }),
+    ).toEqual(saved)
+    const rewritten = structuredClone(saved)
+    if (rewritten.nativeImports![0]!.engine !== 'pi') throw new Error('Wrong engine')
+    rewritten.nativeImports![0]!.additionalSources.pop()
+    await expect(store.save(rewritten)).rejects.toThrow('error.nativeImportHistory')
+    await archive.verify(captured.record)
+  })
+  it.each(piImportKinds)(
+    'rejects a change to any selected source before publication: %s',
+    async (kind) => {
+      const { paths, documents } = await piFixture()
+      const captured = await service.preview({ installationId: 'pi' }, paths)
+      await writeFile(join(root, kind), documents[kind] + '\n')
+      await expect(
+        service.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision }),
+      ).rejects.toThrow('error.nativeImportChanged')
+      expect((await store.load()).nativeImports).toBeUndefined()
+      expect((await vault.status()).credentials).toHaveLength(0)
+    },
+  )
+  it('rejects duplicate roles, mixed folders, unknown files, and invalid JSON without following unselected sources', async () => {
+    const { paths } = await piFixture()
+    await expect(service.preview({ installationId: 'pi' }, [paths[0]!, paths[0]!])).rejects.toThrow(
+      'error.nativeImportSelection',
+    )
+    await expect(
+      service.preview({ installationId: 'pi' }, [join(root, 'models.json'), '/another/auth.json']),
+    ).rejects.toThrow('error.nativeImportSelection')
+    await expect(service.preview({ installationId: 'pi' }, [source])).rejects.toThrow(
+      'error.nativeImportSelection',
+    )
+    await writeFile(join(root, 'auth.json'), '{broken')
+    await expect(service.preview({ installationId: 'pi' }, paths)).rejects.toThrow(
+      'error.nativeImportSyntax',
+    )
+    const captured = await service.preview({ installationId: 'pi' }, [join(root, 'models.json')])
+    expect(nativeImportSources(captured.record)).toHaveLength(1)
+    // The broken, unselected auth file is neither read nor used to change credential precedence.
+    const saved = await service.apply({
+      id: captured.id,
+      workspaceRevision: captured.workspaceRevision,
+    })
+    const auth = saved.connections[0]!.auth
+    if (auth.kind !== 'bearer' || !auth.secret) throw new Error('Missing selected-file key')
+    expect(await vault.resolve(auth.secret, {})).toBe('shadowed-secret')
+    expect(await readFile(join(root, 'auth.json'), 'utf8')).toBe('{broken')
+  })
+  it('archives empty Markdown and a near-limit source, while bounding total selected bytes', async () => {
+    await piFixture()
+    await writeFile(join(root, 'SYSTEM.md'), '')
+    let captured = await service.preview({ installationId: 'pi' }, [join(root, 'SYSTEM.md')])
+    expect(captured.record.source.bytes).toBe(0)
+    expect(captured.entities.map((entry) => entry.collection)).toEqual(['agents'])
+    await service.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision })
+    await archive.verify(captured.record)
+    await writeFile(join(root, 'models.json'), JSON.stringify({ future: 'x'.repeat(900_000) }))
+    captured = await service.preview({ installationId: 'pi' }, [join(root, 'models.json')])
+    await service.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision })
+    await archive.verify(captured.record)
+    await writeFile(join(root, 'SYSTEM.md'), 'x'.repeat(150_000))
+    await expect(
+      service.preview({ installationId: 'pi' }, [
+        join(root, 'models.json'),
+        join(root, 'SYSTEM.md'),
+      ]),
+    ).rejects.toThrow('error.nativeImportLimit')
+  })
+  it('rolls back every new Pi credential when workspace publication fails', async () => {
+    const { paths } = await piFixture()
+    const captured = await service.preview({ installationId: 'pi' }, paths)
+    vi.spyOn(store, 'save').mockRejectedValueOnce(new Error('Publication failed'))
+    await expect(
+      service.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision }),
+    ).rejects.toThrow('Publication failed')
+    expect((await store.load()).nativeImports).toBeUndefined()
+    expect((await vault.status()).credentials).toHaveLength(0)
+  })
+})
 describe('OpenCode native import transaction', () => {
   it('previews without side effects and publishes encrypted original bytes, referenced secrets and immutable provenance', async () => {
     const before = await readFile(store.filePath, 'utf8')

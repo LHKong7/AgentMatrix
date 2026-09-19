@@ -11,7 +11,7 @@ export const childPointer = (parent: string, key: string | number) =>
   `${parent}/${String(key).replaceAll('~', '~0').replaceAll('/', '~1')}`
 
 /** Data parsing only: no macro substitution, imports, shell, environment or referenced-file reads. */
-export function parseNativeJsonc(text: string): JsonObject {
+export function parseNativeJsonc(text: string, strict = false): JsonObject {
   const errors: ParseError[] = []
   let count = 0
   const convert = (node: Node, depth: number): JsonValue => {
@@ -36,7 +36,7 @@ export function parseNativeJsonc(text: string): JsonObject {
   }
   let root: Node | undefined
   try {
-    root = parseTree(text, errors, { allowTrailingComma: true })
+    root = parseTree(text, errors, { allowTrailingComma: !strict, disallowComments: strict })
   } catch {
     throw appError('error.nativeImportLimit')
   }

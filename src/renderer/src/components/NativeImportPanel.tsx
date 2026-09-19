@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { FileInput } from 'lucide-react'
 import type { NativeImportPreview, NativeImportRecord } from '../../../shared/engines/native-import'
+import { nativeImportSources } from '../../../shared/engines/native-import'
 import type { EngineWorkspace } from '../../../shared/engines/workspace'
 import { collectionLabels } from '../../../shared/engines/editing'
 import { formatError } from '../../../shared/errors'
@@ -11,14 +12,15 @@ function SourceDetails({ record }: { record: NativeImportRecord }) {
   const { t, locale, number } = useI18n()
   return (
     <div className="native-import-source">
-      <p>
-        <strong>{t('nativeImport.source')}</strong>
-        <br />
-        <code>{record.source.path}</code>
-      </p>
+      <strong>{t('nativeImport.source')}</strong>
+      {nativeImportSources(record).map(({ source }) => (
+        <p key={source.path}>
+          <code>{source.path}</code> · {number(source.bytes)} B
+        </p>
+      ))}
       <p className="hint">
-        OpenCode {record.contractVersion} · {new Date(record.importedAt).toLocaleString(locale)} ·{' '}
-        {number(record.source.bytes)} B
+        {record.engine === 'pi' ? 'Pi' : 'OpenCode'} {record.contractVersion} ·{' '}
+        {new Date(record.importedAt).toLocaleString(locale)}
       </p>
       <details>
         <summary>
@@ -68,7 +70,9 @@ export function NativeImportPanel({
   onImported: (workspace: EngineWorkspace) => void
 }) {
   const { t, locale, number } = useI18n()
-  const installations = workspace.installations.filter((entry) => entry.kind === 'opencode')
+  const installations = workspace.installations.filter(
+    (entry) => entry.kind === 'opencode' || entry.kind === 'pi',
+  )
   const [selected, setSelected] = useState('')
   const installationId = installations.some((entry) => entry.id === selected)
     ? selected
@@ -111,6 +115,9 @@ export function NativeImportPanel({
         {t('nativeImport.title')}
       </h2>
       <p className="hint">{t('nativeImport.description')}</p>
+      {installations.find((entry) => entry.id === installationId)?.kind === 'pi' && (
+        <p className="hint">{t('nativeImport.piFiles')}</p>
+      )}
       {!desktop && <p className="hint">{t('error.nativeImportDesktopOnly')}</p>}
       {!installations.length && <p className="hint">{t('nativeImport.noInstallation')}</p>}
       <label className="field">

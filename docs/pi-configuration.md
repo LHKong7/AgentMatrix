@@ -4,6 +4,8 @@ AgentMatrix now translates resolved agent profiles into captured inputs for **Pi
 
 ## Connections and native readback
 
+The desktop can now [import explicitly selected Pi configuration files](pi-native-configuration-import.md) into the shared libraries, including model/auth/settings JSON and replacement/append Markdown prompts. Imports retain encrypted originals and per-file provenance, and create disabled drafts for review; they do not load extensions or infer complete native precedence.
+
 Each snapshot selects a private provider named `agentmatrix-<connectionId>` and the requested model ID. Native API mappings follow the pinned [custom-model contract](https://github.com/earendil-works/pi/blob/v0.85.1/packages/coding-agent/docs/models.md):
 
 | Shared protocol         | Native API             | Accepted authentication    | Sampling parameters                                    |

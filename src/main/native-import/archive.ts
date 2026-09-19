@@ -6,8 +6,10 @@ import { z } from 'zod'
 import { appError, getErrorKey } from '../../shared/errors'
 import {
   nativeImportRecordSchema,
+  nativeImportSources,
   type NativeImportRecord,
 } from '../../shared/engines/native-import'
+import { unpackImportArchive } from './source-files'
 import type { SecretCipher } from '../credentials/vault'
 import { inspectFile } from '../engines/installed-plugin-files'
 
@@ -45,11 +47,20 @@ export class NativeImportArchive {
       const plaintext = await this.cipher.decrypt(Buffer.from(document.ciphertext, 'base64'))
       const bytes = Buffer.from(plaintext.value, 'base64')
       try {
-        if (
-          bytes.length !== record.source.bytes ||
-          createHash('sha256').update(bytes).digest('hex') !== record.source.sha256
-        )
-          throw new Error('Source mismatch')
+        const files = unpackImportArchive(record, bytes)
+        try {
+          const sources = nativeImportSources(record)
+          if (
+            files.some(
+              (file, index) =>
+                file.length !== sources[index]!.source.bytes ||
+                createHash('sha256').update(file).digest('hex') !== sources[index]!.source.sha256,
+            )
+          )
+            throw new Error('Source mismatch')
+        } finally {
+          for (const file of files) file.fill(0)
+        }
       } finally {
         bytes.fill(0)
       }

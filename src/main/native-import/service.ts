@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { isAbsolute } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
-import { appError, getErrorKey } from '../../shared/errors'
+import { appError } from '../../shared/errors'
 import {
   nativeImportApplySchema,
   nativeImportQuerySchema,
@@ -14,17 +13,18 @@ import { engineWorkspaceSchema } from '../../shared/engines/workspace'
 import type { EngineInstallation } from '../../shared/engines/schema'
 import type { EngineWorkspaceStore } from '../engine-workspace-store'
 import type { CredentialVault } from '../credentials/vault'
-import { inspectFile } from '../engines/installed-plugin-files'
 import { NativeImportArchive } from './archive'
-import { parseNativeJsonc } from './jsonc'
-import { planOpenCodeImport, type NativeImportPlan } from './opencode'
+import { planOpenCodeImport } from './opencode'
+import { planPiImport } from './pi'
+import type { NativeImportPlan } from './plan'
+import type { JsonObject } from './jsonc'
+import { readImportFiles, importArchiveBytes, type ImportFile } from './source-files'
 
 interface Pending {
   record: NativeImportRecord
   installation: EngineInstallation
   plan: NativeImportPlan
-  source: Buffer
-  stamp: string
+  files: ImportFile[]
   revision: number
   expires: number
 }
@@ -47,45 +47,49 @@ export class NativeImportService {
   }
   private discard() {
     if (this.pending) {
-      this.pending.source.fill(0)
+      for (const file of this.pending.files) file.content.fill(0)
       for (const credential of this.pending.plan.credentials) credential.value = ''
     }
     this.pending = undefined
-  }
-  private async read(path: string) {
-    if (!isAbsolute(path)) throw appError('error.nativeImportRead')
-    try {
-      const file = await inspectFile(path, 1_048_576, true)
-      if (!file.content?.length) throw appError('error.nativeImportSyntax')
-      const data = parseNativeJsonc(new TextDecoder('utf-8', { fatal: true }).decode(file.content))
-      return { ...file, data, content: file.content }
-    } catch (error) {
-      const key = getErrorKey(error)
-      if (key === 'error.nativeImportSyntax' || key === 'error.nativeImportLimit') throw error
-      if (key === 'error.pluginLimit') throw appError('error.nativeImportLimit')
-      throw appError('error.nativeImportRead')
-    }
   }
   async recover() {
     const current = await this.workspace.load()
     await this.vault.recoverImport(new Set(current.nativeImports?.map((record) => record.id)))
   }
-  preview(input: unknown, path: string): Promise<NativeImportPreview> {
+  preview(input: unknown, paths: string | string[]): Promise<NativeImportPreview> {
     return this.operation(async () => {
       const query = nativeImportQuerySchema.parse(input)
       this.discard()
       const current = await this.workspace.load()
       const installation = current.installations.find((item) => item.id === query.installationId)
-      if (installation?.kind !== 'opencode') throw appError('error.nativeImportEngine')
+      if (!installation || !['opencode', 'pi'].includes(installation.kind))
+        throw appError('error.nativeImportEngine')
+      const engine = installation.kind as 'opencode' | 'pi'
       await this.archive.available()
-      const file = await this.read(path)
+      const files = await readImportFiles(engine, paths)
+      const file = files[0]!
       const id = randomUUID()
-      const plan = planOpenCodeImport(file.data, installation.id, id)
+      const plan =
+        engine === 'opencode'
+          ? planOpenCodeImport(file.data as JsonObject, installation.id, id)
+          : planPiImport(
+              Object.fromEntries(files.map((file) => [file.kind, file.data])),
+              installation.id,
+              id,
+            )
       const record = nativeImportRecordSchema.parse({
         id,
-        engine: 'opencode',
+        engine,
         installationId: installation.id,
-        contractVersion: '1.18.16',
+        contractVersion: engine === 'opencode' ? '1.18.16' : '0.85.1',
+        ...(engine === 'pi'
+          ? {
+              sourceKind: file.kind,
+              additionalSources: files
+                .slice(1)
+                .map((file) => ({ kind: file.kind, source: file.observation })),
+            }
+          : {}),
         importedAt: new Date().toISOString(),
         source: file.observation,
         mappings: plan.mappings,
@@ -101,8 +105,7 @@ export class NativeImportService {
         record,
         installation,
         plan,
-        source: file.content,
-        stamp: file.stamp,
+        files,
         revision: current.revision,
         expires,
       }
@@ -147,13 +150,17 @@ export class NativeImportService {
         )
       )
         throw appError('error.nativeImportChanged')
-      const latest = await this.read(pending.record.source.path)
-      latest.content.fill(0)
-      if (
-        latest.stamp !== pending.stamp ||
-        !isDeepStrictEqual(latest.observation, pending.record.source)
+      const latest = await readImportFiles(
+        pending.record.engine,
+        pending.files.map((file) => file.observation.path),
       )
-        throw appError('error.nativeImportChanged')
+      const changed = latest.some(
+        (file, index) =>
+          file.stamp !== pending.files[index]!.stamp ||
+          !isDeepStrictEqual(file.observation, pending.files[index]!.observation),
+      )
+      for (const file of latest) file.content.fill(0)
+      if (changed) throw appError('error.nativeImportChanged')
       const next = structuredClone(current)
       for (const collection of Object.keys(pending.plan.additions) as ImportCollection[])
         (next[collection] as { id: string }[]).push(
@@ -161,7 +168,12 @@ export class NativeImportService {
         )
       next.nativeImports = [...(current.nativeImports ?? []), pending.record]
       const parsed = engineWorkspaceSchema.parse(next)
-      await this.archive.save(pending.record, pending.source)
+      const bytes = importArchiveBytes(pending.files)
+      try {
+        await this.archive.save(pending.record, bytes)
+      } finally {
+        bytes.fill(0)
+      }
       const result = await this.vault.importBatch(
         query.id,
         pending.plan.credentials,
