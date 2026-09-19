@@ -87,6 +87,16 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
     '仅覆盖部分来源。摘要是捕获时的观测记录，不是即时扫描或完整依赖锁定。嵌套指令及原生状态仍可能动态变化。',
   'report.coverage.complete': '已捕获此适配器声明的全部来源。摘要属于历史观测，不是即时扫描结果。',
   'report.sourceAbsent': '捕获时不存在',
+  'report.resourceDirectories': '原生资源目录',
+  'report.resourceHint':
+    '启动或恢复时会重新检查已捕获的 Markdown 文件清单和摘要，包括新发现的文件。这些记录不证明解析成功、原生加载或配置最终优先级。运行中的进程不会被持续监测。',
+  'report.resourcesNotCaptured': '此快照没有原生资源目录清单，来源覆盖仍不完整。',
+  'report.resourcesEmpty': '此快照未声明原生资源目录。',
+  'report.resourceFiles': '已捕获 {count} 个文件',
+  'report.resolvedPath': '实际目标：',
+  'report.resourceKind.opencode-agent': 'OpenCode Agent',
+  'report.resourceKind.opencode-mode': 'OpenCode Mode',
+  'report.resourceKind.opencode-command': 'OpenCode Command',
   'report.integrity': '快照标识与校验记录',
   'report.credentials':
     '查看报告不解析凭据，仅比较存储版本元数据，不解密密钥。报告省略密钥引用、请求头值、Prompt 正文、环境变量值及命令参数。仅显示 endpoint 的来源域名，不显示 URL 路径、查询参数或登录信息。',

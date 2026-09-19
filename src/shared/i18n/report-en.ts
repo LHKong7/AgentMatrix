@@ -94,6 +94,17 @@ export const reportEn = {
   'report.coverage.complete':
     'All sources declared by this adapter were captured. Digests are historical observations, not a fresh scan.',
   'report.sourceAbsent': 'Absent when captured',
+  'report.resourceDirectories': 'Native resource directories',
+  'report.resourceHint':
+    'Captured Markdown file lists and hashes are checked again at start or resume, including newly discovered files. They do not establish parsing, native loading, or which configuration wins. Active processes are not continuously monitored.',
+  'report.resourcesNotCaptured':
+    'This snapshot has no native resource directory inventory. Coverage remains partial.',
+  'report.resourcesEmpty': 'No native resource directories were declared for this snapshot.',
+  'report.resourceFiles': 'Captured files: {count}',
+  'report.resolvedPath': 'Resolved target:',
+  'report.resourceKind.opencode-agent': 'OpenCode agents',
+  'report.resourceKind.opencode-mode': 'OpenCode modes',
+  'report.resourceKind.opencode-command': 'OpenCode commands',
   'report.integrity': 'Snapshot identity and recorded checks',
   'report.credentials':
     'Credentials are not resolved to display this report. Stored revisions are compared without decrypting values. Secret references, header values, prompt bodies, environment values, and command arguments are omitted. Only the endpoint origin is shown; URL paths, query parameters, and login details are omitted.',

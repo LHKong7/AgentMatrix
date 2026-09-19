@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { entityId } from './schema'
-import { contentDigest } from './run-inputs'
+import { contentDigest, type ExternalDirectory } from './run-inputs'
 import type { SessionSnapshot } from '../sessions/schema'
 import { credentialResolutionsSchema, type CredentialReport } from './credential-observation'
 import { nativeRuntimeSchema, type SessionCapabilityReport } from './session-capabilities'
@@ -89,5 +89,19 @@ export interface ConfigurationReport {
     nextVersion: number | null
   }[]
   sources: { path: string; exists: boolean; digest: string | null }[]
+  resourceDirectories:
+    | {
+        path: string
+        kind: ExternalDirectory['kind']
+        exists: boolean
+        resolvedPath: string | null
+        files: {
+          path: string
+          resolvedPath: string | null
+          exists: boolean
+          digest: string | null
+        }[]
+      }[]
+    | null
   sourceCoverage: 'partial' | 'complete'
 }

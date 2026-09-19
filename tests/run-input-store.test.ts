@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { observeExternalFile, RunInputStore } from '../src/main/engines/run-input-store'
+import { observeResourceDirectory } from '../src/main/engines/external-sources'
 import { migrateWorkspaceDocument } from '../src/shared/engines/migration'
 import type { ResolvedAgentConfiguration } from '../src/shared/engines/resolution'
 import type { GeneratedInputs, RunPaths } from '../src/shared/engines/run-inputs'
@@ -381,6 +382,55 @@ describe('immutable run inputs', () => {
     await fs.unlink(native)
     await expect(store.verifyForReuse('observed')).rejects.toThrow('error.runSourceChanged')
     expect(await store.read('observed')).toEqual(manifest)
+  })
+
+  it.each(['add', 'delete', 'change', 'create-root'])(
+    'keeps the captured inventory immutable and rejects directory drift: %s',
+    async (change) => {
+      const directory = join(root, 'agents')
+      if (change !== 'create-root') {
+        await fs.mkdir(directory)
+        await fs.writeFile(join(directory, 'original.md'), 'PRIVATE_NATIVE_PROMPT')
+      }
+      const manifest = await create('directory', async (configuration, paths) => ({
+        ...(await generate(configuration, paths)),
+        externalSources: {
+          coverage: 'partial',
+          files: [],
+          directories: [await observeResourceDirectory(directory, 'opencode-agent')],
+        },
+      }))
+      expect(await store.verifyForReuse('directory')).toEqual(manifest)
+      expect(JSON.stringify(manifest)).not.toContain('PRIVATE_NATIVE_PROMPT')
+      if (change === 'add') await fs.writeFile(join(directory, 'new.md'), 'new')
+      if (change === 'delete') await fs.unlink(join(directory, 'original.md'))
+      if (change === 'change') await fs.writeFile(join(directory, 'original.md'), 'updated')
+      if (change === 'create-root') await fs.mkdir(directory)
+      await expect(store.verifyForReuse('directory')).rejects.toThrow('error.runSourceChanged')
+      expect(await store.read('directory')).toEqual(manifest)
+    },
+  )
+
+  it('rejects a new resource discovered between planning and snapshot publication', async () => {
+    const directory = join(root, 'agents')
+    await fs.mkdir(directory)
+    await expect(
+      create('raced-directory', async (configuration, paths) => {
+        const generated = await generate(configuration, paths)
+        generated.externalSources.directories = [
+          await observeResourceDirectory(directory, 'opencode-agent'),
+        ]
+        await fs.writeFile(join(directory, 'new.md'), 'arrived during capture')
+        return generated
+      }),
+    ).rejects.toThrow('error.runSourceChanged')
+    expect(await fs.readdir(store.root)).toEqual([])
+  })
+
+  it('reads earlier manifest-v1 snapshots without adding a directory field or changing their digest', async () => {
+    const manifest = await create('legacy')
+    expect(Object.hasOwn(manifest.externalSources, 'directories')).toBe(false)
+    expect(await store.verifyForReuse('legacy')).toEqual(manifest)
   })
 
   it.each(['binary', 'native'])('rejects a %s change while preparing inputs', async (changed) => {

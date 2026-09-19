@@ -259,6 +259,51 @@ describe('OpenCode configuration', () => {
     expect(JSON.stringify(await plan())).not.toContain('synthetic-native-key')
     expect(await readFile(native, 'utf8')).toBe(text)
   })
+  it('captures native Markdown resources from global, home, and project discovery roots', async () => {
+    const cwd = join(root, 'project/subdir')
+    await mkdir(cwd)
+    const roots = [
+      join(context.configHome, 'opencode'),
+      join(root, 'home/.opencode'),
+      join(root, 'project/.opencode'),
+      join(cwd, '.opencode'),
+    ]
+    for (const directory of roots) {
+      await mkdir(join(directory, 'agents/nested'), { recursive: true })
+      await writeFile(join(directory, 'agents/nested/reviewer.md'), 'PRIVATE_NATIVE_PROMPT')
+    }
+    const observed = await inspectOpenCodeSources(cwd, {
+      home: join(root, 'home'),
+      configHome: context.configHome,
+      managedDirectory: join(root, 'managed'),
+    })
+    expect(observed.directories).toHaveLength(roots.length * 6)
+    expect(
+      observed
+        .directories!.filter((directory) => directory.observation.exists)
+        .map((directory) => directory.path)
+        .sort(),
+    ).toEqual(roots.map((directory) => join(directory, 'agents')).sort())
+    expect(
+      observed.directories!.some(
+        (directory) =>
+          directory.path.startsWith(join(root, '.opencode')) ||
+          directory.path.startsWith(join(root, 'managed')),
+      ),
+    ).toBe(false)
+    expect(
+      observed.directories!.find((directory) => directory.path === join(cwd, '.opencode/modes')),
+    ).toEqual({
+      path: join(cwd, '.opencode/modes'),
+      kind: 'opencode-mode',
+      observation: { exists: false },
+    })
+    context.sources = observed
+    const manifest = await capture()
+    expect(manifest.externalSources.directories).toEqual(observed.directories)
+    expect(JSON.stringify(manifest)).not.toContain('PRIVATE_NATIVE_PROMPT')
+  })
+
   it.each(['version', 'reasoning', 'native-plugin', 'vertex', 'engine-login', 'forced-sse'])(
     'diagnoses unverified mappings rather than silently dropping them: %s',
     async (feature) => {

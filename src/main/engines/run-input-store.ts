@@ -13,12 +13,13 @@ import {
   generatedInputsSchema,
   inputFileSchema,
   runInputManifestSchema,
-  type ExternalFile,
   type GeneratedInputs,
   type RunInputManifest,
   type RunPaths,
 } from '../../shared/engines/run-inputs'
 import { SkillDirectoryStore } from '../assets/skill-directory-store'
+import { observeExternalFile, verifyExternalSources } from './external-sources'
+export { observeExternalFile } from './external-sources'
 
 const maximumFile = 20_000_000
 const maximumTotal = 256 * 1024 * 1024
@@ -74,49 +75,6 @@ async function regularFile(path: string, limit: number): Promise<Buffer> {
     return bytes.subarray(0, offset)
   } finally {
     await file.close()
-  }
-}
-
-/** Observe file identity/content without copying potentially secret-bearing native configuration. */
-export async function observeExternalFile(path: string): Promise<ExternalFile> {
-  if (!isAbsolute(path)) throw appError('error.runPath')
-  try {
-    const resolvedPath = await realpath(path)
-    // Executables can be hundreds of MB. Hash bounded chunks rather than retaining their bytes.
-    const file = await open(
-      resolvedPath,
-      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    )
-    try {
-      const before = await file.stat({ bigint: true })
-      if (!before.isFile() || before.size > 512 * 1024 * 1024) throw appError('error.runIntegrity')
-      const digest = createHash('sha256')
-      const chunk = Buffer.alloc(128 * 1024)
-      let offset = 0
-      while (offset <= Number(before.size)) {
-        const { bytesRead } = await file.read(
-          chunk,
-          0,
-          Math.min(chunk.length, Number(before.size) + 1 - offset),
-          offset,
-        )
-        if (!bytesRead) break
-        digest.update(chunk.subarray(0, bytesRead))
-        offset += bytesRead
-      }
-      if (
-        offset !== Number(before.size) ||
-        identity(before) !== identity(await file.stat({ bigint: true })) ||
-        (await realpath(path)) !== resolvedPath
-      )
-        throw appError('error.runSourceChanged')
-      return { path, exists: true, resolvedPath, sha256: digest.digest('hex'), bytes: offset }
-    } finally {
-      await file.close()
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { path, exists: false }
-    throw error
   }
 }
 
@@ -261,10 +219,7 @@ export class RunInputStore {
           await mkdir(join(stage, 'state', value.path), { recursive: true, mode: 0o700 })
         }
       }
-      for (const observation of generated.externalSources.files) {
-        if (canonical(await observeExternalFile(observation.path)) !== canonical(observation))
-          throw appError('error.runSourceChanged')
-      }
+      await verifyExternalSources(generated.externalSources)
       // Recheck the selected executable too; a binary update during preparation invalidates the plan.
       if (
         canonical(await observeExternalFile(configuration.installation.executable)) !==
@@ -406,9 +361,7 @@ export class RunInputStore {
         !(await lstat(manifest.cwd)).isDirectory()
       )
         throw appError('error.runSourceChanged')
-      for (const source of manifest.externalSources.files)
-        if (canonical(await observeExternalFile(source.path)) !== canonical(source))
-          throw appError('error.runSourceChanged')
+      await verifyExternalSources(manifest.externalSources)
     } catch {
       throw appError('error.runSourceChanged')
     }

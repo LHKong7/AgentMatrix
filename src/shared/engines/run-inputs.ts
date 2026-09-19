@@ -33,6 +33,31 @@ export const externalFileSchema = z.discriminatedUnion('exists', [
     })
     .strict(),
 ])
+export const nativeResourceKindSchema = z.enum([
+  'opencode-agent',
+  'opencode-mode',
+  'opencode-command',
+])
+export const externalDirectorySchema = z
+  .object({
+    path: absolutePath,
+    kind: nativeResourceKindSchema,
+    observation: z.discriminatedUnion('exists', [
+      z.object({ exists: z.literal(false) }).strict(),
+      z
+        .object({
+          exists: z.literal(true),
+          resolvedPath: absolutePath,
+          files: z
+            .array(externalFileSchema)
+            .max(1000)
+            .refine((files) => new Set(files.map((file) => file.path)).size === files.length),
+        })
+        .strict(),
+    ]),
+  })
+  .strict()
+export type ExternalDirectory = z.infer<typeof externalDirectorySchema>
 export const launchEnvironmentSchema = z.discriminatedUnion('kind', [
   z
     .object({
@@ -117,6 +142,8 @@ export const runInputManifestSchema = z
       .object({
         coverage: z.enum(['partial', 'complete']),
         files: z.array(externalFileSchema).max(1000),
+        // No default: adding a field while reading a legacy snapshot would change its digest.
+        directories: z.array(externalDirectorySchema).max(1000).optional(),
       })
       .strict(),
     files: z.array(inputFileSchema).max(4096),

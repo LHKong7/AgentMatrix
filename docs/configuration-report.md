@@ -42,6 +42,8 @@ Pending configuration-binding changes require a new session and native adapter v
 
 The separate **Credential revisions** table compares each captured vault reference's last successful attachment revision with current metadata. Replacing its stored value leaves active process inputs unchanged; start and resume resolve its current value again. Deleted, legacy/unverified, unavailable, and environment references have distinct states. Revision observations persist with `run.ready`; failed attachments keep historical evidence. See [credential lifecycle and verification](credential-rotation.md).
 
+The **Native resource directories** section shows captured OpenCode Agent, Mode, and Command inventories, including absent candidates and resolved link targets. It is historical metadata, not a fresh scan or proof of native loading and precedence. Legacy snapshots and adapters without inventories explicitly show that they were not captured. See [discovery and reuse boundaries](native-resource-sources.md).
+
 ## Data boundaries and validation
 
 The sender-checked `sessions.configuration` IPC accepts only a validated session ID. The renderer cannot supply a path or native command. The main process projects an explicit set of metadata: raw native config, Prompt/Skill contents, headers, environment values, CLI arguments, secret values, and credential references are omitted. Endpoint display retains only the origin, removing user information, paths, queries, and fragments. Credential comparison uses random stored-version identifiers, revision numbers, and timestamps without decrypting values; identifiers are omitted from the report response. It compares stored revisions, not plaintext equality or environment-value changes.

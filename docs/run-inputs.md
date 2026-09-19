@@ -1,6 +1,6 @@
 # Run input snapshots
 
-`RunInputStore` captures a resolved configuration for a future CLI launch. It is a main-process storage component used by the opt-in OpenCode configuration probe; production session IPC does not invoke it yet. A successful capture proves that the planned files were published and can be verified, not that an engine accepted or applied them.
+`RunInputStore` captures a resolved configuration for a future CLI launch. It is used by the production desktop session factory for OpenCode, Pi, and DSH. A successful capture proves that the planned files were published and can be verified, not that an engine accepted or applied them.
 
 ## Captured inputs and mutable state
 
@@ -40,6 +40,8 @@ An adapter can observe an existing native file by its selected/canonical path, h
 Observing one executable does not freeze its interpreter, imported packages, downloaded plugins, remote configuration, or project files. Adapters must identify relevant dependencies and precedence sources, or retain partial coverage. Symlinks selected for an external source are resolved and recorded; symlinks inside captured inputs are rejected.
 
 Passing reuse verification is only one prerequisite for resume. The session coordinator must additionally validate the adapter contract, probe the installed engine version, resolve current credential references, check native persistence and protocol capability, and obtain the engine's resume acknowledgment. Unknown source coverage and unsupported effective-config readback must remain visible as limitations. A failed check must not silently create a replacement conversation.
+
+OpenCode now also captures optional [native Markdown directory inventories](native-resource-sources.md). Re-enumeration before publication and reuse detects newly discovered Agent, Mode, and Command files, as well as removed, changed, or redirected sources. These observations contain metadata only. Legacy manifests keep their original digest and coverage without inventing missing inventories; Pi and DSH keep their separate source contracts.
 
 ## Retention
 

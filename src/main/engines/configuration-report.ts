@@ -207,6 +207,21 @@ export function buildConfigurationReport(
       exists: file.exists,
       digest: file.exists ? file.sha256 : null,
     })),
+    resourceDirectories:
+      manifest.externalSources.directories?.map((directory) => ({
+        path: directory.path,
+        kind: directory.kind,
+        exists: directory.observation.exists,
+        resolvedPath: directory.observation.exists ? directory.observation.resolvedPath : null,
+        files: directory.observation.exists
+          ? directory.observation.files.map((file) => ({
+              path: file.path,
+              resolvedPath: file.exists ? file.resolvedPath : null,
+              exists: file.exists,
+              digest: file.exists ? file.sha256 : null,
+            }))
+          : [],
+      })) ?? null,
     sourceCoverage: manifest.externalSources.coverage,
   }
 }

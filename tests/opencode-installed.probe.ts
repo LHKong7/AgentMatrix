@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { expect, it, vi } from 'vitest'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { planOpenCode } from '../src/main/engines/adapters/opencode/configuration'
@@ -275,7 +275,26 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
         selection: { follow: 'latest' },
       })
       const store = new RunInputStore(join(root, 'runs'), captures)
+      const nativeResources = [
+        [join(cwd, '.opencode/agents/nested/reviewer.md'), 'NATIVE_AGENT_MARKER'],
+        [join(configHome, 'opencode/commands/native-command.md'), 'NATIVE_COMMAND_MARKER'],
+        [join(home, '.opencode/modes/native-mode.md'), 'NATIVE_MODE_MARKER'],
+        [join(home, '.opencode/modes/nested/ignored.md'), 'NESTED_MODE_MUST_BE_IGNORED'],
+      ] as const
+      for (const [path, marker] of nativeResources) {
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, `---\ndescription: Native resource probe\n---\n${marker}\n`)
+      }
       const sources = await inspectOpenCodeSources(cwd, { home, configHome })
+      const capturedResourcePaths = sources.directories!.flatMap((directory) =>
+        directory.observation.exists ? directory.observation.files.map((file) => file.path) : [],
+      )
+      expect(capturedResourcePaths.sort()).toEqual(
+        nativeResources
+          .slice(0, 3)
+          .map(([path]) => path)
+          .sort(),
+      )
       const manifest = await store.create(
         'native',
         workspace,
@@ -318,6 +337,14 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       expect(config.model).toBe('agentmatrix-local/selected')
       expect(config.provider['agentmatrix-local'].options.apiKey).toBe(key)
       expect(config.agent.build.prompt).toContain('ROLE_MARKER')
+      expect(
+        Object.values(config.agent).some(
+          (agent) => (agent as { prompt?: string }).prompt === 'NATIVE_AGENT_MARKER',
+        ),
+      ).toBe(true)
+      expect(config.agent['native-mode'].prompt).toBe('NATIVE_MODE_MARKER')
+      expect(config.command['native-command'].template).toBe('NATIVE_COMMAND_MARKER')
+      expect(JSON.stringify(config)).not.toContain('NESTED_MODE_MUST_BE_IGNORED')
       expect(config.instructions).toContain(join(store.paths('native').inputs, 'prompts/rules.md'))
       const skills = JSON.parse(await capture(launch, ['debug', 'skill', '--pure']))
       expect(JSON.stringify(skills)).toContain('SKILL_MARKER')
@@ -584,6 +611,26 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       await expect(
         prepareRunLaunch(store, 'native', async () => key, { HOME: home }),
       ).rejects.toThrow('error.runSourceChanged')
+      await rm(nativePath)
+      expect(await store.verifyForReuse('native')).toEqual(manifest)
+      const markdownOverride = join(cwd, '.opencode/agents/build.md')
+      const markdownContents =
+        '---\ndescription: Native override probe\n---\nMARKDOWN_OVERRIDE_MARKER\n'
+      await writeFile(markdownOverride, markdownContents)
+      const markdownConfig = JSON.parse(await capture(launch, ['debug', 'config', '--pure']))
+      expect(markdownConfig.agent.build.prompt).toBe('MARKDOWN_OVERRIDE_MARKER')
+      await expect(
+        verifyOpenCodeReadback(manifest, store.paths('native'), launch, controller.signal),
+      ).rejects.toMatchObject({ code: 'configuration', field: 'native.override' })
+      const resolveAfterDrift = vi.fn(async () => key)
+      await expect(
+        prepareRunLaunch(store, 'native', resolveAfterDrift, { HOME: home }),
+      ).rejects.toThrow('error.runSourceChanged')
+      expect(resolveAfterDrift).not.toHaveBeenCalled()
+      expect(await readFile(markdownOverride, 'utf8')).toBe(markdownContents)
+      expect(await store.read('native')).toEqual(manifest)
+      await rm(markdownOverride)
+      expect(await store.verifyForReuse('native')).toEqual(manifest)
       if (process.env.AGENT_MATRIX_OPENCODE_REPORT)
         await writeFile(
           process.env.AGENT_MATRIX_OPENCODE_REPORT,
@@ -619,6 +666,16 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
                 'Same native session ID and retained file/Skill/MCP history after process restart',
               nativeOverrides:
                 'Project prompt override rejected by readback; native file preserved; changed source blocks snapshot reuse',
+              nativeResourceInventory: {
+                projectNestedAgent: true,
+                globalCommand: true,
+                homeMode: true,
+                nestedModeIgnored: true,
+                markdownPromptOverrideRejected: true,
+                newFileBlocksReuseBeforeCredentialResolution: true,
+                originalSnapshotAndNativeContentPreserved: true,
+                restoredSourceAllowsReuse: true,
+              },
               productionRuntime:
                 'OpenCode runtime and durable coordinator exercised; desktop factory, IPC, and UI are not connected',
             },

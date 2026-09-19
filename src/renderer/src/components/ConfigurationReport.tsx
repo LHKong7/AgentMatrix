@@ -244,6 +244,51 @@ export function ConfigurationReport({
                 ))}
               </ul>
             </details>
+            <details className="native-resource-sources">
+              <summary>{t('report.resourceDirectories')}</summary>
+              <p className="hint">{t('report.resourceHint')}</p>
+              {report.resourceDirectories === null ? (
+                <p>{t('report.resourcesNotCaptured')}</p>
+              ) : report.resourceDirectories.length === 0 ? (
+                <p>{t('report.resourcesEmpty')}</p>
+              ) : (
+                <ul>
+                  {report.resourceDirectories.map((directory) => (
+                    <li key={`${directory.kind}:${directory.path}`}>
+                      <details data-resource-directory={directory.path}>
+                        <summary>
+                          {t(`report.resourceKind.${directory.kind}`)} ·{' '}
+                          <code>{directory.path}</code>
+                          <small>
+                            {directory.exists
+                              ? t('report.resourceFiles', { count: directory.files.length })
+                              : t('report.sourceAbsent')}
+                          </small>
+                        </summary>
+                        {directory.resolvedPath && directory.resolvedPath !== directory.path && (
+                          <p>
+                            {t('report.resolvedPath')} <code>{directory.resolvedPath}</code>
+                          </p>
+                        )}
+                        <ul>
+                          {directory.files.map((file) => (
+                            <li key={file.path}>
+                              <code>{file.path}</code>
+                              <small>{file.exists ? file.digest : t('report.sourceAbsent')}</small>
+                              {file.resolvedPath && file.resolvedPath !== file.path && (
+                                <small>
+                                  {t('report.resolvedPath')} <code>{file.resolvedPath}</code>
+                                </small>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
             <details>
               <summary>{t('report.integrity')}</summary>
               <code>

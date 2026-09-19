@@ -14,6 +14,7 @@ import {
 } from '../src/shared/engines/configuration-report'
 import { sessionSnapshotSchema } from '../src/shared/sessions/schema'
 import { SessionJournal } from '../src/main/sessions/journal'
+import { observeResourceDirectory } from '../src/main/engines/external-sources'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -117,11 +118,55 @@ describe('configuration report evidence and updates', () => {
     expect(report.savedState).toBe('same')
     expect(report.fields.every((field) => field.status === 'planned')).toBe(true)
     expect(report.observation).toBeNull()
+    expect(report.resourceDirectories).toBeNull()
     expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace).observation).toBeNull()
     expect(report.sources).toEqual([
       { path: join(f.manifest.cwd, 'AGENTS.md'), exists: false, digest: null },
     ])
   })
+  it('projects historical directory metadata without Markdown, native application claims, or filesystem rescans', async () => {
+    const f = await fixture()
+    const directory = join(f.root, 'agents')
+    await mkdir(directory)
+    const file = join(directory, 'reviewer.md')
+    await writeFile(file, 'PRIVATE_NATIVE_BODY')
+    f.manifest.externalSources.directories = [
+      await observeResourceDirectory(directory, 'opencode-agent'),
+      await observeResourceDirectory(join(f.root, 'modes'), 'opencode-mode'),
+    ]
+    await rm(directory, { recursive: true })
+    const report = buildConfigurationReport(f.manifest, f.initial, f.workspace)
+    expect(report.resourceDirectories).toEqual([
+      {
+        path: directory,
+        kind: 'opencode-agent',
+        exists: true,
+        resolvedPath: directory,
+        files: [
+          {
+            path: file,
+            resolvedPath: file,
+            exists: true,
+            digest: expect.stringMatching(/^[a-f0-9]{64}$/),
+          },
+        ],
+      },
+      {
+        path: join(f.root, 'modes'),
+        kind: 'opencode-mode',
+        exists: false,
+        resolvedPath: null,
+        files: [],
+      },
+    ])
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_NATIVE_BODY')
+    expect(report.fields.every((field) => field.status === 'planned')).toBe(true)
+    f.manifest.externalSources.directories = []
+    expect(
+      buildConfigurationReport(f.manifest, f.initial, f.workspace).resourceDirectories,
+    ).toEqual([])
+  })
+
   it('only labels fields covered by recorded native checks and omits sensitive configuration', async () => {
     const f = await fixture()
     f.manifest.connection.baseUrl =

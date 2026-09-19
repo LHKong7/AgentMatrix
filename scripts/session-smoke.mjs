@@ -25,6 +25,15 @@ await mkdir(dataDirectory)
 await mkdir(join(cwd, '.git'), { recursive: true })
 await mkdir(join(alternateCwd, '.git'), { recursive: true })
 await mkdir(home)
+if (!isPi && !isDsh) {
+  for (const directory of [cwd, alternateCwd]) {
+    await mkdir(join(directory, '.opencode/agents'), { recursive: true })
+    await writeFile(
+      join(directory, '.opencode/agents/matrix-observed.md'),
+      '---\ndescription: Native resource inventory fixture\nmode: subagent\n---\nPRIVATE_NATIVE_RESOURCE_BODY\n',
+    )
+  }
+}
 await writeFile(join(cwd, 'fixture.txt'), 'SMOKE_FILE_MARKER')
 await writeFile(join(alternateCwd, 'fixture.txt'), 'SMOKE_FILE_MARKER_ALTERNATE')
 const secret = 'agentmatrix-synthetic-desktop-secret'
@@ -247,9 +256,13 @@ async function waitForIpc(check, label, timeout = 45_000) {
   throw new Error(`Timed out waiting for ${label}`)
 }
 async function status(value) {
-  const expected = { Ready: 'ready', 就绪: 'ready', Interrupted: 'interrupted', Closed: 'closed' }[
-    value
-  ]
+  const expected = {
+    Ready: 'ready',
+    就绪: 'ready',
+    Interrupted: 'interrupted',
+    Closed: 'closed',
+    Failed: 'failed',
+  }[value]
   await waitForIpc(
     () =>
       page.evaluate(async (status) => {
@@ -544,6 +557,40 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     await page.screenshot({
       path: process.env.AGENT_MATRIX_REPORT_SCREENSHOT + (title === '配置报告' ? '.zh.png' : ''),
       fullPage: true,
+    })
+  await dialog.locator('.native-resource-sources > summary').click()
+  if (!isPi && !isDsh) {
+    const directory = value.resourceDirectories.find(
+      (item) => item.path === join(value.cwd, '.opencode/agents'),
+    )
+    assert.ok(directory?.exists)
+    assert.equal(directory.kind, 'opencode-agent')
+    assert.deepEqual(
+      directory.files.map((file) => file.path),
+      [join(directory.path, 'matrix-observed.md')],
+    )
+    assert.match(directory.files[0].digest, /^[a-f0-9]{64}$/)
+    const row = dialog.locator(`[data-resource-directory="${directory.path}"]`)
+    await row.locator('summary').click()
+    await row.locator('li code').waitFor({ state: 'visible' })
+    assert.ok(!(await dialog.textContent()).includes('PRIVATE_NATIVE_RESOURCE_BODY'))
+    await row.scrollIntoViewIfNeeded()
+  } else {
+    assert.equal(value.resourceDirectories, null)
+    await dialog
+      .getByText(
+        title === '配置报告'
+          ? '此快照没有原生资源目录清单，来源覆盖仍不完整。'
+          : 'This snapshot has no native resource directory inventory. Coverage remains partial.',
+        { exact: true },
+      )
+      .waitFor()
+  }
+  if (process.env.AGENT_MATRIX_RESOURCE_SCREENSHOT)
+    await page.screenshot({
+      path:
+        process.env.AGENT_MATRIX_RESOURCE_SCREENSHOT +
+        (title === '配置报告' ? '.zh.png' : '.en.png'),
     })
   await dialog.getByRole('button', { name: close, exact: true }).last().click()
   return value
@@ -932,6 +979,28 @@ try {
   const historicalReport = await configurationReport()
   assert.equal(historicalReport.observationIsCurrent, false)
   assert.equal(historicalReport.observation.runId, latest.runId)
+  if (!isPi && !isDsh) {
+    const snapshotFile = join(dataDirectory, 'runs', latest.snapshotId, 'manifest.json')
+    const beforeDrift = await readFile(snapshotFile, 'utf8')
+    const newlyDiscovered = join(alternateCwd, '.opencode/agents/newly-discovered.md')
+    await writeFile(
+      newlyDiscovered,
+      '---\ndescription: New native agent\nmode: subagent\n---\nNEW_NATIVE_RESOURCE\n',
+    )
+    const callsBefore = calls.length
+    await page.getByRole('button', { name: 'Resume session', exact: true }).click()
+    await status('Failed')
+    const failedResume = (await sessions()).find((session) => session.id === latest.id)
+    assert.equal(failedResume.failure.code, 'configuration')
+    assert.equal(failedResume.nativeSessionId, latest.nativeSessionId)
+    assert.equal(failedResume.snapshotDigest, latest.snapshotDigest)
+    assert.equal(calls.length, callsBefore)
+    assert.equal(await readFile(snapshotFile, 'utf8'), beforeDrift)
+    const failedReport = await configurationReport()
+    assert.equal(failedReport.observationIsCurrent, false)
+    assert.equal(failedReport.observation.runId, latest.runId)
+    await rm(newlyDiscovered)
+  }
   await page.getByRole('button', { name: 'Resume session', exact: true }).click()
   await status('Ready')
   const resumed = (await sessions()).find((session) => session.id === latest.id)
@@ -1024,6 +1093,17 @@ try {
       serviceAndEnforcementRemainUnverified: true,
       englishAndChinese: true,
     },
+    nativeResourceInventory:
+      !isPi && !isDsh
+        ? {
+            capturedMetadataWithoutContent: true,
+            newFileBlocksNativeResume: true,
+            failedResumeRetainsHistoricalEvidence: true,
+            capturedSnapshotUnchanged: true,
+            restoredSourcesAllowSameNativeSessionResume: true,
+            englishAndChinese: true,
+          }
+        : 'No directory inventory declared by this adapter',
     permissionCancellation: isPi ? 'unsupported: no universal per-tool approval' : true,
     sharedPromptOldAndNewSnapshots: true,
     libraryImpact: {
