@@ -42,6 +42,10 @@ The [IPC exception boundary](ipc-error-boundary.md) closes a reproduced missing-
 
 The [duplicate-Skill follow-up](ipc-error-boundary.md#duplicate-skill-diagnostics) removes frontmatter names from OpenCode/Pi's intentional configuration errors. Four factory regressions and the previous Electron build reproduced the disclosure; the static diagnostic now passes 987 unit tests and 14 desktop failure cases. Capture still resolves no credentials and preserves saved Skill content. This narrows one diagnostic surface without treating ordinary names or content as universally sanitized data.
 
+## Runtime response and output observations
+
+The [expanded four-route desktop fixture](credential-redaction-history.md#live-events-and-successful-ipc-responses) now checks raw, JSON-escaped and URL-encoded values in submitted user text, fragmented provider replies, real preload deliveries and their joined assistant text. Live delivery sequences match persisted event pages on every turn. Command/snapshot/configuration and library/credential/retention/impact responses are inspected alongside history, exports and application files. All 20 native turns, 161 live events and 568 successful-response checks pass, including retired-key echoes after exact native restoration. Electron output is captured across restart and shutdown; this run emits 429 stderr bytes and no stdout or renderer console messages, with no known fixture values exposed. These are observed runtime paths rather than coverage of arbitrary native logs or ordinary configuration fields.
+
 ## Inspected surfaces and current evidence
 
 | Surface                                 | Application boundary                                                                                                                                                                                                                 | Evidence and limits                                                                                                                                                                                                                                                                                 |

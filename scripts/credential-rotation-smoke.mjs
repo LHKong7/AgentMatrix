@@ -47,12 +47,51 @@ const dataDirectory = join(root, 'data'),
   cwd = join(root, 'project'),
   home = join(root, 'home')
 for (const path of [dataDirectory, join(cwd, '.git'), home]) await mkdir(path, { recursive: true })
-const firstKey = 'synthetic-rotation-key-first',
-  secondKey = 'synthetic-rotation-key-second',
+const firstKey = 'synthetic-rotation-key-first/"{value}',
+  secondKey = 'synthetic-rotation-key-second/"{value}',
   credentialId = 'private-rotation-credential-id'
-const environmentKey = 'synthetic-rotation-environment-value'
+const environmentKey = 'synthetic-rotation-environment/"{value}'
 const requests = [],
-  pageErrors = []
+  pageErrors = [],
+  rendererConsole = [],
+  liveTurns = [],
+  processLogs = { stdout: [], stderr: [] },
+  publicChecks = new Map()
+const forms = (value) => [value, JSON.stringify(value).slice(1, -1), encodeURIComponent(value)]
+const forbidden = [
+  ...new Set(
+    [firstKey, secondKey, environmentKey].flatMap((value) => {
+      const variants = [
+        ...forms(value),
+        JSON.stringify(value).slice(1, -1).replaceAll('{', '\\u007b'),
+      ]
+      return variants.flatMap((variant) => [variant, JSON.stringify(variant).slice(1, -1)])
+    }),
+  ),
+]
+function assertMasked(text, surface) {
+  for (const value of forbidden)
+    assert.ok(!text.includes(value), `Credential encoding exposed through ${surface}`)
+}
+function publicResult(surface, value) {
+  assertMasked(JSON.stringify(value), surface)
+  publicChecks.set(surface, (publicChecks.get(surface) ?? 0) + 1)
+  return value
+}
+function echoes(key, retired, includeEnvironment) {
+  return [
+    key === 1 ? firstKey : secondKey,
+    ...(retired ? [firstKey] : []),
+    ...(includeEnvironment ? [environmentKey] : []),
+  ]
+    .map((value) =>
+      forms(value)
+        .map((form, index) => `${['RAW', 'JSON', 'URL'][index]}=${form}`)
+        .join(' '),
+    )
+    .join(' ')
+}
+let fragmentedStreams = 0
 let app,
   page,
   serverError,
@@ -88,18 +127,31 @@ const server = createServer(async (request, response) => {
       .at(-1)
     if (primary) {
       assert.ok(marker)
+      const userInput = input.messages
+        .filter((message) => message.role === 'user')
+        .map((message) =>
+          typeof message.content === 'string'
+            ? message.content
+            : message.content.map((part) => part.text ?? '').join('\n'),
+        )
+        .findLast((text) => text.includes(marker))
+      assert.ok(
+        userInput?.includes(echoes(key, marker.endsWith('_resumed'), !nativeDsh)),
+        'Native provider request must retain the submitted synthetic input',
+      )
       requests.push({ model: input.model, marker, key })
     }
     if (primary && marker.endsWith('_resumed'))
       assert.ok(
         input.messages.some(
           (message) =>
-            message.role === 'assistant' && JSON.stringify(message.content).includes(firstKey),
+            message.role === 'assistant' &&
+            JSON.stringify(message.content).includes(JSON.stringify(firstKey).slice(1, -1)),
         ),
         'Native history must contain the earlier credential echo',
       )
     const content = primary
-      ? `${marker}_REPLY ${key === 1 ? firstKey : secondKey}${marker.endsWith('_resumed') ? ` previous=${firstKey}` : ''}`
+      ? `${marker}_REPLY ${echoes(key, marker.endsWith('_resumed'), !nativeDsh)}`
       : 'Credential fixture'
     if (!input.stream) {
       response.writeHead(200, { 'Content-Type': 'application/json' })
@@ -116,13 +168,18 @@ const server = createServer(async (request, response) => {
       return
     }
     response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    const chunks = primary ? content.match(/.{1,13}/g) : [content]
+    if (primary) fragmentedStreams += 1
     for (const [delta, finish_reason] of [
-      [{ role: 'assistant', content }, null],
+      [{ role: 'assistant' }, null],
+      ...chunks.map((text) => [{ content: text }, null]),
       [{}, 'stop'],
-    ])
+    ]) {
       response.write(
         `data: ${JSON.stringify({ id: 'rotation', object: 'chat.completion.chunk', created: 1, model: input.model, choices: [{ index: 0, delta, finish_reason }] })}\n\n`,
       )
+      if (primary) await new Promise((resolve) => setTimeout(resolve, 3))
+    }
     response.end('data: [DONE]\n\n')
   } catch (error) {
     serverError = error
@@ -192,19 +249,35 @@ const env = {
 delete env.ELECTRON_RUN_AS_NODE
 async function launch() {
   app = await electron.launch({ args: ['.'], env, timeout: 30_000 })
+  for (const stream of ['stdout', 'stderr'])
+    app.process()[stream].on('data', (bytes) => processLogs[stream].push(Buffer.from(bytes)))
   page = await app.firstWindow()
   page.setDefaultTimeout(20_000)
   page.on('pageerror', (error) => pageErrors.push(error.message))
+  page.on('console', (message) => rendererConsole.push(message.text()))
   await page.locator('.card-grid').waitFor()
 }
-const command = (value) =>
-  page.evaluate((input) => window.agentMatrix.sessions.command(input), {
-    commandId: randomUUID(),
-    ...value,
-  })
-const get = (id) => page.evaluate((sessionId) => window.agentMatrix.sessions.get({ sessionId }), id)
-const report = (id) =>
-  page.evaluate((sessionId) => window.agentMatrix.sessions.configuration({ sessionId }), id)
+const command = async (value) =>
+  publicResult(
+    'command',
+    await page.evaluate((input) => window.agentMatrix.sessions.command(input), {
+      commandId: randomUUID(),
+      ...value,
+    }),
+  )
+const get = async (id) =>
+  publicResult(
+    'snapshot',
+    await page.evaluate((sessionId) => window.agentMatrix.sessions.get({ sessionId }), id),
+  )
+const report = async (id) =>
+  publicResult(
+    'configuration',
+    await page.evaluate(
+      (sessionId) => window.agentMatrix.sessions.configuration({ sessionId }),
+      id,
+    ),
+  )
 async function wait(id, target) {
   const end = Date.now() + 90_000
   while (Date.now() < end) {
@@ -225,12 +298,26 @@ async function send(session, phase, key) {
   const current = await get(session.id),
     marker = `ROTATION_${session.agentId}_${phase}`,
     messageId = randomUUID()
+  publicResult(
+    'subscription-snapshot',
+    await page.evaluate(
+      async (input) => {
+        window.rotationEvents = []
+        const subscription = await window.agentMatrix.sessions.subscribe(input, (delivery) => {
+          window.rotationEvents.push(delivery)
+        })
+        window.rotationUnsubscribe = subscription.unsubscribe
+        return subscription.snapshot
+      },
+      { sessionId: current.id, subscriptionId: randomUUID(), afterCursor: current.cursor },
+    ),
+  )
   await command({
     kind: 'send',
     sessionId: current.id,
     runId: current.runId,
     messageId,
-    text: marker,
+    text: `${marker} INPUT ${echoes(key, phase === 'resumed', session.agentId !== 'dsh_native')}`,
   })
   const end = Date.now() + 60_000
   let completed = false
@@ -246,6 +333,35 @@ async function send(session, phase, key) {
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
   assert.ok(completed, `Turn did not complete for ${phase}`)
+  await page.waitForFunction(() =>
+    window.rotationEvents.some(
+      (delivery) => delivery.kind === 'event' && delivery.event.data.kind === 'turn.finished',
+    ),
+  )
+  const deliveries = publicResult(
+    'live-deliveries',
+    await page.evaluate(async () => {
+      await window.rotationUnsubscribe()
+      return window.rotationEvents
+    }),
+  )
+  assert.ok(deliveries.every((delivery) => delivery.kind === 'event'))
+  const liveText = deliveries
+    .filter((delivery) => delivery.event.data.kind === 'message.delta')
+    .map((delivery) => delivery.event.data.text)
+    .join('')
+  assertMasked(liveText, 'joined live message deltas')
+  assert.ok(liveText.includes(`${marker}_REPLY`))
+  assert.ok(liveText.includes('[redacted]'))
+  const userEvent = deliveries.find((delivery) => delivery.event.data.kind === 'turn.started')
+  assert.ok(userEvent?.event.data.text.includes('[redacted]'))
+  liveTurns.push({
+    engine: session.agentId,
+    phase,
+    events: deliveries.length,
+    userInputRedacted: true,
+    joinedAssistantTextRedacted: true,
+  })
   const matches = requests.filter((request) => request.marker === marker)
   assert.ok(matches.length > 0, `No provider evidence for ${phase}`)
   assert.ok(
@@ -253,18 +369,34 @@ async function send(session, phase, key) {
       (request) => request.key === key && request.model === `rotation-${session.agentId}`,
     ),
   )
-  const history = await page.evaluate((query) => window.agentMatrix.sessions.history(query), {
-    sessionId: session.id,
-    throughCursor: (await get(session.id)).cursor,
-    fromCursor: 1,
-    direction: 'forward',
-    limit: 200,
-  })
+  const throughCursor = (await get(session.id)).cursor
+  const history = publicResult(
+    'history',
+    await page.evaluate((query) => window.agentMatrix.sessions.history(query), {
+      sessionId: session.id,
+      throughCursor,
+      fromCursor: 1,
+      direction: 'forward',
+      limit: 200,
+    }),
+  )
   assert.equal(history.hasLater, false)
   const serialized = JSON.stringify(history)
-  for (const secret of [firstKey, secondKey, environmentKey])
-    assert.ok(!serialized.includes(secret), `Credential echo leaked in ${phase} history`)
   assert.ok(serialized.includes('[redacted]'))
+  const events = publicResult(
+    'event-page',
+    await page.evaluate((query) => window.agentMatrix.sessions.readEvents(query), {
+      sessionId: session.id,
+      afterCursor: current.cursor,
+      limit: 500,
+    }),
+  )
+  assert.equal(events.hasMore, false)
+  assert.equal(events.latestCursor, throughCursor)
+  assert.deepEqual(
+    events.events,
+    deliveries.map((delivery) => delivery.event),
+  )
 }
 function checkReport(value, state, attached, stored) {
   assert.equal(value.retainedCredentialRedaction, true)
@@ -313,6 +445,7 @@ async function showReport(session, locale, state) {
   )
   for (const secret of [firstKey, secondKey, environmentKey, credentialId, 'ROTATION_ENVIRONMENT'])
     assert.ok(!(await dialog.innerText()).includes(secret))
+  assertMasked(await dialog.innerText(), 'localized configuration report')
   if (process.env.AGENT_MATRIX_ROTATION_SCREENSHOT)
     await page.screenshot({
       path:
@@ -338,7 +471,7 @@ async function inspectFiles(directory) {
     if (!entry.isFile()) continue
     const contents = await readFile(path)
     scannedFiles.push(relative(dataDirectory, path))
-    for (const value of [firstKey, secondKey, environmentKey])
+    for (const value of forbidden)
       assert.ok(
         !contents.includes(value),
         `Plaintext secret in application-owned file ${entry.name}`,
@@ -348,22 +481,47 @@ async function inspectFiles(directory) {
         assert.ok(!contents.includes(value), 'Journal exposed a credential reference')
   }
 }
+async function inspectPublicState() {
+  const values = await page.evaluate(async () => {
+    const workspace = await window.agentMatrix.loadWorkspace()
+    return {
+      workspace,
+      info: await window.agentMatrix.getAppInfo(),
+      credentials: await window.agentMatrix.getCredentialStatus(),
+      sessions: await window.agentMatrix.sessions.list(),
+      unused: await window.agentMatrix.sessions.unusedRunData({}),
+      pending: await window.agentMatrix.sessions.pendingRemovals(),
+      impact: await window.agentMatrix.sessions.impact({
+        revision: workspace.revision,
+        change: { collection: 'models', entry: { ...workspace.models[0], name: 'Preview only' } },
+      }),
+    }
+  })
+  for (const [surface, value] of Object.entries(values)) publicResult(surface, value)
+}
 try {
   await launch()
-  const credential = await page.evaluate((input) => window.agentMatrix.setCredential(input), {
-    id: credentialId,
-    name: 'Rotation fixture key',
-    kind: 'api-key',
-    value: firstKey,
-    expectedRevision: null,
-  })
+  const credential = publicResult(
+    'credential-write',
+    await page.evaluate((input) => window.agentMatrix.setCredential(input), {
+      id: credentialId,
+      name: 'Rotation fixture key',
+      kind: 'api-key',
+      value: firstKey,
+      expectedRevision: null,
+    }),
+  )
+  await inspectPublicState()
   const originals = [],
     newer = [],
     manifests = new Map()
   for (const engine of engines) {
-    await page.evaluate(
-      (installationId) => window.agentMatrix.probeEngine({ installationId }),
-      engine.id,
+    publicResult(
+      'probe',
+      await page.evaluate(
+        (installationId) => window.agentMatrix.probeEngine({ installationId }),
+        engine.id,
+      ),
     )
     const session = await start(engine)
     originals.push(session)
@@ -374,13 +532,16 @@ try {
     checkReport(await report(session.id), 'same', 1, 1)
     await send(session, 'initial', 1)
   }
-  await page.evaluate((input) => window.agentMatrix.setCredential(input), {
-    id: credentialId,
-    name: credential.name,
-    kind: 'api-key',
-    value: secondKey,
-    expectedRevision: 1,
-  })
+  publicResult(
+    'credential-write',
+    await page.evaluate((input) => window.agentMatrix.setCredential(input), {
+      id: credentialId,
+      name: credential.name,
+      kind: 'api-key',
+      value: secondKey,
+      expectedRevision: 1,
+    }),
+  )
   for (const session of originals) {
     checkReport(await report(session.id), 'changed', 1, 2)
     await send(session, 'after_rotation', 1)
@@ -422,14 +583,16 @@ try {
         return { canceled: false, filePath }
       }
     }, target)
-    await page.evaluate((query) => window.agentMatrix.sessions.exportHistory(query), {
-      sessionId: session.id,
-      throughCursor: (await get(session.id)).cursor,
-    })
+    publicResult(
+      'export-receipt',
+      await page.evaluate((query) => window.agentMatrix.sessions.exportHistory(query), {
+        sessionId: session.id,
+        throughCursor: (await get(session.id)).cursor,
+      }),
+    )
     const exported = await readFile(target, 'utf8')
     assert.ok(exported.includes('[redacted]'))
-    for (const secret of [firstKey, secondKey, environmentKey])
-      assert.ok(!exported.includes(secret))
+    assertMasked(exported, 'exported JSONL')
   }
   await page.evaluate(
     (id) => window.agentMatrix.deleteCredential({ id, expectedRevision: 2 }),
@@ -456,6 +619,7 @@ try {
     )
   }
   await inspectFiles(dataDirectory)
+  await inspectPublicState()
   const beforeRemoval = requests.length
   for (const session of [...originals, ...newer]) {
     const current = await get(session.id)
@@ -474,6 +638,14 @@ try {
     )
   }
   assert.equal(requests.length, beforeRemoval)
+  await inspectPublicState()
+  await app.close()
+  app = undefined
+  assert.equal(liveTurns.length, 20)
+  assert.equal(fragmentedStreams, 20)
+  for (const [stream, chunks] of Object.entries(processLogs))
+    assertMasked(Buffer.concat(chunks).toString('utf8'), `Electron ${stream}`)
+  assertMasked(rendererConsole.join('\n'), 'renderer console')
   assert.deepEqual(pageErrors, [])
   passed = true
   const result = {
@@ -522,6 +694,21 @@ try {
     retiredKeysNeverAuthenticate: true,
     historyApiAndExportsRedacted: true,
     encryptedHistoryRemovedWithCapture: true,
+    credentialEchoForms: ['raw', 'json-escaped', 'url-encoded'],
+    providerChunkCharacters: 13,
+    fragmentedPrimaryStreams: fragmentedStreams,
+    liveTurns,
+    successfulPublicResponseChecks: Object.fromEntries(publicChecks),
+    electronOutputBytes: Object.fromEntries(
+      Object.entries(processLogs).map(([stream, chunks]) => [
+        stream,
+        chunks.reduce((size, chunk) => size + chunk.length, 0),
+      ]),
+    ),
+    rendererConsoleMessagesChecked: rendererConsole.length,
+    electronOutputAndRendererConsoleRedacted: true,
+    userInputAndLiveEventEncodingsRedacted: true,
+    nativeProviderReceivesSubmittedInput: true,
     primaryRequests: requests.length,
     externalProvider: false,
   }
