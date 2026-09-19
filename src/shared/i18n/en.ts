@@ -237,6 +237,8 @@ export const en = {
   'error.invalidData': 'The workspace data is invalid. Check the configuration and try again.',
   'error.credentialsUnavailable': 'Secure credential storage is unavailable.',
   'error.credentialMissing': 'The required credential is missing.',
+  'error.credentialMetadataSecret':
+    'The credential name or ID contains its secret value. Use a different name or ID; nothing was saved.',
   'error.credentialEncryption':
     'The credential could not be encrypted. The previous value was preserved.',
   'error.credentialDecryption': 'The credential could not be decrypted. Replace it to continue.',

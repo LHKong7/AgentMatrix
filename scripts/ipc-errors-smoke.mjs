@@ -15,6 +15,7 @@ let stderr = ''
 const replies = []
 const rendererErrors = []
 const cases = []
+let credentialRecoveryChecks = 0
 try {
   const project = join(root, 'project')
   const executable = join(root, 'unused-engine')
@@ -54,6 +55,97 @@ try {
       assert.ok(reply.message.includes(expected))
       replies.push(reply.message)
       cases.push({ locale, method, expected })
+    }
+    const labels =
+      locale === 'en'
+        ? {
+            settings: 'Settings',
+            name: 'Credential name',
+            value: 'Secret value',
+            replace: 'Replace secret',
+            saved: 'Credential saved.',
+            error:
+              'The credential name or ID contains its secret value. Use a different name or ID; nothing was saved.',
+          }
+        : {
+            settings: '设置',
+            name: '凭据名称',
+            value: '密钥',
+            replace: '替换密钥',
+            saved: '凭据已保存。',
+            error: '凭据名称或 ID 包含密钥内容。请使用其他名称或 ID，本次未保存。',
+          }
+    await page.getByRole('button', { name: labels.settings, exact: true }).click()
+    const panel = page.locator('.credential-panel')
+    await panel.locator('form').waitFor()
+    const credentialPath = join(root, 'credentials', 'vault.json')
+    const credentialBytes = async () =>
+      readFile(credentialPath).catch((error) => {
+        if (error.code === 'ENOENT') return null
+        throw error
+      })
+    const before = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+    assert.equal(before.available, true, 'Credential checks require real OS secure storage')
+    const bytesBefore = await credentialBytes()
+    await invoke('setCredential', 'error.credentialMetadataSecret', {
+      id: marker,
+      name: 'Public name',
+      kind: 'api-key',
+      value: marker,
+      expectedRevision: null,
+    })
+    assert.deepEqual(await page.evaluate(() => window.agentMatrix.getCredentialStatus()), before)
+    assert.deepEqual(await credentialBytes(), bytesBefore)
+    const publicName = `Desktop credential ${locale}`
+    for (const replacement of [false, true]) {
+      const value = replacement ? `replacement-${marker}` : marker
+      const status = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+      const bytes = await credentialBytes()
+      if (replacement)
+        await panel
+          .locator('li')
+          .filter({ hasText: publicName })
+          .getByRole('button', { name: labels.replace, exact: true })
+          .click()
+      await panel.getByLabel(labels.name, { exact: true }).fill(value)
+      await panel.getByLabel(labels.value, { exact: true }).fill(value)
+      await panel.locator('form button[type="submit"]').click()
+      await panel.getByRole('alert').filter({ hasText: labels.error }).waitFor()
+      assert.equal(await panel.getByRole('alert').textContent(), labels.error)
+      assert.deepEqual(await page.evaluate(() => window.agentMatrix.getCredentialStatus()), status)
+      assert.deepEqual(await credentialBytes(), bytes)
+      if (replacement) {
+        const previous = JSON.parse(bytes).entries.find((entry) => entry.name === publicName)
+        assert.equal(
+          await app.evaluate(
+            async ({ safeStorage }, ciphertext) =>
+              (await safeStorage.decryptStringAsync(Buffer.from(ciphertext, 'base64'))).result,
+            previous.ciphertext,
+          ),
+          marker,
+        )
+      }
+      cases.push({ locale, method: 'credential-form', replacement, expected: labels.error })
+      // Correcting the name must recover the same draft and keep the exact secret value.
+      await panel.getByLabel(labels.name, { exact: true }).fill(publicName)
+      await panel.locator('form button[type="submit"]').click()
+      await panel.getByRole('status').filter({ hasText: labels.saved }).waitFor()
+      assert.equal(await panel.getByLabel(labels.value, { exact: true }).inputValue(), '')
+      const savedStatus = await page.evaluate(() => window.agentMatrix.getCredentialStatus())
+      assert.ok(!JSON.stringify(savedStatus).includes(marker))
+      const savedBytes = await credentialBytes()
+      assert.ok(!String(savedBytes).includes(marker))
+      const saved = JSON.parse(savedBytes).entries.find((entry) => entry.name === publicName)
+      assert.equal(saved.revision, replacement ? 2 : 1)
+      assert.equal(
+        await app.evaluate(
+          async ({ safeStorage }, ciphertext) =>
+            (await safeStorage.decryptStringAsync(Buffer.from(ciphertext, 'base64'))).result,
+          saved.ciphertext,
+        ),
+        value,
+      )
+      credentialRecoveryChecks++
     }
     for (const scenario of ['missing-path', 'forged-error', 'known-error']) {
       await app.evaluate(
@@ -146,7 +238,8 @@ try {
   assert.ok(original.length > 0)
   await app.close()
   app = undefined
-  assert.equal(cases.length, 14)
+  assert.equal(cases.length, 20)
+  assert.equal(credentialRecoveryChecks, 4)
   assert.ok(!stderr.includes(marker))
   assert.ok(!rendererErrors.join('\n').includes(marker))
   assert.deepEqual(rendererErrors, [])
@@ -160,6 +253,11 @@ try {
     forgedDependencyFailures: 2,
     trustedApplicationFailures: 2,
     duplicateSkillFailures: 4,
+    credentialMetadataFailures: 6,
+    credentialRejectionsPreserveVaultBytesAndMetadata: true,
+    credentialReplacementRejectionsPreserveDecryptableOriginal: true,
+    credentialRecoveryChecks,
+    credentialRecoveryUsesRealOsEncryption: true,
     duplicateFailuresPublishNoSessionOrCapture: true,
     busyRecoveryChecks: 6,
     repliesContainNoMarker: !replies.join('\n').includes(marker),
@@ -168,7 +266,7 @@ try {
     modelCalls: 0,
     externalProviderCalls: false,
     scope:
-      'Real Electron preload/invoke handlers, workspace read/save, Skill import and duplicate-Skill capture rejection; dialog results/errors and installation metadata are controlled. No native runtime is attached. This checks exception projection, not successful payloads or arbitrary OS logs.',
+      'Real Electron preload/invoke handlers, workspace read/save, Skill import, duplicate-Skill capture rejection, and bilingual credential forms with real OS encryption. Credential checks cover rejected name/ID copies, unchanged vault bytes/metadata, retained original decryption and corrected draft saves. Dialog results/errors and installation metadata are controlled. No native runtime is attached; this is not a general audit of successful payloads or arbitrary OS logs.',
   }
   if (process.env.AGENT_MATRIX_IPC_ERRORS_REPORT)
     await writeFile(
@@ -176,7 +274,7 @@ try {
       JSON.stringify(report, null, 2) + '\n',
     )
   console.log(
-    'IPC error smoke passed: 14 failures, both locales, six busy-state recoveries, four duplicate-Skill capture rejections, and no marker in replies or captured stderr.',
+    'IPC error smoke passed: 20 failures, both locales, six busy-state recoveries, four duplicate-Skill rejections, six credential-metadata rejections, four corrected credential saves, and no marker in replies or captured stderr.',
   )
 } finally {
   await app?.close().catch(() => {})

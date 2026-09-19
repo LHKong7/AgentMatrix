@@ -1,6 +1,18 @@
 # Credential data boundaries
 
-This is a partial X3 audit of application-owned data paths. It records a reproduced native-identity defect, its fix and the existing evidence used to inspect related surfaces. It does not complete X3 or an engine delivery gate.
+This is a partial X3 audit of application-owned data paths. It records reproduced credential-data defects, their fixes and the existing evidence used to inspect related surfaces. It does not complete X3 or an engine delivery gate.
+
+## Credential names and IDs
+
+Credential writes previously encrypted the secret field but accepted a copy of that same value in the name or caller-supplied ID. Those fields are ordinary metadata, so successful write/status responses and the vault file exposed the copy. Eight regression cases reproduced this for new and replacement credentials, including raw, JSON-escaped and URL-encoded names and raw IDs. Two additional cases reproduced the display-name trimming bypass.
+
+`CredentialVault.set` now validates metadata before encryption or persistence. It compares the name and supplied ID against complete-value variants of the incoming secret and its trimmed form, using the shared matcher. `importBatch` applies the same guard before publishing the batch. A match throws the static `error.credentialMetadataSecret` diagnostic, translated into English and Chinese without including the offending value. Rejection preserves the original vault bytes, revisions and credentials; a rejected import does not publish any of its entries. Correcting the name allows the same form draft to save normally.
+
+The 15 added unit cases cover ten new/replacement rejections, four import batches containing a valid entry before an invalid entry, and a successful innocent-prefix control that preserves the exact secret, including surrounding whitespace. All **1002 unit tests across 61 files**, lint, typecheck and production build pass. After strengthening the batch cases, the focused vault/import suite also passes **93 tests**.
+
+The [real Electron verification](probes/2026-09-20-credential-metadata-desktop.json) extends the IPC error fixture from 14 to **20 rejected operations**. Six credential cases cover name creation/replacement through the actual form and caller-supplied IDs through preload, in both languages. Every rejection preserves status and vault bytes; rejected replacements retain a decryptable original key. Four corrected form saves use real OS encryption, clear the secret input, and return only safe metadata. Captured IPC errors, Electron stderr and renderer errors contain no synthetic private marker. No native agent or model provider is invoked.
+
+This guard checks the secret supplied with the credential write. It does not decrypt unrelated credentials, identify unknown secrets, scan arbitrary configuration text, or migrate metadata saved before the fix. Complete-value variants are bounded; arbitrary transformations and partial secret copies are outside this check.
 
 ## Native identity rejection
 

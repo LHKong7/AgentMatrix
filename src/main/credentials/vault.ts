@@ -12,6 +12,7 @@ import {
 } from '../../shared/credentials'
 import { displayName, entityId, type SecretReference } from '../../shared/engines/schema'
 import type { CredentialVersion } from '../../shared/engines/credential-observation'
+import { createSecretMatcher } from '../engines/process/redacted-tail'
 
 export interface ResolvedCredential {
   value: string
@@ -59,6 +60,12 @@ const vaultSchema = z
   )
 type VaultDocument = z.infer<typeof vaultSchema>
 type Entry = z.infer<typeof entrySchema>
+function verifyCredentialMetadata(input: CredentialInput): void {
+  // Display names are trimmed by the schema; recognize copies after that normalization too.
+  const containsValue = createSecretMatcher([input.value, input.value.trim()])
+  if (containsValue(input.name) || (input.id !== undefined && containsValue(input.id)))
+    throw appError('error.credentialMetadataSecret')
+}
 function metadata(entry: Entry): CredentialMetadata {
   return {
     id: entry.id,
@@ -103,6 +110,7 @@ export class CredentialVault {
       const parsed = credentialInputSchema.safeParse(input)
       if (!parsed.success) throw appError('error.invalidData')
       const candidate = parsed.data
+      verifyCredentialMetadata(candidate)
       await this.requireAvailable()
       const document = await this.read()
       if (document.pendingImport) throw appError('error.nativeImportRecovery')
@@ -239,6 +247,7 @@ export class CredentialVault {
       const added: string[] = []
       for (const input of inputs) {
         const parsed = credentialInputSchema.parse(input)
+        verifyCredentialMetadata(parsed)
         if (!parsed.id || parsed.expectedRevision !== null || ids.has(parsed.id))
           throw appError('error.conflict')
         ids.add(parsed.id)

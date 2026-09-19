@@ -219,6 +219,7 @@ export const zhCN = {
   'error.invalidData': '工作空间数据无效，请检查配置后重试。',
   'error.credentialsUnavailable': '安全凭据存储不可用。',
   'error.credentialMissing': '缺少所需的凭据。',
+  'error.credentialMetadataSecret': '凭据名称或 ID 包含密钥内容。请使用其他名称或 ID，本次未保存。',
   'error.credentialEncryption': '凭据加密失败，原有密钥已保留。',
   'error.credentialDecryption': '凭据解密失败，请替换密钥后重试。',
   'error.credentialRedactionHistory':

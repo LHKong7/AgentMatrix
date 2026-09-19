@@ -1,9 +1,11 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialVault, type SecretCipher } from '../src/main/credentials/vault'
+import { formatError } from '../src/shared/errors'
+import { translate } from '../src/shared/i18n'
 
 let root: string
 let vault: CredentialVault
@@ -39,6 +41,95 @@ const input = {
 }
 
 describe('credential vault boundaries', () => {
+  it.each(
+    (['name-raw', 'name-json', 'name-url', 'name-trimmed', 'id-raw'] as const).flatMap((field) =>
+      [false, true].map((replacement) => ({ field, replacement })),
+    ),
+  )(
+    'rejects copied values in $field metadata, replacement=$replacement',
+    async ({ field, replacement }) => {
+      const value =
+        field === 'id-raw'
+          ? 'synthetic-credential-identifier'
+          : field === 'name-trimmed'
+            ? '  synthetic-credential-private  '
+            : 'synthetic-credential/"private'
+      const id = field === 'id-raw' ? value : 'fixture-credential'
+      if (replacement) await vault.set({ ...input, id })
+      const before = replacement ? await readFile(vault.filePath) : null
+      const copied =
+        field === 'name-json'
+          ? JSON.stringify(value).slice(1, -1)
+          : field === 'name-url'
+            ? encodeURIComponent(value)
+            : value
+      const error = await vault
+        .set({
+          ...input,
+          id,
+          value,
+          name:
+            field === 'id-raw'
+              ? 'Public name'
+              : field === 'name-trimmed'
+                ? copied
+                : `Name ${copied}`,
+          expectedRevision: replacement ? 1 : null,
+        })
+        .catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(Error)
+      for (const locale of ['en', 'zh-CN'] as const)
+        expect(formatError(error, locale)).toBe(translate(locale, 'error.credentialMetadataSecret'))
+      if (before) {
+        expect(await readFile(vault.filePath)).toEqual(before)
+        expect(await vault.resolve({ kind: 'credential', id }, {})).toBe(input.value)
+      } else await expect(readFile(vault.filePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    },
+  )
+  it('keeps complete matching distinct from an innocent prefix and preserves exact values', async () => {
+    const value = '  synthetic-credential-value  '
+    const entry = await vault.set({
+      ...input,
+      value,
+      id: 'synthetic',
+      name: '  synthetic-credential  ',
+    })
+    expect(entry.name).toBe('synthetic-credential')
+    expect(await vault.resolve({ kind: 'credential', id: entry.id }, {})).toBe(value)
+  })
+  it.each(['raw', 'json', 'url', 'id'] as const)(
+    'rejects a copied %s value in a credential import batch before publication',
+    async (encoding) => {
+      await vault.set(input)
+      const before = await readFile(vault.filePath)
+      const value = encoding === 'id' ? 'synthetic-import-credential-id' : 'synthetic-import/"value'
+      const copied =
+        encoding === 'json'
+          ? JSON.stringify(value).slice(1, -1)
+          : encoding === 'url'
+            ? encodeURIComponent(value)
+            : value
+      const publish = vi.fn(async () => undefined)
+      await expect(
+        vault.importBatch(
+          randomUUID(),
+          [
+            { ...input, id: 'valid-imported-id', name: 'Valid import' },
+            {
+              ...input,
+              id: encoding === 'id' ? value : 'imported-id',
+              value,
+              name: encoding === 'id' ? 'Imported key' : copied,
+            },
+          ],
+          publish,
+          async () => false,
+        ),
+      ).rejects.toThrow('error.credentialMetadataSecret')
+      expect(publish).not.toHaveBeenCalled()
+      expect(await readFile(vault.filePath)).toEqual(before)
+    },
+  )
   it('persists ciphertext and exposes only metadata while main-process resolution survives reopening', async () => {
     const entry = await vault.set(input)
     expect(Object.keys(entry).sort()).toEqual([
