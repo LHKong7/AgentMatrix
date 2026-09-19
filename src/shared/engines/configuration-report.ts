@@ -108,6 +108,7 @@ export interface ConfigurationReport {
     'credentialResolutions' | 'nativeRuntime' | 'mcpConnections'
   > | null
   credentials: CredentialReport
+  retainedCredentialRedaction: boolean
   mcp: McpReport
   capabilities: SessionCapabilityReport
   observationIsCurrent: boolean

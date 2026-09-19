@@ -93,6 +93,7 @@ export function CredentialPanel() {
         {t('credentials.title')}
       </h2>
       <p className="hint">{t('credentials.hint')}</p>
+      <p className="hint">{t('credentials.retention')}</p>
       {error !== null && (
         <p className="error-banner" role="alert">
           {formatError(error, locale)}

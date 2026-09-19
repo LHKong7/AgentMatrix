@@ -398,6 +398,7 @@ describe('configuration report evidence and updates', () => {
     expect(report.observation).toBeNull()
     expect(report.resourceDirectories).toBeNull()
     expect(report.instructionSources).toBeNull()
+    expect(report.retainedCredentialRedaction).toBe(false)
     expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace).observation).toBeNull()
     expect(report.sources).toEqual([
       { path: join(f.manifest.cwd, 'AGENTS.md'), exists: false, digest: null },

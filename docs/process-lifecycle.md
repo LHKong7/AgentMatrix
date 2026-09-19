@@ -14,6 +14,8 @@ Stderr is drained into an 8 KiB diagnostic tail. Known secrets, their JSON-escap
 
 This is a known-value redactor, not a detector for every secret an engine may read independently. Adapters must supply every injected secret value, avoid secrets in arguments, and separately redact normalized stdout/events before journal storage. Native authentication sources that the app cannot inspect need their own diagnostic policy.
 
+New desktop captures load [encrypted masking history](credential-redaction-history.md) before launching any child, so previous attachment keys remain recognizable after rotation and restart. The history is used for masking only; authentication resolves current references. Legacy captures retain explicitly narrower coverage.
+
 ## Verification and remaining boundaries
 
 Real subprocess tests verify literal arguments, environment isolation, spawn failure, resistant leaders, resistant descendants after leader exit, automatic cleanup after malformed ACP output, and bounded/redacted stderr. The installed OpenCode and DSH handshake probe now uses this supervisor and checks completed process-group cleanup. The [recorded macOS results](probes/2026-09-18-managed-acp.json) include termination outcomes and no model calls.

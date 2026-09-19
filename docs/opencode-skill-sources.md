@@ -16,6 +16,8 @@ This requires no additional observer plugin or plugin dependency installation, a
 
 The ephemeral password is separate from the model-provider credential and is regenerated on each attachment. It is never placed in captured files, command arguments, journals, reports, or exports. Raw password, encoded Basic credentials, and the complete authorization header enter the in-memory redaction set. Combined redaction limits are checked before spawning the child. HTTP requests are loopback-only, disallow redirects, share a ten-second observation deadline, and abort with attachment disposal or process cancellation.
 
+New desktop captures also retain these authentication forms in separate OS-encrypted [masking history](credential-redaction-history.md), so earlier echoes stay masked on later attachments. The history never supplies a listener password; each listener still receives newly generated credentials.
+
 Each response is streamed with a 4 MiB limit and strict UTF-8/JSON decoding. Listings allow at most 10,000 entries and mappings at most 1,000 selected bindings. Native Skill bodies can occur in `/skill` responses; they remain transient main-process memory and are discarded after extracting names and paths. No raw response or native error enters diagnostic text. Closing the owned ACP child closes its listener; cleanup cancels pending observations.
 
 A pre-turn mismatch prevents prompt submission and therefore prevents a new provider call for that turn. Cancellation received during preflight also prevents submission. A failed post-turn check cannot undo model calls or tool actions already performed. Missing, malformed, oversized, unauthenticated, or expired observations fail as unavailable; selected-source differences fail as mismatch.

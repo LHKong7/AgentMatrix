@@ -79,7 +79,17 @@ const server = createServer(async (request, response) => {
       assert.ok(marker)
       requests.push({ model: input.model, marker, key })
     }
-    const content = primary ? `${marker}_REPLY` : 'Credential fixture'
+    if (primary && marker.endsWith('_resumed'))
+      assert.ok(
+        input.messages.some(
+          (message) =>
+            message.role === 'assistant' && JSON.stringify(message.content).includes(firstKey),
+        ),
+        'Native history must contain the earlier credential echo',
+      )
+    const content = primary
+      ? `${marker}_REPLY ${key === 1 ? firstKey : secondKey}${marker.endsWith('_resumed') ? ` previous=${firstKey}` : ''}`
+      : 'Credential fixture'
     if (!input.stream) {
       response.writeHead(200, { 'Content-Type': 'application/json' })
       response.end(
@@ -223,8 +233,21 @@ async function send(session, phase, key) {
       (request) => request.key === key && request.model === `rotation-${session.agentId}`,
     ),
   )
+  const history = await page.evaluate((query) => window.agentMatrix.sessions.history(query), {
+    sessionId: session.id,
+    throughCursor: (await get(session.id)).cursor,
+    fromCursor: 1,
+    direction: 'forward',
+    limit: 200,
+  })
+  assert.equal(history.hasLater, false)
+  const serialized = JSON.stringify(history)
+  for (const secret of [firstKey, secondKey, environmentKey])
+    assert.ok(!serialized.includes(secret), `Credential echo leaked in ${phase} history`)
+  assert.ok(serialized.includes('[redacted]'))
 }
 function checkReport(value, state, attached, stored) {
+  assert.equal(value.retainedCredentialRedaction, true)
   const vault = value.credentials.entries.filter((entry) => entry.source === 'vault')
   assert.equal(vault.length, 1, 'Repeated credential must be deduplicated')
   assert.equal(vault[0].state, state)
@@ -260,6 +283,11 @@ async function showReport(session, locale, state) {
   })
   await table.locator(`[data-credential-state="${state}"]`).waitFor()
   await table.scrollIntoViewIfNeeded()
+  assert.ok(
+    (await dialog.getByTestId('credential-redaction-coverage').innerText()).includes(
+      locale === 'en' ? 'encrypted key history' : '加密的密钥历史',
+    ),
+  )
   for (const secret of [firstKey, secondKey, environmentKey, credentialId, 'ROTATION_ENVIRONMENT'])
     assert.ok(!(await dialog.innerText()).includes(secret))
   if (process.env.AGENT_MATRIX_ROTATION_SCREENSHOT)
@@ -279,7 +307,7 @@ async function inspectFiles(directory) {
       if (entry.name !== 'state') await inspectFiles(path)
       continue
     }
-    if (!entry.isFile() || !/\.(json|jsonl|md|yml|yaml)$/.test(entry.name)) continue
+    if (!entry.isFile() || !/\.(json|jsonl|md|yml|yaml|enc)$/.test(entry.name)) continue
     const contents = await readFile(path, 'utf8')
     for (const value of [firstKey, secondKey, environmentKey])
       assert.ok(
@@ -357,6 +385,22 @@ try {
     checkReport(current, 'same', 2, 2)
     assert.equal(current.observationIsCurrent, true)
     await send(session, 'resumed', 2)
+    const target = join(root, `history-${session.agentId}.jsonl`)
+    await app.evaluate(({ dialog }, filePath) => {
+      const original = dialog.showSaveDialog
+      dialog.showSaveDialog = async () => {
+        dialog.showSaveDialog = original
+        return { canceled: false, filePath }
+      }
+    }, target)
+    await page.evaluate((query) => window.agentMatrix.sessions.exportHistory(query), {
+      sessionId: session.id,
+      throughCursor: (await get(session.id)).cursor,
+    })
+    const exported = await readFile(target, 'utf8')
+    assert.ok(exported.includes('[redacted]'))
+    for (const secret of [firstKey, secondKey, environmentKey])
+      assert.ok(!exported.includes(secret))
   }
   await page.evaluate(
     (id) => window.agentMatrix.deleteCredential({ id, expectedRevision: 2 }),
@@ -383,30 +427,65 @@ try {
     )
   }
   await inspectFiles(dataDirectory)
+  const beforeRemoval = requests.length
+  for (const session of [...originals, ...newer]) {
+    const current = await get(session.id)
+    if (current.status !== 'closed') {
+      await command({ kind: 'close', sessionId: current.id, runId: current.runId })
+      await wait(current.id, 'closed')
+    }
+    const closed = await get(session.id)
+    await page.evaluate((input) => window.agentMatrix.sessions.remove(input), {
+      sessionId: closed.id,
+      expectedCursor: closed.cursor,
+    })
+    await assert.rejects(
+      readFile(join(dataDirectory, 'runs', closed.snapshotId, 'redactions.enc')),
+      { code: 'ENOENT' },
+    )
+  }
+  assert.equal(requests.length, beforeRemoval)
   assert.deepEqual(pageErrors, [])
   passed = true
-  console.log(
-    JSON.stringify(
-      {
-        passed: true,
-        engines: engines.map((engine) => engine.label),
-        locales: ['en', 'zh-CN'],
-        initialRevision: 1,
-        rotatedRevision: 2,
-        activeAttachmentsRetainOldKey: true,
-        newSessionsUseRotatedKey: true,
-        nativeResumeUsesRotatedKey: true,
-        deletedCredentialBlocksResume: true,
-        historicalEvidencePreserved: true,
-        immutableManifests: true,
-        applicationStorageRedacted: true,
-        primaryRequests: requests.length,
-        externalProvider: false,
-      },
-      null,
-      2,
+  const result = {
+    checkedAt: new Date().toISOString(),
+    platform: process.platform,
+    architecture: process.arch,
+    passed: true,
+    engines: engines.map((engine) => engine.label),
+    versions: Object.fromEntries(
+      originals.map((session) => [session.agentId, session.engineVersion]),
     ),
-  )
+    provider: {
+      service: 'Local synthetic fixture',
+      protocol: 'openai-chat-completions',
+      modelIds: workspace.models.map((model) => model.modelId),
+      dshRoute: 'pi-ai',
+    },
+    locales: ['en', 'zh-CN'],
+    initialRevision: 1,
+    rotatedRevision: 2,
+    activeAttachmentsRetainOldKey: true,
+    newSessionsUseRotatedKey: true,
+    nativeResumeUsesRotatedKey: true,
+    deletedCredentialBlocksResume: true,
+    historicalEvidencePreserved: true,
+    immutableManifests: true,
+    applicationStorageRedacted: true,
+    nativeHistoryContainsOriginalEcho: true,
+    rotatedKeyEchoRedactedAfterRestart: true,
+    retiredKeysNeverAuthenticate: true,
+    historyApiAndExportsRedacted: true,
+    encryptedHistoryRemovedWithCapture: true,
+    primaryRequests: requests.length,
+    externalProvider: false,
+  }
+  if (process.env.AGENT_MATRIX_ROTATION_REPORT)
+    await writeFile(
+      process.env.AGENT_MATRIX_ROTATION_REPORT,
+      JSON.stringify(result, null, 2) + '\n',
+    )
+  console.log(JSON.stringify(result, null, 2))
 } finally {
   if (app) await app.close().catch(() => {})
   await new Promise((resolve) => server.close(resolve))

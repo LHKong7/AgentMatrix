@@ -101,7 +101,11 @@ if (!app.requestSingleInstanceLock()) {
     await nativeImports.recover().catch(() => undefined)
     const factory = new DesktopSessionFactory({
       workspace: store,
-      runs: new RunInputStore(join(app.getPath('userData'), 'runs'), skillDirectories),
+      runs: new RunInputStore(
+        join(app.getPath('userData'), 'runs'),
+        skillDirectories,
+        electronCipher,
+      ),
       skills: skillDirectories,
       dataDirectory: app.getPath('userData'),
       environment: process.env,

@@ -42,7 +42,9 @@ export async function prepareRunLaunch(
       secrets.add(encoded)
     }
   }
-  const redactions = [...secrets]
+  const redactions = manifest.redactionHistoryVersion
+    ? await store.retainRedactions(manifest, [...secrets])
+    : [...secrets]
   if (
     redactions.length > 256 ||
     redactions.some((value) => value.length > 65_536) ||

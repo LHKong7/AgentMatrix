@@ -157,6 +157,8 @@ export const en = {
   'credentials.title': 'API credentials',
   'credentials.hint':
     'Store keys in encrypted desktop storage. Agents will reference them by ID; saved values are never returned to this screen.',
+  'credentials.retention':
+    'New conversations retain encrypted copies of keys they use to mask historical output after key replacement or deletion. AgentMatrix uses these copies only for masking and removes them with their captured run data.',
   'credentials.unavailable':
     'Secure desktop storage is unavailable. Use the desktop app with an available operating-system credential backend.',
   'credentials.loading': 'Checking credential storage…',
@@ -238,6 +240,10 @@ export const en = {
   'error.credentialEncryption':
     'The credential could not be encrypted. The previous value was preserved.',
   'error.credentialDecryption': 'The credential could not be decrypted. Replace it to continue.',
+  'error.credentialRedactionHistory':
+    'Retained key-masking data is missing or unreadable. This conversation cannot start or resume safely; create a new conversation.',
+  'error.credentialRedactionLimit':
+    'This conversation has reached its retained key-masking limit. Create a new conversation to continue.',
   'error.credentialStorage':
     'Credential storage could not be read or saved. Existing data was preserved.',
   'validation.id': 'IDs may contain only letters, numbers, underscores, and hyphens.',

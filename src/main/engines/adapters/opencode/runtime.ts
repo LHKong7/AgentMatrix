@@ -108,6 +108,13 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       } catch {
         throw new RuntimeFailure('configuration', 'credentials.redaction-limit')
       }
+      if (manifest.redactionHistoryVersion) {
+        try {
+          launch.secrets = await store.retainRedactions(manifest, launch.secrets)
+        } catch {
+          throw new RuntimeFailure('credentials')
+        }
+      }
     }
     attachment = await attachAcpProcess(launch, {
       update: async (notification) => {

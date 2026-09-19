@@ -137,6 +137,8 @@ export const plannedLaunchSchema = z
 export const runInputManifestSchema = z
   .object({
     schemaVersion: z.literal(1),
+    // Optional for legacy digest compatibility; marked captures require encrypted history.
+    redactionHistoryVersion: z.literal(1).optional(),
     id: entityId,
     createdAt: z.iso.datetime(),
     workspaceRevision: z.number().int().nonnegative(),

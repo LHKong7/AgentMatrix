@@ -1,5 +1,9 @@
 import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
+  'report.redactionRetained':
+    '此输入要求保留加密的密钥历史，用于跨进程遮蔽输出。旧密钥不会再次用于身份验证，查看报告也不会解密历史数据。',
+  'report.redactionLegacy':
+    '此旧版输入未保留密钥历史。输出遮蔽仅识别当前进程解析的密钥，轮换后的旧密钥可能无法识别。',
   'report.instructionSources': '原生规则文件引用',
   'report.instructionHint':
     '记录原生配置候选项匹配到的本地文件，并在复用前重新检查文件内容和匹配列表。这份清单不代表原生配置优先级或最终 Prompt 内容；打开报告不会读取源文件。',

@@ -116,12 +116,15 @@ function fixture(legacy = false, configuration = true) {
   vi.mocked(prepareOpenCodeSkillAttachment).mockResolvedValue(observer)
   vi.mocked(prepareOpenCodeConfigurationAttachment).mockResolvedValue(observer)
   const paths = { root: '/fixture', inputs: '/fixture/inputs', state: '/fixture/state' }
+  const retainRedactions = vi.fn(async (_manifest: RunInputManifest, values: string[]) => values)
   const store = {
     paths: () => paths,
     verifyForReuse: vi.fn().mockResolvedValue(manifest),
+    retainRedactions,
   } as unknown as RunInputStore
   return {
     manifest,
+    retainRedactions,
     launch,
     observer,
     client,
@@ -234,6 +237,15 @@ it('rejects combined credential redaction overflow before starting the ACP child
   const f = fixture()
   f.launch.secrets = Array.from({ length: 256 }, (_, index) => `secret-${index}`)
   await expect(f.connect()).rejects.toMatchObject({ code: 'configuration' })
+  expect(attachAcpProcess).not.toHaveBeenCalled()
+  expect(f.observer.cleanup).toHaveBeenCalled()
+})
+it('retains observer credentials before spawn and blocks attachment if persistence fails', async () => {
+  const f = fixture()
+  f.manifest.redactionHistoryVersion = 1
+  f.retainRedactions.mockRejectedValueOnce(new Error('private storage detail'))
+  await expect(f.connect()).rejects.toMatchObject({ code: 'credentials' })
+  expect(f.retainRedactions).toHaveBeenCalledWith(f.manifest, ['ephemeral-secret'])
   expect(attachAcpProcess).not.toHaveBeenCalled()
   expect(f.observer.cleanup).toHaveBeenCalled()
 })

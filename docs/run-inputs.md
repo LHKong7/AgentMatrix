@@ -7,6 +7,7 @@
 ```text
 userData/runs/<snapshotId>/
   manifest.json         # Versioned launch plan and content digest
+  redactions.enc        # OS-encrypted masking history for new desktop captures
   inputs/               # Copied prompts, complete Skill files, generated native configuration
   state/                # Writable native sessions, cache, and other adapter-selected directories
 ```
@@ -20,6 +21,8 @@ The manifest records the workspace revision, resolved asset versions and provena
 The adapter returns validated generated files, prompt-file and Skill-directory mappings, launch arguments, environment references, and native-source observations. Every selected asset must have exactly one mapping. Environment entries distinguish ordinary literals, captured input files/directories, mutable state directories, and secret references. Input references must point to materialized content. Credentials are resolved later in memory by the runtime; this store never reads provider environment values or decrypts the vault.
 
 Secret environment entries can specify `json-string` encoding for engines that interpolate before parsing JSON; omission preserves raw encoding. `prepareRunLaunch` performs that encoding after resolving the reference in memory, retaining both forms for diagnostic redaction. This optional manifest-v1 field does not add secret values to the persisted document.
+
+New desktop captures also require [encrypted masking history](credential-redaction-history.md), identified by the optional `redactionHistoryVersion` marker. It retains known keys across attachments without putting plaintext into captured inputs or reusing retired values for authentication. The mutable encrypted file is removed with its capture; legacy digests and their narrower masking scope remain unchanged.
 
 Adapters must keep credentials out of literal fields, arguments, and generated file contents. This component cannot identify a secret pasted into ordinary prompt text or a native configuration string. It also does not attest provider compatibility, prompt semantics, Skill discovery, plugin execution, or effective permissions.
 

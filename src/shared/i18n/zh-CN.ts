@@ -148,6 +148,8 @@ export const zhCN = {
   'credentials.title': 'API 凭据',
   'credentials.hint':
     '使用桌面安全存储加密保存密钥。Agent 将通过 ID 引用它们，已保存的密钥不会返回此界面。',
+  'credentials.retention':
+    '新会话会保留所用密钥的加密副本，用于在密钥替换或删除后遮蔽历史输出。AgentMatrix 仅将这些副本用于遮蔽，并随对应的运行数据一并删除。',
   'credentials.unavailable': '安全存储不可用。请使用桌面应用，并确保操作系统凭据存储可用。',
   'credentials.loading': '正在检查凭据存储…',
   'credentials.empty': '尚未保存凭据。',
@@ -219,6 +221,9 @@ export const zhCN = {
   'error.credentialMissing': '缺少所需的凭据。',
   'error.credentialEncryption': '凭据加密失败，原有密钥已保留。',
   'error.credentialDecryption': '凭据解密失败，请替换密钥后重试。',
+  'error.credentialRedactionHistory':
+    '历史密钥遮蔽数据丢失或无法读取，此会话无法安全启动或恢复，请新建会话。',
+  'error.credentialRedactionLimit': '此会话保留的密钥遮蔽数据已达到上限，请新建会话继续。',
   'error.credentialStorage': '无法读取或保存凭据，原有数据已保留。',
   'validation.id': 'ID 只能包含字母、数字、下划线和连字符',
   'validation.name': '名称不能为空',

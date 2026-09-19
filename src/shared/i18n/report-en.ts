@@ -1,4 +1,8 @@
 export const reportEn = {
+  'report.redactionRetained':
+    'These inputs require encrypted key history for output masking across attachments. Retired keys are never reused for authentication. Reading this report does not decrypt that history.',
+  'report.redactionLegacy':
+    'These older inputs do not retain key history. Output masking only knows the keys resolved for the current attachment; earlier keys may be unrecognized after rotation.',
   'report.instructionSources': 'Native instruction file references',
   'report.instructionHint':
     'Captured local file matches from native configuration candidates. Files and match lists are checked again before reuse. This inventory does not establish native precedence or final prompt content; opening this report does not read the sources.',

@@ -181,6 +181,7 @@ export function buildConfigurationReport(
         }
       : null,
     credentials: credentialReport(manifest, observation?.credentialResolutions, versions),
+    retainedCredentialRedaction: manifest.redactionHistoryVersion === 1,
     capabilities: buildSessionCapabilities(manifest, snapshot),
     mcp: buildMcpReport(manifest, observation),
     observationIsCurrent: Boolean(

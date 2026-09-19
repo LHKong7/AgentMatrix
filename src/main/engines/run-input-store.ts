@@ -21,6 +21,8 @@ import { SkillDirectoryStore } from '../assets/skill-directory-store'
 import { observeExternalFile, verifyExternalSources } from './external-sources'
 import { RunDataCleanup } from './run-data-cleanup'
 import type { RunDataQuery, RunDataRemoval } from '../../shared/sessions/run-data'
+import type { SecretCipher } from '../credentials/vault'
+import { RedactionHistory } from '../credentials/redaction-history'
 export { observeExternalFile } from './external-sources'
 
 const maximumFile = 20_000_000
@@ -84,12 +86,28 @@ async function regularFile(path: string, limit: number): Promise<Buffer> {
 export class RunInputStore {
   private queue: Promise<unknown> = Promise.resolve()
   private readonly cleanup: RunDataCleanup
+  private readonly redactionHistory: RedactionHistory | null
   constructor(
     readonly root: string,
     private readonly skills: SkillDirectoryStore,
+    cipher?: SecretCipher,
   ) {
     if (!isAbsolute(root)) throw appError('error.runPath')
     this.cleanup = new RunDataCleanup(root, (id) => this.read(id))
+    this.redactionHistory = cipher ? new RedactionHistory(cipher) : null
+  }
+
+  retainRedactions(manifest: RunInputManifest, values: readonly string[]): Promise<string[]> {
+    if (!manifest.redactionHistoryVersion) return Promise.resolve([...values])
+    const operation = this.queue.then(async () => {
+      await this.cleanup.assertAvailable(manifest.id)
+      if (!this.redactionHistory) throw appError('error.credentialsUnavailable')
+      const root = this.paths(manifest.id).root
+      if (!(await lstat(root)).isDirectory()) throw appError('error.credentialRedactionHistory')
+      return this.redactionHistory.retain(root, manifest, values)
+    })
+    this.queue = operation.catch(() => {})
+    return operation
   }
 
   unused(referenced: ReadonlySet<string>, query: RunDataQuery) {
@@ -271,6 +289,7 @@ export class RunInputStore {
         throw appError('error.runSourceChanged')
       const manifest = runInputManifestSchema.parse({
         schemaVersion: 1,
+        ...(this.redactionHistory ? { redactionHistoryVersion: 1 } : {}),
         id,
         createdAt: new Date().toISOString(),
         workspaceRevision,
@@ -308,6 +327,7 @@ export class RunInputStore {
         digest: '0'.repeat(64),
       })
       manifest.digest = manifestDigest(manifest)
+      await this.redactionHistory?.initialize(stage, manifest)
       const contents = JSON.stringify(manifest, null, 2) + '\n'
       if (Buffer.byteLength(contents) > maximumManifest) throw appError('error.runLimit')
       const record = await open(join(stage, 'manifest.json'), 'wx', 0o600)

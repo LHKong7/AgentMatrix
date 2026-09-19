@@ -153,6 +153,13 @@ export function ConfigurationReport({
             <McpConnections report={report.mcp} current={report.capabilities.current} />
             <h3>{t('report.credentialTitle')}</h3>
             <p className="hint">{t('report.credentialHint')}</p>
+            <p className="hint" data-testid="credential-redaction-coverage">
+              {t(
+                report.retainedCredentialRedaction
+                  ? 'report.redactionRetained'
+                  : 'report.redactionLegacy',
+              )}
+            </p>
             <p className="hint">
               {t('report.credentialChecked', {
                 time: new Date(report.credentials.checkedAt).toLocaleString(locale),
