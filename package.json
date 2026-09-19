@@ -28,6 +28,7 @@
     "probe:pi": "vitest run --config vitest.pi.config.ts",
     "probe:dsh": "vitest run --config vitest.dsh.config.ts",
     "probe:providers": "vitest run --config vitest.providers.config.ts --maxWorkers=1",
+    "probe:isolation": "vitest run --config vitest.isolation.config.ts --maxWorkers=1",
     "check": "npm run lint && npm run test && npm run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

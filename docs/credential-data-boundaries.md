@@ -32,6 +32,10 @@ This check applies when attaching a conversation, where selected credentials are
 
 The [launch-boundary verification record](probes/2026-09-19-launch-argument-boundary.json) records 976 passing unit tests, lint, typecheck/build and a repeated four-route Electron credential-rotation fixture. All 20 primary requests, exact native restoration, masking checks and capture cleanup pass with the tightened argument guard. The desktop fixture verifies normal compatibility; the adversarial argument cases use controlled local executables.
 
+## Combined native run isolation
+
+The [installed-engine isolation fixture](run-isolation-acceptance.md) now checks two snapshots of the same profile with different endpoint/key/model selections, Prompt/Skill revisions and working directories. A two-request provider gate proves overlapping execution. Native tools verify their environment and workspace; event streams exclude sibling content. Exact native restoration survives saved-library removal, and B keeps running after A closes and its capture is removed. All four routes pass 24 turns and 72 primary requests in total. DSH explicitly scrubs selected credentials from its bash children; OpenCode/Pi expose only the selected run values in this fixture. This is functional configuration/resource isolation, not an OS sandbox or a claim that shared project files become private.
+
 ## Inspected surfaces and current evidence
 
 | Surface                                 | Application boundary                                                                                                                                                                                                                 | Evidence and limits                                                                                                                                                                                                                                                                                 |
@@ -48,6 +52,6 @@ The [launch-boundary verification record](probes/2026-09-19-launch-argument-boun
 
 ## Remaining audit work
 
-The [four-route credential fixture](credential-redaction-history.md#verification) strengthens one end-to-end path on macOS with local synthetic credentials and real OS encryption. A complete X3 acceptance record still needs adversarial coverage across the remaining application logging, preview and input-storage paths, as well as combined per-run resource boundaries. Existing unit coverage is listed above without treating it as a complete installed-engine attack matrix.
+The [four-route credential fixture](credential-redaction-history.md#verification) strengthens one end-to-end path on macOS with local synthetic credentials and real OS encryption. A complete X3 acceptance record still needs adversarial coverage across the remaining application logging, preview and input-storage paths, while the [combined native run-isolation baseline](run-isolation-acceptance.md) now verifies overlapping snapshots, tool environments, captured resources, events and sibling cleanup on all four routes. Existing unit coverage is listed above without treating it as a complete installed-engine attack matrix.
 
 Native transcripts, caches, tool-written files and independently loaded plugin/MCP secrets remain explicit limits. The fixture intentionally confirms a plaintext earlier echo in native context so that resumed model output can exercise masking of retired keys. It does not rewrite that context or prevent its transmission to the selected provider. External-provider, other-platform and packaged-application acceptance remain separate.

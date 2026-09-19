@@ -56,26 +56,27 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 
 ## Commands
 
-| Command                            | Purpose                                                                                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `npm run dev`                      | Start Electron with hot reload                                                                                                             |
-| `npm run dev:web`                  | Preview the UI in a browser                                                                                                                |
-| `npm run check`                    | Run ESLint, unit tests, TypeScript, and production builds                                                                                  |
-| `npm run test:smoke`               | Build and test a real Electron window, including language switching and persistence                                                        |
-| `npm run test:sessions`            | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture                          |
-| `npm run test:shared-assets`       | Build and verify shared Prompt/Skill updates across all three installed engines in one desktop workspace                                   |
-| `npm run test:native-import`       | Verify OpenCode, Pi or DSH import, OS encryption, bilingual UI, and an imported native session against a local provider                    |
-| `npm run test:credential-rotation` | Verify stored-key rotation, active/new/resumed native sessions, deletion failures, and bilingual revision reports across all three engines |
-| `npm run probe:dsh`                | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes                                   |
-| `npm run probe:providers`          | Opt-in Responses and Anthropic Messages endpoint, authentication, tool and lifecycle checks across all three installed engines using local fixtures     |
-| `npm run probe:pi`                 | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                                                  |
-| `npm run probe:acp`                | Opt-in installed OpenCode/DSH handshake through the application ACP client                                                                 |
-| `npm run format`                   | Format source and documentation                                                                                                            |
-| `npm run format:check`             | Check formatting                                                                                                                           |
-| `npm run build`                    | Build into `out/`                                                                                                                          |
-| `npm start`                        | Run the existing production build                                                                                                          |
-| `npm run package`                  | Create an unsigned app directory for the current platform                                                                                  |
-| `npm run dist`                     | Build platform distributables into `release/`                                                                                              |
+| Command                            | Purpose                                                                                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                      | Start Electron with hot reload                                                                                                                      |
+| `npm run dev:web`                  | Preview the UI in a browser                                                                                                                         |
+| `npm run check`                    | Run ESLint, unit tests, TypeScript, and production builds                                                                                           |
+| `npm run test:smoke`               | Build and test a real Electron window, including language switching and persistence                                                                 |
+| `npm run test:sessions`            | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture                                   |
+| `npm run test:shared-assets`       | Build and verify shared Prompt/Skill updates across all three installed engines in one desktop workspace                                            |
+| `npm run test:native-import`       | Verify OpenCode, Pi or DSH import, OS encryption, bilingual UI, and an imported native session against a local provider                             |
+| `npm run test:credential-rotation` | Verify stored-key rotation, active/new/resumed native sessions, deletion failures, and bilingual revision reports across all three engines          |
+| `npm run probe:dsh`                | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes                                            |
+| `npm run probe:providers`          | Opt-in Responses and Anthropic Messages endpoint, authentication, tool and lifecycle checks across all three installed engines using local fixtures |
+| `npm run probe:isolation`          | Verify two overlapping snapshots, native tool environments, resource versions, exact resume and independent cleanup on all four routes              |
+| `npm run probe:pi`                 | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                                                           |
+| `npm run probe:acp`                | Opt-in installed OpenCode/DSH handshake through the application ACP client                                                                          |
+| `npm run format`                   | Format source and documentation                                                                                                                     |
+| `npm run format:check`             | Check formatting                                                                                                                                    |
+| `npm run build`                    | Build into `out/`                                                                                                                                   |
+| `npm start`                        | Run the existing production build                                                                                                                   |
+| `npm run package`                  | Create an unsigned app directory for the current platform                                                                                           |
+| `npm run dist`                     | Build platform distributables into `release/`                                                                                                       |
 
 Configuration reports now show [selected Skill source evidence](docs/skill-source-verification.md), distinguishing Pi RPC observations, OpenCode preflight, and unknown results.
 
