@@ -2,6 +2,8 @@
 
 Each desktop conversation now has a **Configuration report** in English and Chinese. It separates immutable captured inputs, recorded native checks, and the current saved profile. Viewing it does not start a CLI, resolve credentials, apply edits, or change the original snapshot.
 
+Each captured Skill also shows its [native source verification](skill-source-verification.md): Pi RPC source matching, OpenCode matching in a separate preflight process, or no recorded source check. These states preserve the observation's historical/current ownership and never promote legacy name-only checks or DSH composition checks into source evidence.
+
 ## Evidence and persistence
 
 After an adapter finishes its startup checks, it returns an allowlisted set of check identifiers. The coordinator writes those identifiers into the same durable `run.ready` event that acknowledges the native session. State projection binds them to the process run ID, native conversation ID, snapshot digest, and event timestamp. The immutable run manifest is not rewritten.

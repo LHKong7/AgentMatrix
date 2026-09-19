@@ -4,19 +4,20 @@ Configuration failures now retain a structured, localizable diagnostic through t
 
 ## Recorded checks
 
-| Check                  | Current classification                                                                                                                          |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Captured inputs        | Integrity failure; field attribution unknown                                                                                                    |
-| External sources       | A source, executable, working directory, or observed directory inventory changed or could not be verified; field attribution unknown            |
-| Installation           | CLI or protocol identity/version mismatch                                                                                                       |
-| OpenCode configuration | Mismatched requested fields grouped as connection, authentication, model, sampling, execution, engine options, Prompts, Skills, MCP, or plugins |
-| OpenCode session       | Selected model or native Agent mismatch; missing selectors are unavailable                                                                      |
-| Pi state               | Provider/API/endpoint, model, thinking, or required idle/compaction state mismatch                                                              |
-| Pi Skills              | Captured Skill command identities differ from native discovery                                                                                  |
-| Pi controls            | Managed native control files changed or became unavailable                                                                                      |
-| DSH composition        | The native dump differs from the captured composition, or cannot be parsed; no guessed component attribution                                    |
-| DSH session            | Provider/model route or reasoning mismatch; unreadable selectors are unavailable                                                                |
-| DSH controls           | Managed profile/control files changed or became unavailable                                                                                     |
+| Check                    | Current classification                                                                                                                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Captured inputs          | Integrity failure; field attribution unknown                                                                                                        |
+| External sources         | A source, executable, working directory, or observed directory inventory changed or could not be verified; field attribution unknown                |
+| Installation             | CLI or protocol identity/version mismatch                                                                                                           |
+| OpenCode configuration   | Mismatched requested fields grouped as connection, authentication, model, sampling, execution, engine options, Prompts, Skills, MCP, or plugins     |
+| OpenCode session         | Selected model or native Agent mismatch; missing selectors are unavailable                                                                          |
+| OpenCode Skill preflight | A selected Skill has no unique matching captured source in the separate native readback process; unreadable output is unavailable                   |
+| Pi state                 | Provider/API/endpoint, model, thinking, or required idle/compaction state mismatch                                                                  |
+| Pi Skills                | Captured Skill names/source paths differ from native discovery, or another command shadows a selected Skill; missing source metadata is unavailable |
+| Pi controls              | Managed native control files changed or became unavailable                                                                                          |
+| DSH composition          | The native dump differs from the captured composition, or cannot be parsed; no guessed component attribution                                        |
+| DSH session              | Provider/model route or reasoning mismatch; unreadable selectors are unavailable                                                                    |
+| DSH controls             | Managed profile/control files changed or became unavailable                                                                                         |
 
 OpenCode still permits added native defaults and extra instruction sources while checking the captured requirements. Its diagnostic traversal classifies mismatches by structural position rather than splitting user-supplied names into field paths. Header names and values are omitted; request-header mismatches identify the connection/authentication groups. Equivalent tool-policy normalization is allowed only under native Agent permissions, not under provider headers that happen to be named `permission`.
 

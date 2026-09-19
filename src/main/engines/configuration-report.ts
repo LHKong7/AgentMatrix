@@ -29,6 +29,7 @@ export function buildConfigurationReport(
   workspace: EngineWorkspace,
   resolved: ProfileResolution = resolveAgentProfile(workspace, snapshot.agentId),
   versions: CredentialVersions | null = null,
+  skillEntries: Record<string, string> = {},
 ): ConfigurationReport {
   if (
     manifest.id !== snapshot.snapshotId ||
@@ -67,7 +68,12 @@ export function buildConfigurationReport(
           execution: ['opencode.config'],
           'engine-options': ['opencode.session-agent'],
           prompts: ['opencode.config'],
-          skills: ['opencode.config'],
+          skills: [
+            'opencode.config',
+            ...(observation?.checks.includes('opencode.skill-sources')
+              ? ['opencode.skill-sources' as const]
+              : []),
+          ],
           mcp: ['opencode.config'],
           plugins: manifest.nativePlugins.length ? ['opencode.plugins'] : [],
         } as Partial<Record<ConfigurationField, ConfigurationCheck[]>>)
@@ -76,7 +82,12 @@ export function buildConfigurationReport(
             connection: ['pi.state'],
             model: ['pi.state'],
             reasoning: ['pi.state'],
-            skills: ['pi.skills'],
+            skills: [
+              'pi.skills',
+              ...(observation?.checks.includes('pi.skill-sources')
+                ? ['pi.skill-sources' as const]
+                : []),
+            ],
             plugins: manifest.nativePlugins.length ? ['pi.plugins'] : [],
           } as Partial<Record<ConfigurationField, ConfigurationCheck[]>>)
         : kind === 'deepseek-harness'
@@ -187,6 +198,8 @@ export function buildConfigurationReport(
           workspace.prompts.find((item) => item.id === prompt.assetId)?.currentVersion ?? null,
         nextVersion:
           current?.prompts.find((item) => item.assetId === prompt.assetId)?.version ?? null,
+        nativeSourceVerification: null,
+        nativeEntry: null,
       })),
       ...manifest.skills.map((skill) => ({
         kind: 'skill' as const,
@@ -203,6 +216,15 @@ export function buildConfigurationReport(
           workspace.skills.find((item) => item.id === skill.assetId)?.currentVersion ?? null,
         nextVersion:
           current?.skills.find((item) => item.assetId === skill.assetId)?.revision.version ?? null,
+        nativeSourceVerification:
+          kind === 'pi' && observation?.checks.includes('pi.skill-sources')
+            ? ('pi-rpc' as const)
+            : kind === 'opencode' && observation?.checks.includes('opencode.skill-sources')
+              ? ('opencode-probe' as const)
+              : ('unknown' as const),
+        nativeEntry: manifest.files.some((file) => file.path === skillEntries[skill.assetId])
+          ? skillEntries[skill.assetId]!
+          : null,
       })),
     ],
     sources: manifest.externalSources.files.map((file) => ({

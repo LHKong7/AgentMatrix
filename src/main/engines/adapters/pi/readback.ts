@@ -1,10 +1,9 @@
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { z } from 'zod'
 import type { RunInputManifest, RunPaths } from '../../../../shared/engines/run-inputs'
 import type { PiClient } from '../../pi/client'
 import { RuntimeFailure } from '../../runtime'
 import { piApis, piThinking } from './configuration'
+import { capturedSkillSources, skillSourcesMatch } from '../../skill-readback'
 import type {
   ConfigurationDiagnostic,
   ConfigurationField,
@@ -59,19 +58,29 @@ export async function verifyPiReadback(
       })
     check = 'pi-skills'
     const commands = z
-      .object({ commands: z.array(z.looseObject({ name: z.string(), source: z.string() })) })
+      .object({
+        commands: z
+          .array(
+            z.object({ name: z.string(), source: z.string(), sourceInfo: z.unknown().optional() }),
+          )
+          .max(10000),
+      })
       .parse(await client.request({ type: 'get_commands' }))
-    const mappings = z
-      .object({ skills: z.array(z.object({ name: z.string() })) })
-      .parse(JSON.parse(await readFile(join(paths.inputs, 'pi-mappings.json'), 'utf8')))
-    const expected = mappings.skills.map((skill) => `skill:${skill.name}`).sort()
+    const expected = (await capturedSkillSources(manifest, paths, 'pi-mappings.json')).map(
+      (skill) => ({ ...skill, name: `skill:${skill.name}` }),
+    )
     const observed = commands.commands
       .filter((command) => command.source === 'skill')
-      .map((command) => command.name)
-      .sort()
+      .map((command) => ({
+        name: command.name,
+        path: z.object({ path: z.string().min(1).max(4000) }).parse(command.sourceInfo).path,
+      }))
     if (
-      expected.length !== observed.length ||
-      expected.some((name, index) => name !== observed[index])
+      !skillSourcesMatch(expected, observed, true) ||
+      commands.commands.some(
+        (command) =>
+          command.source !== 'skill' && expected.some((skill) => skill.name === command.name),
+      )
     )
       throw new RuntimeFailure('configuration', 'pi.native-readback', {
         check,
@@ -84,7 +93,7 @@ export async function verifyPiReadback(
     throw new RuntimeFailure('configuration', 'pi.native-readback', {
       check,
       reason: 'unavailable',
-      fields: [],
+      fields: check === 'pi-skills' ? ['skills'] : [],
     })
   }
 }

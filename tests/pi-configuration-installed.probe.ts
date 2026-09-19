@@ -192,6 +192,44 @@ it.runIf(Boolean(executable))(
       if (!address || typeof address === 'string') throw new Error('Missing fixture address')
       workspace.connections[0]!.baseUrl = `http://127.0.0.1:${address.port}/v1`
       const first = await capture('first')
+      const mappings = JSON.parse(
+        await readFile(join(store.paths('first').inputs, 'pi-mappings.json'), 'utf8'),
+      )
+      const selected = mappings.skills[0]
+      const substitute = join(root, 'substitute', 'SKILL.md')
+      await mkdir(join(root, 'substitute'))
+      await writeFile(
+        substitute,
+        `---\nname: ${selected.name}\ndescription: Substituted native source\n---\nPRIVATE_SUBSTITUTE_BODY`,
+      )
+      const beforeMismatch = requests.length
+      const prepared = await preparePiLaunch(
+        store,
+        'first',
+        async () => key,
+        { ...process.env, HOME: home },
+        new AbortController().signal,
+      )
+      const substituted = await attachPiProcess(
+        {
+          ...prepared.launch,
+          args: prepared.launch.args.map((arg) =>
+            arg === join(store.paths('first').inputs, selected.path, 'SKILL.md') ? substitute : arg,
+          ),
+        },
+        { event: async () => {}, dialog: async () => ({ cancelled: true }) },
+      )
+      attachments.push(substituted)
+      const nativeCommands = await substituted.client.request({ type: 'get_commands' })
+      expect(JSON.stringify(nativeCommands)).toContain(`skill:${selected.name}`)
+      expect(JSON.stringify(nativeCommands)).toContain(substitute)
+      await expect(
+        verifyPiReadback(substituted.client, first, store.paths('first')),
+      ).rejects.toMatchObject({
+        diagnostic: { check: 'pi-skills', reason: 'mismatch', fields: ['skills'] },
+      })
+      await substituted.close()
+      expect(requests.length).toBe(beforeMismatch)
       await run('first')
       const firstRequest = JSON.stringify(requests[0]!.input.messages)
       expect(firstRequest).toContain('ROLE_MARKER')
@@ -261,6 +299,9 @@ it.runIf(Boolean(executable))(
               externalProviderCalls: false,
               savedProfileAdapter: true,
               nativeModelAndSkillReadback: true,
+              nativeSkillSourcePaths: true,
+              sameNameForeignSkillRejected: true,
+              sourceMismatchMakesNoModelCall: true,
               customEndpointAndSecretHeaders: true,
               literalHeaderEscaping: true,
               replacementAndAppend: true,

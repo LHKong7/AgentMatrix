@@ -80,6 +80,47 @@ async function fixture(credential = false) {
   return { root, manifest, workspace, initial, ready, store }
 }
 describe('configuration report evidence and updates', () => {
+  it('keeps Skill source evidence scoped to its engine, process, and recorded attachment', async () => {
+    const f = await fixture()
+    const sources = (checks: ConfigurationCheck[]) =>
+      buildConfigurationReport(f.manifest, f.ready(checks), f.workspace)
+    expect(
+      sources(['pi.skill-sources'])
+        .assets.filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'unknown'),
+    ).toBe(true)
+    expect(
+      sources(['opencode.config'])
+        .assets.filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'unknown'),
+    ).toBe(true)
+    const session = f.ready(['opencode.config', 'opencode.skill-sources'])
+    session.status = 'interrupted'
+    const historical = buildConfigurationReport(f.manifest, session, f.workspace)
+    expect(historical.observationIsCurrent).toBe(false)
+    expect(
+      historical.assets
+        .filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'opencode-probe'),
+    ).toBe(true)
+    expect(
+      historical.assets
+        .filter((asset) => asset.kind === 'prompt')
+        .every((asset) => asset.nativeSourceVerification === null),
+    ).toBe(true)
+    f.manifest.installation.kind = 'pi'
+    expect(
+      sources(['pi.skills', 'pi.skill-sources'])
+        .assets.filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'pi-rpc'),
+    ).toBe(true)
+    f.manifest.installation.kind = 'deepseek-harness'
+    expect(
+      sources(['pi.skill-sources', 'opencode.skill-sources'])
+        .assets.filter((asset) => asset.kind === 'skill')
+        .every((asset) => asset.nativeSourceVerification === 'unknown'),
+    ).toBe(true)
+  })
   it('keeps failed field checks separate from historical successes and clears rejection on retry', async () => {
     const f = await fixture()
     const ready = f.ready(['opencode.config'])

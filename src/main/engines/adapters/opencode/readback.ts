@@ -1,9 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { z } from 'zod'
 import type { RunInputManifest, RunPaths } from '../../../../shared/engines/run-inputs'
 import type { ProcessLaunch } from '../../process/managed-process'
 import { captureCommand } from '../../process/capture-command'
 import { RuntimeFailure } from '../../runtime'
+import { capturedSkillSources, skillSourcesMatch } from '../../skill-readback'
 import {
   configurationFieldSchema,
   type ConfigurationField,
@@ -46,6 +48,53 @@ export function configurationMismatch(
     return null
   }
   return expected === actual ? null : path
+}
+
+/** This preflight observes a separate native process, not the ACP instance's resource cache. */
+export async function verifyOpenCodeSkillReadback(
+  manifest: RunInputManifest,
+  paths: RunPaths,
+  launch: ProcessLaunch,
+  signal: AbortSignal,
+): Promise<void> {
+  try {
+    const expected = await capturedSkillSources(manifest, paths, 'opencode-mappings.json')
+    if (!expected.length) return
+    const native = z
+      .array(z.object({ name: z.string().max(1000), location: z.string().max(4000) }))
+      .max(10000)
+      .parse(
+        JSON.parse(
+          await captureCommand(
+            {
+              ...launch,
+              args: [...manifest.installation.prefixArgs, 'debug', 'skill'],
+            },
+            signal,
+          ),
+        ),
+      )
+    if (
+      !skillSourcesMatch(
+        expected,
+        native.map((skill) => ({ name: skill.name, path: skill.location })),
+        false,
+      )
+    )
+      throw new RuntimeFailure('configuration', 'native.skill-source', {
+        check: 'opencode-skills',
+        reason: 'mismatch',
+        fields: ['skills'],
+      })
+  } catch (error) {
+    if (error instanceof RuntimeFailure && error.diagnostic) throw error
+    if (signal.aborted) throw new RuntimeFailure('process-exit')
+    throw new RuntimeFailure('configuration', 'native.skill-source', {
+      check: 'opencode-skills',
+      reason: 'unavailable',
+      fields: ['skills'],
+    })
+  }
 }
 
 /** Classify requested mismatches in memory. Dynamic provider/agent/header names never leave this function. */

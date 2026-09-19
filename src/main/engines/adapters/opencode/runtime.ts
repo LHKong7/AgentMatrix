@@ -12,7 +12,7 @@ import {
   type RuntimeTurnResult,
 } from '../../runtime'
 import { openCodeContract } from './configuration'
-import { verifyOpenCodeReadback } from './readback'
+import { verifyOpenCodeReadback, verifyOpenCodeSkillReadback } from './readback'
 import { redactText } from '../../process/redacted-tail'
 import { prepareOpenCodePluginAttachment } from './plugins'
 
@@ -44,6 +44,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
   )
     throw new RuntimeFailure('unsupported')
   await verifyOpenCodeReadback(manifest, store.paths(snapshotId), launch, signal)
+  await verifyOpenCodeSkillReadback(manifest, store.paths(snapshotId), launch, signal)
   // Native config loading can itself migrate files. Such changes invalidate this captured plan.
   await store.verifyForReuse(snapshotId)
   if (signal.aborted) throw new RuntimeFailure('process-exit')
@@ -163,6 +164,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         'sources.unchanged',
         'cli.version',
         'opencode.config',
+        ...(manifest.skills.length ? ['opencode.skill-sources' as const] : []),
         'opencode.session-model',
         'opencode.session-agent',
         ...(plugins ? ['opencode.plugins' as const] : []),

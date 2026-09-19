@@ -137,6 +137,7 @@ export async function connectPi(options: ConnectOptions): Promise<RuntimeSession
         'cli.version',
         'pi.state',
         'pi.skills',
+        'pi.skill-sources',
         ...(plugins ? ['pi.plugins' as const] : []),
       ],
       nativeSessionId: id,

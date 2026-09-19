@@ -13,12 +13,17 @@ import { inspectOpenCodeSources } from '../src/main/engines/adapters/opencode/so
 import { resolveAgentProfile } from '../src/shared/engines/resolution'
 import type { EngineWorkspace } from '../src/shared/engines/workspace'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
+import { captureCommand } from '../src/main/engines/process/capture-command'
+import { verifyOpenCodeSkillReadback } from '../src/main/engines/adapters/opencode/readback'
+
+vi.mock('../src/main/engines/process/capture-command', () => ({ captureCommand: vi.fn() }))
 
 let root: string
 let workspace: EngineWorkspace
 let store: RunInputStore
 let context: OpenCodePlanContext
 beforeEach(async () => {
+  vi.mocked(captureCommand).mockReset()
   root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-opencode-')))
   await mkdir(join(root, 'project/.git'), { recursive: true })
   await writeFile(join(root, 'engine'), '#!/bin/sh\nexit 19\n', { mode: 0o700 })
@@ -47,6 +52,65 @@ const capture = () =>
   )
 
 describe('OpenCode configuration', () => {
+  it('checks the native selected source rather than accepting a matching Skill name', async () => {
+    const manifest = await capture()
+    const paths = store.paths('run')
+    const mappings = JSON.parse(
+      await readFile(join(paths.inputs, 'opencode-mappings.json'), 'utf8'),
+    )
+    const { launch } = await prepareRunLaunch(store, 'run', async () => 'private-test-key', {})
+    const native = mappings.skills.map((skill: { name: string; path: string }) => ({
+      name: skill.name,
+      location: join(paths.inputs, skill.path, 'SKILL.md'),
+      content: 'PRIVATE_NATIVE_SKILL_BODY',
+    }))
+    const verify = () =>
+      verifyOpenCodeSkillReadback(manifest, paths, launch, new AbortController().signal)
+    vi.mocked(captureCommand).mockResolvedValue(
+      JSON.stringify([...native, { name: 'unrelated', location: '<built-in>' }]),
+    )
+    await verify()
+    expect(vi.mocked(captureCommand).mock.calls[0]![0].args).toEqual(['debug', 'skill'])
+    for (const invalid of [
+      [],
+      [...native, native[0]],
+      native.map((item: object) => ({ ...item, location: '/elsewhere/SKILL.md' })),
+      native.map((item: object) => ({ ...item, location: 'relative/SKILL.md' })),
+      native.map((item: { location: string }) => ({
+        ...item,
+        location: item.location.replace('/SKILL.md', '/missing/../SKILL.md'),
+      })),
+    ]) {
+      vi.mocked(captureCommand).mockResolvedValue(JSON.stringify(invalid))
+      const error = await verify().catch((error: unknown) => error)
+      expect(error).toMatchObject({
+        diagnostic: { check: 'opencode-skills', reason: 'mismatch', fields: ['skills'] },
+      })
+      expect(JSON.stringify(error)).not.toContain('PRIVATE_NATIVE')
+      expect(JSON.stringify(error)).not.toContain('/elsewhere')
+    }
+    vi.mocked(captureCommand).mockResolvedValue('PRIVATE_MALFORMED_NATIVE_OUTPUT')
+    await expect(verify()).rejects.toMatchObject({
+      diagnostic: { check: 'opencode-skills', reason: 'unavailable', fields: ['skills'] },
+    })
+    vi.mocked(captureCommand).mockClear()
+    manifest.files = manifest.files.filter((file) => !file.path.startsWith('skills/'))
+    await expect(verify()).rejects.toMatchObject({ diagnostic: { reason: 'unavailable' } })
+    expect(captureCommand).not.toHaveBeenCalled()
+  })
+
+  it('does not execute a native Skill probe when no Skills are bound', async () => {
+    workspace.agents[0]!.skillBindings = []
+    const manifest = await capture()
+    const { launch } = await prepareRunLaunch(store, 'run', async () => 'private-test-key', {})
+    await verifyOpenCodeSkillReadback(
+      manifest,
+      store.paths('run'),
+      launch,
+      new AbortController().signal,
+    )
+    expect(captureCommand).not.toHaveBeenCalled()
+  })
   it('maps routing, prompt intent, optional sampling, and plain Markdown Skills into separate native inputs', async () => {
     workspace.models[0]!.parameters = { temperature: 0, topP: 0.85 }
     const manifest = await capture()

@@ -34,6 +34,7 @@ import type { SessionRuntimeFactory } from './coordinator'
 import { buildConfigurationReport } from '../engines/configuration-report'
 import { trackCredentialResolution } from '../engines/credential-report'
 import type { CredentialVersions, ResolvedCredential } from '../credentials/vault'
+import { capturedSkillSources } from '../engines/skill-readback'
 
 interface Dependencies {
   workspace: {
@@ -292,12 +293,23 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
   }
   async configuration(snapshot: SessionSnapshot) {
     const { runs, workspace } = this.dependencies
+    const manifest = await runs.read(snapshot.snapshotId)
+    const kind = manifest.installation.kind
+    const mappings =
+      kind === 'pi' || kind === 'opencode'
+        ? await capturedSkillSources(
+            manifest,
+            runs.paths(snapshot.snapshotId),
+            kind === 'pi' ? 'pi-mappings.json' : 'opencode-mappings.json',
+          ).catch(() => [])
+        : []
     return buildConfigurationReport(
-      await runs.read(snapshot.snapshotId),
+      manifest,
       snapshot,
       await workspace.load(),
       undefined,
       (await this.dependencies.credentialVersions?.().catch(() => null)) ?? null,
+      Object.fromEntries(mappings.map((skill) => [skill.assetId, skill.inputPath])),
     )
   }
   async shutdown(): Promise<void> {

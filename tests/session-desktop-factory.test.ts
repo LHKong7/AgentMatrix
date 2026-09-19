@@ -199,6 +199,11 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
       status: 'planned',
     })
     expect(report.observation).toBeNull()
+    const capturedSkill = report.assets.find((asset) => asset.kind === 'skill')!
+    expect(capturedSkill.nativeSourceVerification).toBe('unknown')
+    expect(capturedSkill.nativeEntry).toMatch(/^skills\/[^/]+\/SKILL\.md$/)
+    expect(capturedSkill.nativeEntry).not.toBe(`${capturedSkill.path}/SKILL.md`)
+    expect(manifest.files.some((file) => file.path === capturedSkill.nativeEntry)).toBe(true)
     expect(f.credentialVersions).toHaveBeenCalledTimes(1)
     expect(f.resolveSecretVersioned).not.toHaveBeenCalled()
     expect(f.workspace.save).toHaveBeenCalledTimes(1)

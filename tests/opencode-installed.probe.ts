@@ -10,7 +10,10 @@ import { RunInputStore } from '../src/main/engines/run-input-store'
 import { prepareRunLaunch } from '../src/main/engines/run-launch'
 import { ManagedProcess, type ProcessLaunch } from '../src/main/engines/process/managed-process'
 import { connectOpenCode } from '../src/main/engines/adapters/opencode/runtime'
-import { verifyOpenCodeReadback } from '../src/main/engines/adapters/opencode/readback'
+import {
+  verifyOpenCodeReadback,
+  verifyOpenCodeSkillReadback,
+} from '../src/main/engines/adapters/opencode/readback'
 import type {
   RuntimeOutput,
   RuntimeSession,
@@ -347,6 +350,49 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       expect(JSON.stringify(config)).not.toContain('NESTED_MODE_MUST_BE_IGNORED')
       expect(config.instructions).toContain(join(store.paths('native').inputs, 'prompts/rules.md'))
       const skills = JSON.parse(await capture(launch, ['debug', 'skill', '--pure']))
+      await verifyOpenCodeSkillReadback(
+        manifest,
+        store.paths('native'),
+        launch,
+        new AbortController().signal,
+      )
+      const mappings = JSON.parse(
+        await readFile(join(store.paths('native').inputs, 'opencode-mappings.json'), 'utf8'),
+      )
+      const substituteRoot = join(root, 'substitute')
+      for (const skill of mappings.skills) {
+        await mkdir(join(substituteRoot, skill.name), { recursive: true })
+        await writeFile(
+          join(substituteRoot, skill.name, 'SKILL.md'),
+          `---\nname: ${skill.name}\ndescription: Substituted native source\n---\nPRIVATE_SUBSTITUTE_BODY`,
+        )
+      }
+      const substituted = {
+        ...launch,
+        environment: {
+          ...launch.environment,
+          OPENCODE_CONFIG_CONTENT: JSON.stringify({ skills: { paths: [substituteRoot] } }),
+        },
+      }
+      const beforeMismatch = requests.length
+      const substitutedSkills = JSON.parse(await capture(substituted, ['debug', 'skill', '--pure']))
+      expect(
+        substitutedSkills.some(
+          (skill: { name: string; location: string }) =>
+            skill.name === mappings.skills[0].name && skill.location.startsWith(substituteRoot),
+        ),
+      ).toBe(true)
+      await expect(
+        verifyOpenCodeSkillReadback(
+          manifest,
+          store.paths('native'),
+          substituted,
+          new AbortController().signal,
+        ),
+      ).rejects.toMatchObject({
+        diagnostic: { check: 'opencode-skills', reason: 'mismatch', fields: ['skills'] },
+      })
+      expect(requests.length).toBe(beforeMismatch)
       expect(JSON.stringify(skills)).toContain('SKILL_MARKER')
       expect(JSON.stringify(skills)).toContain('DIRECTORY_SKILL_MARKER')
       expect(
@@ -651,6 +697,8 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
               configReadback: true,
               promptAndInstructionObserved: true,
               skillDiscovery: true,
+              capturedSkillSourcePreflight: true,
+              sameNameForeignSkillRejected: true,
               directorySkillInvocation: true,
               inputIntegrityAfterEngineExit: true,
               streamedResponse: true,

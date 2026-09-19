@@ -63,6 +63,12 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
   'report.diagnosticCheck.opencode-session': 'OpenCode 会话选项',
   'report.diagnosticCheck.pi-state': 'Pi 模型与运行状态',
   'report.diagnosticCheck.pi-skills': 'Pi Skill 发现',
+  'report.diagnosticCheck.opencode-skills': 'OpenCode Skill 来源预检',
+  'report.skillSource.pi-rpc': '记录的 Pi RPC 来源与捕获的 Skill 入口一致；未验证实际调用。',
+  'report.skillSource.opencode-probe':
+    '独立 OpenCode 进程选中了捕获的 Skill 入口；ACP 实例与实际调用仍未验证。',
+  'report.skillSource.unknown': '此 Skill 尚无已记录的原生来源检查。',
+  'report.nativeSkillEntry': '映射的原生入口',
   'report.diagnosticCheck.pi-controls': 'Pi 托管原生控制文件',
   'report.diagnosticCheck.dsh-composition': 'DSH 配置组合',
   'report.diagnosticCheck.dsh-session': 'DSH 会话模型与推理设置',
@@ -130,6 +136,8 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
     '已选 OpenCode 插件已在会话确认的原生实例中完成初始化和配置；未捕获传递依赖',
   'report.check.pi.state': 'Pi RPC 状态：路线、接口、推理与空闲策略',
   'report.check.pi.skills': 'Pi RPC 已发现的 Skill 命令；未验证调用',
+  'report.check.pi.skill-sources': 'Pi RPC Skill 名称与来源路径均匹配捕获的入口',
+  'report.check.opencode.skill-sources': '在独立原生进程中检查 OpenCode debug skill 来源路径',
   'report.check.pi.plugins':
     '已选 Pi 工厂与会话启动处理器已在确认的原生会话中执行完成；未捕获传递依赖',
   'report.check.dsh.composition': 'DSH 配置导出匹配；导出过程未启动插件',

@@ -72,6 +72,13 @@ export const reportEn = {
   'report.diagnosticCheck.opencode-session': 'OpenCode session selection',
   'report.diagnosticCheck.pi-state': 'Pi model and runtime state',
   'report.diagnosticCheck.pi-skills': 'Pi Skill discovery',
+  'report.diagnosticCheck.opencode-skills': 'OpenCode Skill source preflight',
+  'report.skillSource.pi-rpc':
+    'Recorded Pi RPC source matched the captured Skill entry; invocation not verified.',
+  'report.skillSource.opencode-probe':
+    'A separate OpenCode process selected the captured Skill entry; the ACP instance and invocation remain unverified.',
+  'report.skillSource.unknown': 'No recorded native source check for this captured Skill.',
+  'report.nativeSkillEntry': 'Mapped native entry',
   'report.diagnosticCheck.pi-controls': 'Pi managed native controls',
   'report.diagnosticCheck.dsh-composition': 'DSH profile composition',
   'report.diagnosticCheck.dsh-session': 'DSH session model and reasoning',
@@ -141,6 +148,10 @@ export const reportEn = {
     'Selected OpenCode plugins initialized and configured in the acknowledged native instance; transitive dependencies not captured',
   'report.check.pi.state': 'Pi RPC state: route, endpoint, thinking, and idle policy',
   'report.check.pi.skills': 'Pi RPC discovered Skill commands; invocation not checked',
+  'report.check.pi.skill-sources':
+    'Pi RPC Skill names and source paths matched the captured entries',
+  'report.check.opencode.skill-sources':
+    'OpenCode debug skill source paths matched in a separate native process',
   'report.check.pi.plugins':
     'Selected Pi factories and session-start handlers completed for the acknowledged native session; transitive dependencies not captured',
   'report.check.dsh.composition': 'DSH config dump matched; plugins were not activated by the dump',

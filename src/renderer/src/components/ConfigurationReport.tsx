@@ -238,6 +238,16 @@ export function ConfigurationReport({
                           </small>
                           <small>{asset.path}</small>
                           <small>{asset.digest ?? '—'}</small>
+                          {asset.nativeEntry && (
+                            <small>
+                              {t('report.nativeSkillEntry')}: {asset.nativeEntry}
+                            </small>
+                          )}
+                          {asset.nativeSourceVerification !== null && (
+                            <small data-skill-source={asset.nativeSourceVerification}>
+                              {t(`report.skillSource.${asset.nativeSourceVerification}`)}
+                            </small>
+                          )}
                         </th>
                         <td>v{asset.version}</td>
                         <td>{asset.nextVersion === null ? '—' : `v${asset.nextVersion}`}</td>

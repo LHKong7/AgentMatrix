@@ -263,9 +263,10 @@ describe('Pi configuration contract', () => {
       autoCompactionEnabled: false,
     }
     const commands = {
-      commands: mappings.skills.map((skill: { name: string }) => ({
+      commands: mappings.skills.map((skill: { name: string; path: string }) => ({
         source: 'skill',
         name: `skill:${skill.name}`,
+        sourceInfo: { path: join(store.paths('run').inputs, skill.path, 'SKILL.md') },
       })),
     }
     const client = {
@@ -280,7 +281,32 @@ describe('Pi configuration contract', () => {
       diagnostic: { check: 'pi-state', reason: 'mismatch', fields: ['connection'] },
     })
     state.model.baseUrl = manifest.connection.baseUrl
-    commands.commands.push({ source: 'skill', name: 'skill:unselected' })
+    const firstPath = commands.commands[0]!.sourceInfo.path
+    commands.commands[0]!.sourceInfo.path = '/private/other/SKILL.md'
+    await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
+      diagnostic: { check: 'pi-skills', reason: 'mismatch', fields: ['skills'] },
+    })
+    commands.commands[0]!.sourceInfo.path = firstPath
+    commands.commands.push({
+      source: 'extension',
+      name: commands.commands[0]!.name,
+      sourceInfo: { path: '/private/plugin.ts' },
+    })
+    await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
+      diagnostic: { check: 'pi-skills', reason: 'mismatch', fields: ['skills'] },
+    })
+    commands.commands.pop()
+    const first = commands.commands[0]!
+    delete (first as { sourceInfo?: unknown }).sourceInfo
+    await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
+      diagnostic: { check: 'pi-skills', reason: 'unavailable', fields: ['skills'] },
+    })
+    first.sourceInfo = { path: firstPath }
+    commands.commands.push({
+      source: 'skill',
+      name: 'skill:unselected',
+      sourceInfo: { path: '/unselected/SKILL.md' },
+    })
     await expect(verifyPiReadback(client, manifest, store.paths('run'))).rejects.toMatchObject({
       field: 'pi.native-readback',
       diagnostic: { check: 'pi-skills', reason: 'mismatch', fields: ['skills'] },
