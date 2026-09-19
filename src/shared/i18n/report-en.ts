@@ -1,4 +1,13 @@
 export const reportEn = {
+  'report.pluginDependencies': 'Selected plugin source dependencies',
+  'report.pluginDependencyScope':
+    'Captured file observations for selected plugins, explicit relative module references and package scopes. Package resolution, computed imports and other runtime resources remain only partially observed. File bodies are not stored here.',
+  'report.pluginDependenciesLegacy': 'This capture has no recorded plugin dependency observations.',
+  'report.pluginDependencyUnknown.package': 'Package import not resolved by source inspection',
+  'report.pluginDependencyUnknown.dynamic': 'Computed or shadowed import not resolved',
+  'report.pluginDependencyUnknown.resolution': 'Module resolution outside the observed file forms',
+  'report.pluginDependencyUnknown.syntax': 'Source syntax could not be inspected',
+  'report.pluginDependencyUnknown.source-limit': 'Source parsing limit reached',
   'report.overrideSources': 'Matching native declarations',
   'report.overrideSourcesHint':
     'These captured files contain declarations matching the rejected native values. Matches may have multiple sources and do not establish which source won. Values are omitted. This is evidence from the failed check, not a fresh scan.',
@@ -203,7 +212,7 @@ export const reportEn = {
   'report.check.opencode.session-model': 'OpenCode ACP selected model',
   'report.check.opencode.session-agent': 'OpenCode ACP selected agent',
   'report.check.opencode.plugins':
-    'Selected OpenCode plugins initialized and configured in the acknowledged native instance; transitive dependencies not captured',
+    'Selected OpenCode plugins initialized and configured in the acknowledged native instance; dependency source coverage remains partial',
   'report.check.pi.state': 'Pi RPC state: route, endpoint, thinking, and idle policy',
   'report.check.pi.skills': 'Pi RPC discovered Skill commands; invocation not checked',
   'report.check.pi.skill-sources':
@@ -211,7 +220,7 @@ export const reportEn = {
   'report.check.opencode.skill-sources':
     'OpenCode debug skill source paths matched in a separate native process',
   'report.check.pi.plugins':
-    'Selected Pi factories and session-start handlers completed for the acknowledged native session; transitive dependencies not captured',
+    'Selected Pi factories and session-start handlers completed for the acknowledged native session; dependency source coverage remains partial',
   'report.check.dsh.composition': 'DSH config dump matched; plugins were not activated by the dump',
   'report.check.dsh.session-model': 'DSH ACP selected provider/model tuple',
   'report.check.dsh.session-reasoning': 'DSH ACP selected reasoning effort',

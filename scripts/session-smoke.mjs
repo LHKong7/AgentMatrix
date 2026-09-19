@@ -67,6 +67,16 @@ let mcpRecovered = false
 let expectedMcpStatuses = ['connected', 'failed']
 let mcpRequests = 0
 const calls = []
+const pluginDependencyPath = join(
+  root,
+  isDsh ? 'desktop-plugin-helper.cjs' : 'desktop-plugin-helper.mjs',
+)
+await writeFile(
+  pluginDependencyPath,
+  isDsh
+    ? "exports.dependency = 'DESKTOP_DEPENDENCY_MARKER'; // PRIVATE_DEPENDENCY_BODY\n"
+    : "export const dependency = 'DESKTOP_DEPENDENCY_MARKER'; // PRIVATE_DEPENDENCY_BODY\n",
+)
 const activeStreams = new Set()
 const server = createServer(async (request, response) => {
   try {
@@ -124,6 +134,7 @@ const server = createServer(async (request, response) => {
         role: body.includes('NEW_ROLE_MARKER') ? 'new' : 'original',
         read,
         plugin: body.includes('DESKTOP_PLUGIN_MARKER'),
+        dependency: body.includes('DESKTOP_DEPENDENCY_MARKER'),
         nativeInstructions: body.includes('PRIVATE_INSTRUCTION_BODY'),
         directoryRead: read
           ? body.includes('SMOKE_FILE_MARKER_ALTERNATE')
@@ -207,8 +218,9 @@ if (isPi) {
   const path = join(root, 'desktop-pi-extension.ts')
   await writeFile(
     path,
-    `export default (pi) => {
-    pi.on('before_agent_start', (event) => ({systemPrompt: event.systemPrompt + '\\nDESKTOP_PLUGIN_MARKER'}));
+    `import { dependency } from './desktop-plugin-helper.mjs';
+export default (pi) => {
+    pi.on('before_agent_start', (event) => ({systemPrompt: event.systemPrompt + '\\nDESKTOP_PLUGIN_MARKER ' + dependency}));
     pi.registerCommand('desktop-confirm', {description:'Desktop confirmation', async handler(_args, ctx) {
       const accepted = await ctx.ui.confirm('Desktop extension', 'Continue?');
       ctx.ui.notify(accepted ? 'DESKTOP_EXTENSION_CONFIRMED' : 'DESKTOP_EXTENSION_CANCELLED', 'info');
@@ -240,9 +252,10 @@ if (isPi) {
   const path = join(root, 'desktop-dsh-plugin.cjs')
   await writeFile(
     path,
-    `exports.inject=['systemPrompt'];
+    `const { dependency } = require('./desktop-plugin-helper.cjs');
+exports.inject=['systemPrompt'];
 exports.Config={'~standard':{version:1,vendor:'fixture',validate:value=>typeof value?.marker==='string'?{value}:{issues:[{message:'marker required'}]}}};
-exports.apply=(ctx,config)=>ctx.systemPrompt.section({name:'desktop-plugin',order:900,text:config.marker});
+exports.apply=(ctx,config)=>ctx.systemPrompt.section({name:'desktop-plugin',order:900,text:config.marker + ' ' + dependency});
 `,
   )
   workspace.nativePlugins = [
@@ -263,9 +276,10 @@ exports.apply=(ctx,config)=>ctx.systemPrompt.section({name:'desktop-plugin',orde
   await writeFile(
     path,
     `import { existsSync } from 'node:fs';
+import { dependency } from './desktop-plugin-helper.mjs';
 export default { id: 'desktop-plugin', async server() { return Object.freeze({
     config(config) { if (process.env.OPENCODE_SERVER_PASSWORD && existsSync(${JSON.stringify(instanceOverride)})) config.agent.build.prompt = 'PRIVATE_ACP_PROMPT_OVERRIDE'; },
-    'experimental.chat.system.transform'(_input, output) { output.system.push('DESKTOP_PLUGIN_MARKER'); }
+    'experimental.chat.system.transform'(_input, output) { output.system.push('DESKTOP_PLUGIN_MARKER', dependency); }
   }); } };\n`,
   )
   workspace.nativePlugins = [
@@ -651,6 +665,27 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
   }
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
   assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
+  assert.equal(value.pluginDependencies.length, 1)
+  assert.ok(
+    value.pluginDependencies[0].files.some(
+      (file) => file.path === pluginDependencyPath && file.exists,
+    ),
+  )
+  const dependencySources = dialog.getByTestId('plugin-dependency-sources')
+  await dependencySources.locator('summary').first().click()
+  await dependencySources.locator('[data-plugin-dependency-binding] > summary').click()
+  await dependencySources.getByText(pluginDependencyPath, { exact: true }).first().waitFor()
+  assert.ok(!(await dependencySources.textContent()).includes('PRIVATE_DEPENDENCY_BODY'))
+  if (process.env.AGENT_MATRIX_DEPENDENCY_SCREENSHOT) {
+    await dependencySources.scrollIntoViewIfNeeded()
+    await page.screenshot({
+      path:
+        process.env.AGENT_MATRIX_DEPENDENCY_SCREENSHOT +
+        (title === '配置报告' ? '.zh.png' : '.en.png'),
+      fullPage: true,
+    })
+  }
+  await dependencySources.locator('summary').first().click()
   if (!isPi && !isDsh) {
     assert.ok(value.observation.checks.includes('opencode.instance-config'))
     assert.deepEqual(value.fields.find((field) => field.id === 'prompts').checks, [
@@ -1529,6 +1564,24 @@ try {
   assert.equal(historicalReport.observation.runId, latest.runId)
   const snapshotFile = join(dataDirectory, 'runs', latest.snapshotId, 'manifest.json')
   const beforeDrift = await readFile(snapshotFile, 'utf8')
+  const beforeDependency = await readFile(pluginDependencyPath)
+  const callsBeforeDependency = calls.length
+  await writeFile(pluginDependencyPath, "throw new Error('Changed dependency must not execute')")
+  await page.getByRole('button', { name: 'Resume session', exact: true }).click()
+  await status('Failed')
+  for (const locale of ['en', 'zh-CN']) {
+    await language(locale)
+    const report = await configurationReport(
+      locale === 'en' ? 'Configuration report' : '配置报告',
+      locale === 'en' ? 'Close' : '关闭',
+    )
+    assert.deepEqual(report.diagnostic, { check: 'sources', reason: 'changed', fields: [] })
+    assert.deepEqual(report.pluginDependencies, historicalReport.pluginDependencies)
+  }
+  assert.equal(calls.length, callsBeforeDependency)
+  assert.equal(await readFile(snapshotFile, 'utf8'), beforeDrift)
+  await writeFile(pluginDependencyPath, beforeDependency)
+  await language('en')
   if (!isPi && !isDsh) {
     const file = join(alternateCwd, 'native-rules/base.md')
     const beforeCalls = calls.length
@@ -1799,6 +1852,7 @@ try {
   )
   assert.deepEqual(errors, [])
   if (!isPi && !isDsh) assert.ok(calls.every((call) => call.nativeInstructions))
+  assert.ok(calls.every((call) => call.dependency))
   passed = true
   const report = {
     checkedAt: new Date().toISOString(),
@@ -1840,6 +1894,16 @@ try {
       nativeOptionsEditor: isDsh
         ? { englishAndChinese: true, persisted: true }
         : 'not part of this engine fixture',
+    },
+    pluginDependencySources: {
+      capturedRelativeModuleReachedProvider: true,
+      sourcePathsAndDigestsWithoutBodies: true,
+      englishAndChinese: true,
+      historicalReportAfterRestart: true,
+      changedDependencyRejectsResumeWithoutModelCall: true,
+      immutableSnapshotRetained: true,
+      restoredDependencyAllowsSameNativeResume: true,
+      coverage: 'partial: package and computed imports remain unobserved',
     },
     streamingCancellation: true,
     messageDelivery: isDsh ? 'Committed semantic messages' : 'Streaming text',

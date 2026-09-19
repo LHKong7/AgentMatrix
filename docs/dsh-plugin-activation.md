@@ -34,7 +34,7 @@ Selected bindings also require the following inspected framework releases:
 | `@deepseek-ai/cordis-plugin-loader`  | `1.0.3`      |
 | `@deepseek-ai/cordis-plugin-include` | `1.0.7`      |
 
-Declared peer dependency ranges for these components are compared with the pinned versions. Missing declarations remain unknown compatibility. Selected entry bytes, package scope metadata or absence, resolved paths, and framework entry/manifest digests contribute to capture and reuse checks. Transitive dependencies and dynamic resources remain uncaptured; source coverage is **partial**.
+Declared peer dependency ranges for these components are compared with the pinned versions. Missing declarations remain unknown compatibility. Selected entry bytes, explicit relative module dependencies, package scope metadata or absence, resolved paths, and framework entry/manifest digests contribute to capture and reuse checks; see [dependency source checks](plugin-dependency-sources.md). Package dependency trees, computed imports, and arbitrary runtime resources remain outside the observed closure; source coverage is **partial**.
 
 ## Readiness and current-session evidence
 

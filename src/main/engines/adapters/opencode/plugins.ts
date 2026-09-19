@@ -19,6 +19,7 @@ import { inspectOpenCodePlugin, pluginInspectionLimits } from './plugin-inspecti
 import { inspectFile } from '../../installed-plugin-files'
 import { pluginExportNames } from './plugin-exports'
 import bridgeSource from './plugin-bridge.mjs?raw'
+import { observePluginDependencies } from '../../plugin-dependencies'
 
 const bindingSchema = z
   .object({
@@ -93,6 +94,7 @@ export async function planOpenCodePlugins(
       if (observation.exists) throw appError('error.pluginChanged')
       generated.externalSources.files.push(observation)
     }
+    await observePluginDependencies(generated, plugin.id, [{ ...inspection.entry, exists: true }])
     const path = `plugins/binding-${bindings.length}.mjs`
     generated.files.push({
       path,

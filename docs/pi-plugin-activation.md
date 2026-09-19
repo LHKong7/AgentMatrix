@@ -41,7 +41,7 @@ The [installed CLI record](probes/2026-09-18-pi-plugin-activation.json) covers a
 
 The [Electron record](probes/2026-09-18-pi-plugin-desktop.json) covers a selected extension through saved-profile capture, native startup, system-hook effects at the local provider, English/Chinese confirmation controls and configuration reports, handled input without a model call, and application restart with native resume.
 
-Entry files and adjacent metadata (including absence) are observed and rechecked. Transitive dependencies, installation trees, dynamic imports, and remote resources are not fully captured. Source coverage remains **partial**. Receipts are lifecycle evidence from selected executable code, not a sandbox or a defense against malicious extensions. Full dependency provenance, generic package resource composition, an options editor, automatic installation/upgrades, external-provider acceptance, and other platforms remain open. MCP needs a separately verified extension; none is selected implicitly.
+Entry files, explicit relative module dependencies, and package scopes (including absence) are observed and rechecked; see [dependency source checks](plugin-dependency-sources.md). Package installation trees, computed imports, arbitrary runtime file reads, and remote resources remain outside the observed closure. Source coverage remains **partial**. Receipts are lifecycle evidence from selected executable code, not a sandbox or a defense against malicious extensions. Full dependency provenance, generic package resource composition, an options editor, automatic installation/upgrades, external-provider acceptance, and other platforms remain open. MCP needs a separately verified extension; none is selected implicitly.
 
 ## Reproduce
 

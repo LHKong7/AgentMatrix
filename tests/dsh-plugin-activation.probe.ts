@@ -231,6 +231,14 @@ exports.apply=async(ctx,config)=>{
         rejected.push('disposed-before-turn')
         await disposable.dispose()
         await disposable.closed
+        const dependencyBefore = await readFile(helper)
+        const beforeDependencyRequests = requests.length
+        await writeFile(helper, "exports.marker = 'CHANGED_EXTENSION'")
+        await expect(connect('success', nativeId)).rejects.toThrow()
+        expect(requests).toHaveLength(beforeDependencyRequests)
+        rejected.push('changed-relative-dependency-on-resume')
+        await writeFile(helper, dependencyBefore)
+        await store.verifyForReuse('success')
         await writeFile(entry, 'exports.apply=()=>{}')
         await expect(connect('success', nativeId)).rejects.toThrow()
         rejected.push('changed-entry-on-resume')
@@ -255,7 +263,7 @@ exports.apply=async(ctx,config)=>{
           immutableInputs: true,
           rejected,
           sourceCoverage:
-            'partial: selected entries, package scopes and pinned framework entries; transitive dependencies not captured',
+            'partial: entries, explicit relative modules, package scopes and pinned framework entries; package and computed imports remain unobserved',
         }
         if (process.env.AGENT_MATRIX_DSH_ACTIVATION_REPORT)
           await writeFile(

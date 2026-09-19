@@ -261,6 +261,17 @@ export function buildConfigurationReport(
     instructionSources: manifest.externalSources.instructionSources
       ? structuredClone(manifest.externalSources.instructionSources)
       : null,
+    pluginDependencies:
+      manifest.externalSources.pluginDependencies?.bindings.map((binding) => ({
+        pluginId: binding.pluginId,
+        name:
+          manifest.nativePlugins.find((plugin) => plugin.id === binding.pluginId)?.name ??
+          binding.pluginId,
+        files: binding.files.map((path) =>
+          structuredClone(manifest.externalSources.files.find((file) => file.path === path)!),
+        ),
+        unobserved: structuredClone(binding.unobserved),
+      })) ?? null,
     resourceDirectories:
       manifest.externalSources.directories?.map((directory) => ({
         path: directory.path,

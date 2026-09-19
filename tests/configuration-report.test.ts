@@ -22,7 +22,7 @@ const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
-async function fixture(credential = false, mcp = false, nativeSource = false) {
+async function fixture(credential = false, mcp = false, nativeSource = false, plugin = false) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-config-report-')))
   roots.push(root)
   const cwd = join(root, 'project'),
@@ -30,6 +30,26 @@ async function fixture(credential = false, mcp = false, nativeSource = false) {
   await mkdir(cwd)
   await writeFile(executable, 'Never executed by this fixture.')
   const workspace = openCodeWorkspace(executable, cwd)
+  if (plugin) {
+    const path = join(cwd, 'plugin.mjs')
+    await writeFile(
+      path,
+      "import './helper.mjs'; import 'PRIVATE_PACKAGE'; export default () => ({})",
+    )
+    await writeFile(join(cwd, 'helper.mjs'), "export const value = 'PRIVATE_SOURCE_BODY'")
+    workspace.nativePlugins = [
+      {
+        id: 'plugin',
+        name: 'Selected plugin',
+        nativeId: 'plugin',
+        version: 'fixture',
+        engineInstallationId: 'oc',
+        source: 'fixture',
+        path,
+      },
+    ]
+    workspace.agents[0]!.nativePluginIds = ['plugin']
+  }
   if (mcp) {
     workspace.mcpServers = [
       {
@@ -102,6 +122,30 @@ async function fixture(credential = false, mcp = false, nativeSource = false) {
   return { root, manifest, workspace, initial, ready, store }
 }
 describe('configuration report evidence and updates', () => {
+  it('retains dependency metadata after source deletion without reading or exposing source bodies', async () => {
+    const f = await fixture(false, false, false, true)
+    const dependency = join(f.manifest.cwd, 'helper.mjs')
+    const before = buildConfigurationReport(f.manifest, f.initial, f.workspace).pluginDependencies
+    await rm(dependency)
+    const persisted = await f.store.read(f.manifest.id)
+    const report = buildConfigurationReport(persisted, f.initial, f.workspace)
+    expect(report.pluginDependencies).toEqual(before)
+    expect(report.pluginDependencies).toEqual([
+      expect.objectContaining({
+        pluginId: 'plugin',
+        name: 'Selected plugin',
+        files: expect.arrayContaining([
+          expect.objectContaining({ path: dependency, exists: true }),
+        ]),
+        unobserved: [{ source: join(f.manifest.cwd, 'plugin.mjs'), reason: 'package', count: 1 }],
+      }),
+    ])
+    expect(JSON.stringify(report)).not.toMatch(/PRIVATE_PACKAGE|PRIVATE_SOURCE_BODY/)
+    delete persisted.externalSources.pluginDependencies
+    expect(
+      buildConfigurationReport(persisted, f.initial, f.workspace).pluginDependencies,
+    ).toBeNull()
+  })
   it('projects historical source matches through captured indices after restart without reading current source bytes', async () => {
     const f = await fixture(false, false, true)
     const journal = new SessionJournal(join(f.root, 'journal'))

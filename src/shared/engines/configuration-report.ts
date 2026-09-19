@@ -1,6 +1,12 @@
 import { z } from 'zod'
 import { entityId } from './schema'
-import { contentDigest, type ExternalDirectory, type InstructionSources } from './run-inputs'
+import {
+  contentDigest,
+  type ExternalDirectory,
+  type InstructionSources,
+  type PluginDependencySources,
+  type ExternalFile,
+} from './run-inputs'
 import type { SessionSnapshot } from '../sessions/schema'
 import { credentialResolutionsSchema, type CredentialReport } from './credential-observation'
 import { nativeRuntimeSchema, type SessionCapabilityReport } from './session-capabilities'
@@ -166,6 +172,14 @@ export interface ConfigurationReport {
   }[]
   sources: { path: string; exists: boolean; digest: string | null }[]
   instructionSources: InstructionSources | null
+  pluginDependencies:
+    | {
+        pluginId: string
+        name: string
+        files: ExternalFile[]
+        unobserved: PluginDependencySources['bindings'][number]['unobserved']
+      }[]
+    | null
   resourceDirectories:
     | {
         path: string

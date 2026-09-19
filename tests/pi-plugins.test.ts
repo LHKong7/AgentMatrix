@@ -54,6 +54,16 @@ const metadata = (value: unknown) =>
   writeFile(join(installed, 'package.json'), JSON.stringify(value))
 
 describe('selected Pi extension files', () => {
+  it('rejects a changed relative dependency while the selected entry is unchanged', async () => {
+    await writeFile(
+      join(installed, 'index.ts'),
+      "import { value } from './helper.ts'; export default () => value",
+    )
+    await writeFile(join(installed, 'helper.ts'), "export const value = 'original'")
+    await capture()
+    await writeFile(join(installed, 'helper.ts'), "export const value = 'changed'")
+    await expect(store.verifyForReuse('run')).rejects.toThrow('error.runSourceChanged')
+  })
   it('captures index and explicit multi-entry packages without evaluating factories', async () => {
     await writeFile(join(installed, 'other.ts'), 'export default async () => {}')
     await metadata({

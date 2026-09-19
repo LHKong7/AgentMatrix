@@ -48,6 +48,8 @@ The separate **Credential revisions** table compares each captured vault referen
 
 The **Native resource directories** section shows captured OpenCode Agent, Mode, and Command inventories, including absent candidates and resolved link targets. It is historical metadata, not a fresh scan or proof of native loading and precedence. Legacy snapshots and adapters without inventories explicitly show that they were not captured. See [discovery and reuse boundaries](native-resource-sources.md).
 
+The **Selected plugin source dependencies** section groups captured files and unresolved categories by plugin. It displays hashes, absence, and resolved paths in both languages without rescanning or storing file bodies. Explicit relative modules and package scopes are covered; package/computed imports and arbitrary runtime resources remain partially observed. Legacy captures show that no dependency observations were recorded. See [source checks and evidence](plugin-dependency-sources.md).
+
 ## Data boundaries and validation
 
 [Configuration failure diagnostics](configuration-failures.md) identify the latest rejected check and known field groups without exposing native values. Historical successful checks remain separate; unknown field attribution and legacy missing diagnostics stay explicit. The same diagnostic is available in the conversation and stored history, including when snapshot corruption prevents opening the full report.

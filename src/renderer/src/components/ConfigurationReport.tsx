@@ -9,6 +9,7 @@ import { SessionCapabilities } from './SessionCapabilities'
 import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 import { McpConnections } from './McpConnections'
 import { InstructionSources } from './InstructionSources'
+import { PluginDependencySources } from './PluginDependencySources'
 
 export function ConfigurationReport({
   session,
@@ -300,6 +301,7 @@ export function ConfigurationReport({
               </ul>
             </details>
             <InstructionSources sources={report.instructionSources} />
+            <PluginDependencySources bindings={report.pluginDependencies} />
             <details className="native-resource-sources">
               <summary>{t('report.resourceDirectories')}</summary>
               <p className="hint">{t('report.resourceHint')}</p>

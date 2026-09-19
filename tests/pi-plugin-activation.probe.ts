@@ -1,5 +1,5 @@
 import { createServer } from 'node:http'
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
@@ -265,6 +265,15 @@ export default (pi) => { pi.on('before_agent_start', (event) => ({systemPrompt:e
         await expect(connect(id!)).rejects.toThrow()
         rejected.push(id!)
       }
+      const dependency = join(installed, 'helper.ts')
+      const dependencyBefore = await readFile(dependency)
+      const beforeDependencyRequests = requests.length
+      await writeFile(dependency, "export const marker = 'CHANGED_EXTENSION'\n")
+      await expect(connect('success', sessionId)).rejects.toThrow()
+      expect(requests).toHaveLength(beforeDependencyRequests)
+      rejected.push('changed-relative-dependency-on-resume')
+      await writeFile(dependency, dependencyBefore)
+      await store.verifyForReuse('success')
       await writeFile(join(installed, 'alpha.ts'), 'export default () => {}')
       await expect(connect('success', sessionId)).rejects.toThrow()
       rejected.push('changed-entry-on-resume')
@@ -290,7 +299,8 @@ export default (pi) => { pi.on('before_agent_start', (event) => ({systemPrompt:e
         nativeResume: true,
         rejected,
         provider: 'local synthetic HTTP fixture',
-        sourceCoverage: 'entry files and adjacent package; transitive dependencies not captured',
+        sourceCoverage:
+          'partial: entries, explicit relative modules and package scopes; package and computed imports remain unobserved',
       }
       if (process.env.AGENT_MATRIX_PI_PLUGIN_REPORT)
         await writeFile(

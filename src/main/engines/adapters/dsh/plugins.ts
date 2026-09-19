@@ -19,6 +19,7 @@ import { RuntimeFailure } from '../../runtime'
 import type { DshRow } from './composition'
 import { dshPluginInspectionSchema, inspectDshPlugin } from './plugin-inspection'
 import monitorSource from './plugin-monitor.mjs?raw'
+import { observePluginDependencies } from '../../plugin-dependencies'
 
 export const dshPluginFrameworkVersions = {
   '@deepseek-ai/dsh': '0.1.5-rc.2',
@@ -116,6 +117,7 @@ export async function planDshPlugins(
       config: plugin.options?.config ?? {},
     })
     generated.externalSources.files.push(inspection.entry, ...inspection.metadata)
+    await observePluginDependencies(generated, plugin.id, [inspection.entry])
   }
   const identity = hash({ plugins: configuration.nativePlugins, bindings, framework })
   rows.push(...selected, {

@@ -226,6 +226,17 @@ export const metadata = 'ignored by V1';
         await expect(connect(id!)).rejects.toThrow('native.plugins')
         rejected.push(id!)
       }
+      const dependency = join(packaged, 'identity.ts')
+      const dependencyBefore = await readFile(dependency)
+      const beforeDependencyRequests = requests.length
+      const beforeDependencyReceipts = await readFile(receipts)
+      await writeFile(dependency, "export const name: string = 'changed'\n")
+      await expect(connect('success', nativeSessionId)).rejects.toThrow()
+      expect(requests).toHaveLength(beforeDependencyRequests)
+      expect(await readFile(receipts)).toEqual(beforeDependencyReceipts)
+      rejected.push('changed-relative-dependency-on-resume')
+      await writeFile(dependency, dependencyBefore)
+      await store.verifyForReuse('success')
       await writeFile(legacy, 'export default async () => ({})')
       await expect(connect('success', nativeSessionId)).rejects.toThrow()
       rejected.push('changed-entry-on-resume')
@@ -240,7 +251,8 @@ export const metadata = 'ignored by V1';
         hookOrderByAttachment: [...byPid.values()],
         rejected,
         provider: 'local synthetic HTTP fixture',
-        sourceCoverage: 'entry and adjacent package only; transitive dependencies not captured',
+        sourceCoverage:
+          'partial: entries, explicit relative modules and package scopes; package and computed imports remain unobserved',
       }
       if (process.env.AGENT_MATRIX_OPENCODE_ACTIVATION_REPORT)
         await writeFile(

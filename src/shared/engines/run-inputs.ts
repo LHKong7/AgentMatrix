@@ -99,6 +99,33 @@ export const instructionSourcesSchema = z
   .strict()
 export type InstructionSearch = z.infer<typeof instructionSearchSchema>
 export type InstructionSources = z.infer<typeof instructionSourcesSchema>
+export const pluginDependencySourcesSchema = z
+  .object({
+    version: z.literal(1),
+    bindings: z
+      .array(
+        z
+          .object({
+            pluginId: entityId,
+            files: z.array(absolutePath).min(1).max(1000),
+            unobserved: z
+              .array(
+                z
+                  .object({
+                    source: absolutePath,
+                    reason: z.enum(['package', 'dynamic', 'resolution', 'syntax', 'source-limit']),
+                    count: z.number().int().positive().max(200000),
+                  })
+                  .strict(),
+              )
+              .max(1000),
+          })
+          .strict(),
+      )
+      .max(200),
+  })
+  .strict()
+export type PluginDependencySources = z.infer<typeof pluginDependencySourcesSchema>
 export const launchEnvironmentSchema = z.discriminatedUnion('kind', [
   z
     .object({
@@ -188,8 +215,22 @@ export const runInputManifestSchema = z
         // No default: adding a field while reading a legacy snapshot would change its digest.
         directories: z.array(externalDirectorySchema).max(1000).optional(),
         instructionSources: instructionSourcesSchema.optional(),
+        pluginDependencies: pluginDependencySourcesSchema.optional(),
       })
-      .strict(),
+      .strict()
+      .refine((sources) => {
+        const bindings = sources.pluginDependencies?.bindings ?? []
+        const paths = new Set(sources.files.map((file) => file.path))
+        return (
+          new Set(bindings.map((binding) => binding.pluginId)).size === bindings.length &&
+          bindings.every(
+            (binding) =>
+              new Set(binding.files).size === binding.files.length &&
+              binding.files.every((path) => paths.has(path)) &&
+              binding.unobserved.every((item) => binding.files.includes(item.source)),
+          )
+        )
+      }),
     files: z.array(inputFileSchema).max(4096),
     digest: contentDigest,
   })

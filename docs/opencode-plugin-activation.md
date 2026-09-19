@@ -33,9 +33,9 @@ This is lifecycle evidence from selected executable code, not a sandbox or prote
 
 ## Source and compatibility boundaries
 
-Captured observations cover the selected entry, adjacent package metadata or its absence, and resolved paths. Startup and resume re-resolve each selection and check those observations. Detected entry/package changes require a new capture. Old sessions without plugin bindings retain their existing adapter contract and do not require a plugin receipt.
+Captured observations cover the selected entry, explicit relative module dependencies, package scopes or their absence, and resolved paths; see [dependency source checks](plugin-dependency-sources.md). Startup and resume re-resolve each selection and check those observations. Detected entry/dependency/package changes block reuse until sources are restored or a new capture is created. Old sessions without plugin bindings retain their existing adapter contract and do not require a plugin receipt.
 
-Transitive dependencies, package installation trees, dynamically loaded files, and remote resources are **not captured or fully hashed**. Their changes may therefore escape the source comparison; a successful import checks availability at that moment only. Source coverage remains `partial`. Complete dependency provenance, CommonJS/export-star support, native options editing, arbitrary plugin compatibility, automatic installation, and upgrades remain open. Existing native configuration can introduce overrides or discovery conflicts; selected plugin activation does not establish complete effective-policy provenance.
+Package dependency trees, computed imports, arbitrary runtime file reads, and remote resources remain outside the observed closure. Their changes may therefore escape the source comparison; a successful import checks availability at that moment only. Source coverage remains `partial`. Complete dependency provenance, CommonJS/export-star support, native options editing, arbitrary plugin compatibility, automatic installation, and upgrades remain open. Existing native configuration can introduce overrides or discovery conflicts; selected plugin activation does not establish complete effective-policy provenance.
 
 ## Verification
 

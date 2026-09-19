@@ -1,0 +1,30 @@
+{
+  "checkedAt": "2026-09-19T13:00:14.752Z",
+  "engine": "deepseek-harness",
+  "version": "0.1.5-rc.2",
+  "route": "pi-ai",
+  "platform": "darwin",
+  "arch": "arm64",
+  "provider": "local synthetic HTTP fixture",
+  "productionAdapter": true,
+  "explicitPackageExports": true,
+  "perInstanceOptions": true,
+  "sameModuleSeparateInstances": true,
+  "awaitsNativeBoot": true,
+  "systemSectionsReachedProvider": true,
+  "customToolResult": true,
+  "freshSessionChecks": true,
+  "nativeResume": true,
+  "immutableInputs": true,
+  "rejected": [
+    "import",
+    "shape",
+    "apply",
+    "pending",
+    "config",
+    "disposed-before-turn",
+    "changed-relative-dependency-on-resume",
+    "changed-entry-on-resume"
+  ],
+  "sourceCoverage": "partial: entries, explicit relative modules, package scopes and pinned framework entries; package and computed imports remain unobserved"
+}

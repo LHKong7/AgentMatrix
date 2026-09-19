@@ -56,6 +56,7 @@ export const pluginZhCN: Record<keyof typeof pluginEn, string> = {
   'error.pluginOutside': '声明的入口解析到了所选插件目录之外。',
   'error.pluginLimit': '检查上限为 256 KiB 包元数据和 20 MB 入口文件。',
   'error.pluginChanged': '检查过程中插件文件发生了变化，请在编辑完成后重试。',
+  'error.pluginDependencyLimit': '插件来源检查超过文件数量、字节数或包目录深度限制。',
   'error.pluginRead': '无法读取已安装的插件文件。',
   'error.pluginExports':
     '请选择包含显式 JavaScript/TypeScript 导出的 ESM 插件。目前不支持 CommonJS 和 export-star 入口。',

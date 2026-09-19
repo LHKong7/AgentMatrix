@@ -1,5 +1,14 @@
 import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
+  'report.pluginDependencies': '所选插件的来源依赖',
+  'report.pluginDependencyScope':
+    '记录所选插件、显式相对模块引用及包配置范围的文件信息。包解析、计算生成的导入和其他运行时资源仍仅部分可观测，此处不保存文件正文。',
+  'report.pluginDependenciesLegacy': '此快照没有记录插件依赖检查结果。',
+  'report.pluginDependencyUnknown.package': '来源检查未解析此包导入',
+  'report.pluginDependencyUnknown.dynamic': '未解析计算生成或被覆盖的导入',
+  'report.pluginDependencyUnknown.resolution': '模块解析超出已观测的文件形式',
+  'report.pluginDependencyUnknown.syntax': '无法检查此来源的语法',
+  'report.pluginDependencyUnknown.source-limit': '已达到来源解析上限',
   'report.overrideSources': '匹配的原生配置声明',
   'report.overrideSourcesHint':
     '这些已捕获文件中的声明与被拒绝的原生配置值匹配。可能存在多个匹配来源，不能据此判定最终覆盖来源。配置值已省略。这是失败检查时的证据，并非最新扫描。',
@@ -183,13 +192,13 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
   'report.check.opencode.session-model': 'OpenCode ACP 当前模型',
   'report.check.opencode.session-agent': 'OpenCode ACP 当前 Agent',
   'report.check.opencode.plugins':
-    '已选 OpenCode 插件已在会话确认的原生实例中完成初始化和配置；未捕获传递依赖',
+    '已选 OpenCode 插件已在会话确认的原生实例中完成初始化和配置；依赖来源仍仅部分覆盖',
   'report.check.pi.state': 'Pi RPC 状态：路线、接口、推理与空闲策略',
   'report.check.pi.skills': 'Pi RPC 已发现的 Skill 命令；未验证调用',
   'report.check.pi.skill-sources': 'Pi RPC Skill 名称与来源路径均匹配捕获的入口',
   'report.check.opencode.skill-sources': '在独立原生进程中检查 OpenCode debug skill 来源路径',
   'report.check.pi.plugins':
-    '已选 Pi 工厂与会话启动处理器已在确认的原生会话中执行完成；未捕获传递依赖',
+    '已选 Pi 工厂与会话启动处理器已在确认的原生会话中执行完成；依赖来源仍仅部分覆盖',
   'report.check.dsh.composition': 'DSH 配置导出匹配；导出过程未启动插件',
   'report.check.dsh.session-model': 'DSH ACP 当前提供商与模型组合',
   'report.check.dsh.session-reasoning': 'DSH ACP 当前推理强度',

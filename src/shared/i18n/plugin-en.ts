@@ -62,6 +62,8 @@ export const pluginEn = {
   'error.pluginOutside': 'The declared entry resolves outside the selected plugin directory.',
   'error.pluginLimit': 'Inspection is limited to 256 KiB of package metadata and a 20 MB entry.',
   'error.pluginChanged': 'Plugin files changed during inspection. Retry after edits finish.',
+  'error.pluginDependencyLimit':
+    'Plugin source inspection exceeds the file, byte, or package-depth limit.',
   'error.pluginRead': 'The installed plugin files could not be read.',
   'error.pluginExports':
     'Select an ESM plugin with explicit JavaScript/TypeScript exports. CommonJS and export-star entries are not supported yet.',

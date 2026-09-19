@@ -15,6 +15,7 @@ import type { PiClient } from '../../pi/client'
 import { RuntimeFailure } from '../../runtime'
 import { inspectPiPlugin, piPluginInspectionSchema } from './plugin-inspection'
 import bridgeSource from './plugin-bridge.mjs?raw'
+import { observePluginDependencies } from '../../plugin-dependencies'
 
 const bindingSchema = z
   .object({
@@ -73,6 +74,7 @@ export async function planPiPlugins(
       generated.launch.args.push('--extension', join(paths.inputs, path))
     }
     generated.externalSources.files.push(...inspection.entries, inspection.packageFile)
+    await observePluginDependencies(generated, plugin.id, inspection.entries)
     bindings.push({ id: plugin.id, identity, inspection, entries })
   }
   generated.files.push(
