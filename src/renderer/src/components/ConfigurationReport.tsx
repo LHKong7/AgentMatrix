@@ -129,6 +129,71 @@ export function ConfigurationReport({
                 </tbody>
               </table>
             </div>
+            <h3>{t('report.credentialTitle')}</h3>
+            <p className="hint">{t('report.credentialHint')}</p>
+            <p className="hint">
+              {t('report.credentialChecked', {
+                time: new Date(report.credentials.checkedAt).toLocaleString(locale),
+              })}
+            </p>
+            {report.credentials.entries.length === 0 ? (
+              <p>{t('report.credentialEmpty')}</p>
+            ) : (
+              <div className="report-table">
+                <table aria-label={t('report.credentialTitle')}>
+                  <thead>
+                    <tr>
+                      <th>{t('report.credentialReference')}</th>
+                      <th>{t('report.credentialAttachment')}</th>
+                      <th>{t('report.credentialStored')}</th>
+                      <th>{t('report.credentialComparison')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.credentials.entries.map((entry) => (
+                      <tr
+                        key={entry.slot}
+                        data-credential-slot={entry.slot}
+                        data-credential-state={entry.state}
+                      >
+                        <th scope="row">
+                          {t('report.credentialSlot', { number: entry.slot })}
+                          <small>{t(`report.credentialSource.${entry.source}`)}</small>
+                          {entry.purposes.map((purpose) => (
+                            <small key={purpose}>{t(`report.credentialPurpose.${purpose}`)}</small>
+                          ))}
+                        </th>
+                        <td>
+                          {entry.attachment ? (
+                            <>
+                              <strong>v{entry.attachment.revision}</strong>
+                              <small>
+                                {new Date(entry.attachment.resolvedAt).toLocaleString(locale)}
+                              </small>
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>
+                          {entry.current ? (
+                            <>
+                              <strong>v{entry.current.revision}</strong>
+                              <small>
+                                {new Date(entry.current.updatedAt).toLocaleString(locale)}
+                              </small>
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>{t(`report.credentialState.${entry.state}`)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <h3>{t('report.assets')}</h3>
             {report.assets.length === 0 ? (
               <p>{t('report.noAssets')}</p>

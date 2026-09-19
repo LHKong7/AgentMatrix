@@ -10,6 +10,8 @@ import { resolveAgentProfile, type ProfileResolution } from '../../shared/engine
 import { RuntimeFailure } from './runtime'
 import { piThinking } from './adapters/pi/configuration'
 import { capturedIntent, resolvedIntent, canonicalIntent } from '../../shared/engines/intent'
+import { credentialReport } from './credential-report'
+import type { CredentialVersions } from '../credentials/vault'
 
 const origin = (value: string) => {
   try {
@@ -25,6 +27,7 @@ export function buildConfigurationReport(
   snapshot: SessionSnapshot,
   workspace: EngineWorkspace,
   resolved: ProfileResolution = resolveAgentProfile(workspace, snapshot.agentId),
+  versions: CredentialVersions | null = null,
 ): ConfigurationReport {
   if (
     manifest.id !== snapshot.snapshotId ||
@@ -142,7 +145,16 @@ export function buildConfigurationReport(
     adapter: manifest.adapter,
     cwd: manifest.cwd,
     nativeSessionId: snapshot.nativeSessionId,
-    observation,
+    observation: observation
+      ? {
+          runId: observation.runId,
+          snapshotDigest: observation.snapshotDigest,
+          nativeSessionId: observation.nativeSessionId,
+          checkedAt: observation.checkedAt,
+          checks: observation.checks,
+        }
+      : null,
+    credentials: credentialReport(manifest, observation?.credentialResolutions, versions),
     observationIsCurrent: Boolean(
       observation &&
       observation.runId === snapshot.runId &&

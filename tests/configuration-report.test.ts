@@ -19,7 +19,7 @@ const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
-async function fixture() {
+async function fixture(credential = false) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-config-report-')))
   roots.push(root)
   const cwd = join(root, 'project'),
@@ -27,6 +27,11 @@ async function fixture() {
   await mkdir(cwd)
   await writeFile(executable, 'Never executed by this fixture.')
   const workspace = openCodeWorkspace(executable, cwd)
+  if (credential)
+    workspace.connections[0]!.auth = {
+      kind: 'bearer',
+      secret: { kind: 'credential', id: 'private-vault-reference' },
+    }
   const store = new RunInputStore(join(root, 'runs'), new SkillDirectoryStore(join(root, 'skills')))
   const manifest = await store.create('inputs', workspace, 'reviewer', (configuration, paths) =>
     planOpenCode(configuration, paths, {
@@ -266,7 +271,7 @@ describe('configuration report evidence and updates', () => {
     expect(configurationChecksSchema.safeParse(['raw-secret-config']).success).toBe(false)
   })
   it('retains bounded observations across journal restart and replaces them only after successful resume', async () => {
-    const f = await fixture(),
+    const f = await fixture(true),
       journal = new SessionJournal(join(f.root, 'journal'))
     await journal.create(f.initial)
     await journal.append('session', 0, {
@@ -281,12 +286,27 @@ describe('configuration report evidence and updates', () => {
         kind: 'run.ready',
         nativeSessionId: 'native-id',
         configurationChecks: ['cli.version', 'opencode.session-model'],
+        credentialResolutions: [
+          {
+            slot: 1,
+            resolvedAt: f.initial.createdAt,
+            version: {
+              source: 'vault',
+              versionId: '10000000-0000-4000-8000-000000000001',
+              revision: 1,
+              updatedAt: f.initial.createdAt,
+            },
+          },
+        ],
       },
     })
     const restarted = new SessionJournal(join(f.root, 'journal'))
     const interrupted = await restarted.get('session')
     expect(interrupted.status).toBe('interrupted')
     expect(interrupted.configuration?.checks).toEqual(['cli.version', 'opencode.session-model'])
+    expect(interrupted.configuration?.credentialResolutions?.[0]?.version).toMatchObject({
+      revision: 1,
+    })
     expect(
       buildConfigurationReport(f.manifest, interrupted, f.workspace).observationIsCurrent,
     ).toBe(false)
@@ -306,8 +326,42 @@ describe('configuration report evidence and updates', () => {
         kind: 'run.ready',
         nativeSessionId: 'native-id',
         configurationChecks: ['cli.version'],
+        credentialResolutions: [
+          {
+            slot: 1,
+            resolvedAt: f.initial.createdAt,
+            version: {
+              source: 'vault',
+              versionId: '10000000-0000-4000-8000-000000000002',
+              revision: 2,
+              updatedAt: f.initial.createdAt,
+            },
+          },
+        ],
       },
     })
+    const resumed = await restarted.get('session')
+    expect(resumed.configuration?.credentialResolutions?.[0]?.version).toMatchObject({
+      revision: 2,
+    })
+    const report = buildConfigurationReport(f.manifest, resumed, f.workspace, undefined, {
+      available: true,
+      entries: [
+        {
+          id: 'private-vault-reference',
+          versionId: '10000000-0000-4000-8000-000000000002',
+          revision: 2,
+          updatedAt: f.initial.createdAt,
+        },
+      ],
+    })
+    expect(report.credentials.entries[0]).toMatchObject({
+      state: 'same',
+      attachment: { revision: 2 },
+      current: { revision: 2 },
+    })
+    expect(JSON.stringify(report)).not.toContain('private-vault-reference')
+    expect(report.observation).not.toHaveProperty('credentialResolutions')
     expect((await restarted.get('session')).configuration).toMatchObject({
       runId: 'new-run',
       checks: ['cli.version'],

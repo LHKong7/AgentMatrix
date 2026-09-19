@@ -14,6 +14,7 @@ export default tseslint.config(
       'scripts/session-smoke.mjs',
       'scripts/shared-assets-smoke.mjs',
       'scripts/native-import-smoke.mjs',
+      'scripts/credential-rotation-smoke.mjs',
     ],
     languageOptions: { globals: globals.browser },
   },

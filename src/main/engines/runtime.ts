@@ -5,6 +5,7 @@ import type {
 } from '../../shared/sessions/schema'
 import type { ProcessResult } from './process/managed-process'
 import type { ConfigurationCheck } from '../../shared/engines/configuration-report'
+import type { CredentialResolution } from '../../shared/engines/credential-observation'
 
 export type RuntimeOutput = Extract<
   SessionEventData,
@@ -21,6 +22,7 @@ export type RuntimeTurnResult = Pick<
 >
 export interface RuntimeSession {
   readonly configurationChecks?: ConfigurationCheck[]
+  readonly credentialResolutions?: CredentialResolution[]
   readonly nativeSessionId: string
   readonly closed: Promise<ProcessResult>
   redact(text: string): string

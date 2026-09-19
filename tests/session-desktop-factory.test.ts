@@ -45,16 +45,35 @@ async function fixture(version = '1.18.16', kind: 'opencode' | 'pi' = 'opencode'
   const skills = new SkillDirectoryStore(join(root, 'skills')),
     runs = new RunInputStore(join(root, 'runs'), skills)
   const resolveSecret = vi.fn(async () => 'synthetic-private-value')
+  const resolveSecretVersioned = vi.fn(async () => ({
+    value: 'synthetic-private-value',
+    resolvedAt: new Date().toISOString(),
+    version: { source: 'environment' as const },
+  }))
+  const credentialVersions = vi.fn(async () => ({ available: true, entries: [] }))
   const factory = new DesktopSessionFactory({
     workspace,
     runs,
     skills,
     resolveSecret,
+    resolveSecretVersioned,
+    credentialVersions,
     dataDirectory: root,
     environment: { HOME: home, PATH: process.env.PATH },
   })
   cleanup.push({ root, factory })
-  return { root, cwd, home, executable, workspace, factory, runs, resolveSecret }
+  return {
+    root,
+    cwd,
+    home,
+    executable,
+    workspace,
+    factory,
+    runs,
+    resolveSecret,
+    resolveSecretVersioned,
+    credentialVersions,
+  }
 }
 afterEach(async () => {
   await Promise.all(
@@ -147,6 +166,9 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
       status: 'planned',
     })
     expect(report.observation).toBeNull()
+    expect(f.credentialVersions).toHaveBeenCalledTimes(1)
+    expect(f.resolveSecretVersioned).not.toHaveBeenCalled()
+    expect(f.workspace.save).toHaveBeenCalledTimes(1)
     expect(f.resolveSecret).not.toHaveBeenCalled()
     expect(await readdir(join(f.root, 'probes'))).toEqual([])
     expect(

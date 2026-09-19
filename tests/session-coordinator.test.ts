@@ -620,6 +620,43 @@ describe('durable session coordination', () => {
     expect((await new SessionJournal(f.root).get(ready.id)).status).toBe('interrupted')
   })
 
+  it('does not publish credential revision evidence when the Ready write fails', async () => {
+    const f = await fixture()
+    const runtime = new FakeRuntime('native')
+    runtimes.push(runtime)
+    Object.defineProperty(runtime, 'credentialResolutions', {
+      value: [
+        {
+          slot: 1,
+          resolvedAt: new Date().toISOString(),
+          version: {
+            source: 'vault',
+            versionId: '10000000-0000-4000-8000-000000000001',
+            revision: 1,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      ],
+    })
+    f.factory.connect.mockResolvedValueOnce(runtime)
+    const initial = await f.coordinator.command({
+      kind: 'create',
+      commandId: 'create',
+      agentId: 'profile',
+    })
+    const append = f.journal.append.bind(f.journal)
+    vi.spyOn(f.journal, 'append').mockImplementation(async (...args) => {
+      if (args[2].data.kind === 'run.ready') throw new Error('write failed')
+      return append(...args)
+    })
+    await f.coordinator.command({ kind: 'start', commandId: 'start', sessionId: initial.id })
+    await vi.waitFor(() => expect(runtime.dispose).toHaveBeenCalledOnce())
+    const reopened = await new SessionJournal(f.root).get(initial.id)
+    expect(reopened.status).toBe('interrupted')
+    expect(reopened.configuration).toBeUndefined()
+    await expect(f.coordinator.get({ sessionId: initial.id })).rejects.toThrow('sessionStorage')
+  })
+
   it('does not spawn when the start decision cannot be saved', async () => {
     const f = await fixture()
     const initial = await f.coordinator.command({

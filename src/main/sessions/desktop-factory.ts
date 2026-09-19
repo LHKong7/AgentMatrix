@@ -32,6 +32,8 @@ import { captureCommand } from '../engines/process/capture-command'
 import { RuntimeFailure } from '../engines/runtime'
 import type { SessionRuntimeFactory } from './coordinator'
 import { buildConfigurationReport } from '../engines/configuration-report'
+import { trackCredentialResolution } from '../engines/credential-report'
+import type { CredentialVersions, ResolvedCredential } from '../credentials/vault'
 
 interface Dependencies {
   workspace: {
@@ -41,6 +43,8 @@ interface Dependencies {
   runs: RunInputStore
   skills: SkillDirectoryStore
   resolveSecret(reference: SecretReference): Promise<string>
+  resolveSecretVersioned?(reference: SecretReference): Promise<ResolvedCredential>
+  credentialVersions?(): Promise<CredentialVersions>
   dataDirectory: string
   environment: NodeJS.ProcessEnv
 }
@@ -236,16 +240,32 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
               ? connectDsh
               : null
       if (!connect) throw new RuntimeFailure('unsupported')
-      return await connect({
-        store: runs,
-        snapshotId: snapshot.snapshotId,
-        environment,
-        resolveSecret,
-        signal: AbortSignal.any([signal, this.lifetime.signal]),
-        ...(snapshot.status === 'resuming'
-          ? { previousNativeSessionId: snapshot.nativeSessionId! }
-          : {}),
-      })
+      const tracker = this.dependencies.resolveSecretVersioned
+        ? trackCredentialResolution(manifest, this.dependencies.resolveSecretVersioned)
+        : null
+      try {
+        const runtime = await connect({
+          store: runs,
+          snapshotId: snapshot.snapshotId,
+          environment,
+          resolveSecret: tracker ? (reference) => tracker.resolve(reference) : resolveSecret,
+          signal: AbortSignal.any([signal, this.lifetime.signal]),
+          ...(snapshot.status === 'resuming'
+            ? { previousNativeSessionId: snapshot.nativeSessionId! }
+            : {}),
+        })
+        if (tracker) {
+          try {
+            Object.defineProperty(runtime, 'credentialResolutions', { value: tracker.complete() })
+          } catch (error) {
+            await runtime.dispose()
+            throw error
+          }
+        }
+        return runtime
+      } finally {
+        tracker?.clear()
+      }
     } catch (error) {
       if (error instanceof RuntimeFailure) throw error
       throw new RuntimeFailure(
@@ -267,6 +287,8 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
       await runs.read(snapshot.snapshotId),
       snapshot,
       await workspace.load(),
+      undefined,
+      (await this.dependencies.credentialVersions?.().catch(() => null)) ?? null,
     )
   }
   async shutdown(): Promise<void> {

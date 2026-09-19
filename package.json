@@ -21,6 +21,7 @@
     "test:sessions": "npm run build && node --experimental-strip-types scripts/session-smoke.mjs",
     "test:shared-assets": "npm run build && node --experimental-strip-types scripts/shared-assets-smoke.mjs",
     "test:native-import": "npm run build && node --experimental-strip-types scripts/native-import-smoke.mjs",
+    "test:credential-rotation": "npm run build && node --experimental-strip-types scripts/credential-rotation-smoke.mjs",
     "probe:engines": "node scripts/probe-engines.mjs",
     "probe:acp": "vitest run --config vitest.acp.config.ts",
     "probe:opencode": "vitest run --config vitest.opencode.config.ts",

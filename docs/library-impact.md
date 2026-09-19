@@ -16,7 +16,7 @@ Related profiles are listed even when a binding is disabled or shadowed. Resolut
 | This draft makes the profile unresolved | The saved version resolved but the proposed version has a binding or configuration issue.                                               |
 | This draft resolves the profile         | The proposed version resolves a previously unresolved profile. Native adapter validation is still required.                             |
 
-The comparison includes endpoint and authentication references, model parameters, installation identity, execution choices, native options, resolved Prompt/Skill revisions and sources, MCP definitions, and native plugin references. It shares this projection with [session configuration reports](configuration-report.md). Connection/Agent display names and probe timestamps alone do not mark executable inputs as changed. Credential values and value rotations are not compared.
+The comparison includes endpoint and authentication references, model parameters, installation identity, execution choices, native options, resolved Prompt/Skill revisions and sources, MCP definitions, and native plugin references. It shares this projection with [session configuration reports](configuration-report.md). Connection/Agent display names and probe timestamps alone do not mark executable inputs as changed. This library preview does not compare credential values or rotations; session reports now offer a separate [credential revision comparison](credential-rotation.md) using vault metadata.
 
 ## Existing conversations
 
@@ -48,4 +48,4 @@ Recorded macOS arm64 runs use OpenCode 1.18.16, Pi 0.85.1, and DSH 0.1.5-rc.2:
 
 The full unit suite (382 tests), ESLint, TypeScript, production build, and generic Electron configuration smoke passed. Provider fixtures are local and synthetic; they do not establish external-provider or cross-platform acceptance.
 
-This implements the library-edit portion of B6. Native override provenance, native configuration import, credential-rotation metadata, and complete capability reporting remain open. Native plugin impact compares references; it does not implement plugin activation. The combined three-engine shared-asset runtime acceptance scenario also remains open. Inline library toggles, deletion, and Agent-profile editing do not yet have this before-save preview.
+This implements the library-edit portion of B6. Complete native override provenance and capability reporting remain open. Selected native configuration import and credential revision reports are now implemented separately. Native plugin impact compares references; the three adapters have separate activation checks. The combined [three-engine shared-asset runtime fixture](shared-asset-acceptance.md) also passes. Inline library toggles, deletion, and Agent-profile editing do not yet have this before-save preview.

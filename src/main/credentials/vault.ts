@@ -11,6 +11,17 @@ import {
   type CredentialInput,
 } from '../../shared/credentials'
 import { displayName, entityId, type SecretReference } from '../../shared/engines/schema'
+import type { CredentialVersion } from '../../shared/engines/credential-observation'
+
+export interface ResolvedCredential {
+  value: string
+  resolvedAt: string
+  version: CredentialVersion
+}
+export interface CredentialVersions {
+  available: boolean
+  entries: { id: string; versionId: string | null; revision: number; updatedAt: string }[]
+}
 
 export interface SecretCipher {
   available(): Promise<boolean>
@@ -24,6 +35,7 @@ const entrySchema = z
     kind: z.enum(['api-key', 'bearer']),
     revision: z.number().int().positive(),
     updatedAt: z.iso.datetime(),
+    versionId: z.uuid().optional(),
     ciphertext: z
       .string()
       .min(1)
@@ -110,6 +122,7 @@ export class CredentialVault {
         kind: candidate.kind,
         revision: (existing?.revision ?? 0) + 1,
         updatedAt: new Date().toISOString(),
+        versionId: randomUUID(),
         ciphertext: ciphertext.toString('base64'),
       })
       const next = {
@@ -137,11 +150,34 @@ export class CredentialVault {
     })
   }
   resolve(reference: SecretReference, environment: NodeJS.ProcessEnv): Promise<string> {
+    return this.resolveVersioned(reference, environment).then((result) => result.value)
+  }
+  /** Read-only metadata for main-process reports. Never decrypts or resolves environment references. */
+  versions(): Promise<CredentialVersions> {
+    return this.enqueue(async () => {
+      const document = await this.read()
+      if (document.pendingImport) throw appError('error.nativeImportRecovery')
+      return {
+        available: await this.available(),
+        entries: document.entries.map((entry) => ({
+          id: entry.id,
+          versionId: entry.versionId ?? null,
+          revision: entry.revision,
+          updatedAt: entry.updatedAt,
+        })),
+      }
+    })
+  }
+  /** Value and revision come from the same serialized read, never a separate status lookup. */
+  resolveVersioned(
+    reference: SecretReference,
+    environment: NodeJS.ProcessEnv,
+  ): Promise<ResolvedCredential> {
     return this.enqueue(async () => {
       if (reference.kind === 'environment') {
         const value = environment[reference.name]
         if (!value) throw appError('error.credentialMissing')
-        return value
+        return { value, resolvedAt: new Date().toISOString(), version: { source: 'environment' } }
       }
       await this.requireAvailable()
       const document = await this.read()
@@ -150,11 +186,23 @@ export class CredentialVault {
       if (!entry) throw appError('error.credentialMissing')
       try {
         const decrypted = await this.cipher.decrypt(Buffer.from(entry.ciphertext, 'base64'))
-        if (decrypted.reencrypt) {
-          entry.ciphertext = (await this.cipher.encrypt(decrypted.value)).toString('base64')
+        if (decrypted.reencrypt || !entry.versionId) {
+          if (decrypted.reencrypt)
+            entry.ciphertext = (await this.cipher.encrypt(decrypted.value)).toString('base64')
+          // Legacy entries acquire an opaque version on explicit secret resolution, never on report reads.
+          entry.versionId ??= randomUUID()
           await this.write(document)
         }
-        return decrypted.value
+        return {
+          value: decrypted.value,
+          resolvedAt: new Date().toISOString(),
+          version: {
+            source: 'vault',
+            versionId: entry.versionId!,
+            revision: entry.revision,
+            updatedAt: entry.updatedAt,
+          },
+        }
       } catch {
         throw appError('error.credentialDecryption')
       }
@@ -208,6 +256,7 @@ export class CredentialVault {
             kind: parsed.kind,
             revision: 1,
             updatedAt: new Date().toISOString(),
+            versionId: randomUUID(),
             ciphertext: ciphertext.toString('base64'),
           }),
         )

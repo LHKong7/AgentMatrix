@@ -106,6 +106,8 @@ if (!app.requestSingleInstanceLock()) {
       dataDirectory: app.getPath('userData'),
       environment: process.env,
       resolveSecret: (reference) => vault.resolve(reference, process.env),
+      resolveSecretVersioned: (reference) => vault.resolveVersioned(reference, process.env),
+      credentialVersions: () => vault.versions(),
     })
     const journal = new SessionJournal(join(app.getPath('userData'), 'sessions'))
     const coordinator = new SessionCoordinator(journal, factory)

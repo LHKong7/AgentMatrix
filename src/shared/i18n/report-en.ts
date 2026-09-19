@@ -1,4 +1,33 @@
 export const reportEn = {
+  'report.credentialTitle': 'Credential revisions',
+  'report.credentialHint':
+    'A running process keeps the credentials resolved for its attachment. A new start or resume resolves them again. Recorded revisions identify stored inputs, not provider acceptance or continuing native use. Environment values are not compared.',
+  'report.credentialChecked': 'Storage metadata checked: {time}',
+  'report.credentialEmpty': 'No managed secret references were captured in this launch.',
+  'report.credentialReference': 'Captured secret use',
+  'report.credentialAttachment': 'Last successful attachment',
+  'report.credentialStored': 'Current stored revision',
+  'report.credentialComparison': 'Comparison / next attachment',
+  'report.credentialSlot': 'Secret {number}',
+  'report.credentialSource.vault': 'Encrypted credential',
+  'report.credentialSource.environment': 'Environment reference',
+  'report.credentialPurpose.model-auth': 'Model authentication',
+  'report.credentialPurpose.model-header': 'Model request header',
+  'report.credentialPurpose.mcp-auth': 'MCP authentication',
+  'report.credentialPurpose.mcp-header': 'MCP request header',
+  'report.credentialPurpose.mcp-env': 'MCP environment',
+  'report.credentialPurpose.other': 'Other launch input',
+  'report.credentialState.same': 'Matches the last attachment revision.',
+  'report.credentialState.changed':
+    'Stored revision changed. Start or resume resolves the current credential; the running process keeps its prior input.',
+  'report.credentialState.missing':
+    'Stored credential was removed. A new attachment cannot resolve this reference.',
+  'report.credentialState.unverified':
+    'No comparable attachment revision was recorded. Start or resume resolves the current credential.',
+  'report.credentialState.environment': 'Environment values and rotations are not compared.',
+  'report.credentialState.unavailable':
+    'Credential metadata or encrypted storage is unavailable; comparison is unknown.',
+
   'report.check.dsh.plugins':
     'Native DSH boot completed; selected plugin fibers and current session checked with a fresh request; dependency coverage is partial',
 
@@ -67,7 +96,7 @@ export const reportEn = {
   'report.sourceAbsent': 'Absent when captured',
   'report.integrity': 'Snapshot identity and recorded checks',
   'report.credentials':
-    'Credentials are not resolved to display this report. Header values, prompt bodies, environment values, and command arguments are omitted. Only the endpoint origin is shown; URL paths, query parameters, and login details are omitted. Credential value rotation is not compared.',
+    'Credentials are not resolved to display this report. Stored revisions are compared without decrypting values. Secret references, header values, prompt bodies, environment values, and command arguments are omitted. Only the endpoint origin is shown; URL paths, query parameters, and login details are omitted.',
   'report.check.inputs.integrity': 'Captured files and snapshot integrity checked',
   'report.check.sources.unchanged': 'Observed external sources matched at attachment',
   'report.check.cli.version': 'Installed CLI version command',

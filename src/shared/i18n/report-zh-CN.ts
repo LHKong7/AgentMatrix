@@ -1,5 +1,31 @@
 import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
+  'report.credentialTitle': '凭据版本',
+  'report.credentialHint':
+    '运行中的进程保留本次连接时读取的凭据；新启动或恢复会话时会重新读取。记录的版本仅说明存储输入，不代表服务商已接受认证或原生进程持续使用该值。不比较环境变量的内容。',
+  'report.credentialChecked': '存储元数据检查时间：{time}',
+  'report.credentialEmpty': '此次启动未捕获托管的密钥引用。',
+  'report.credentialReference': '捕获的密钥用途',
+  'report.credentialAttachment': '最近成功连接的版本',
+  'report.credentialStored': '当前存储版本',
+  'report.credentialComparison': '比较结果 / 下次连接',
+  'report.credentialSlot': '密钥 {number}',
+  'report.credentialSource.vault': '加密凭据',
+  'report.credentialSource.environment': '环境变量引用',
+  'report.credentialPurpose.model-auth': '模型认证',
+  'report.credentialPurpose.model-header': '模型请求头',
+  'report.credentialPurpose.mcp-auth': 'MCP 认证',
+  'report.credentialPurpose.mcp-header': 'MCP 请求头',
+  'report.credentialPurpose.mcp-env': 'MCP 环境变量',
+  'report.credentialPurpose.other': '其他启动输入',
+  'report.credentialState.same': '与最近成功连接时的版本一致。',
+  'report.credentialState.changed':
+    '存储版本已更新。新启动或恢复时会读取当前凭据；运行中的进程保留原输入。',
+  'report.credentialState.missing': '存储凭据已删除，新连接无法解析该引用。',
+  'report.credentialState.unverified': '没有可比较的连接版本记录；新启动或恢复时会读取当前凭据。',
+  'report.credentialState.environment': '不比较环境变量的值及其变更。',
+  'report.credentialState.unavailable': '凭据元数据或加密存储不可用，无法比较。',
+
   'report.check.dsh.plugins':
     'DSH 原生启动已完成；已通过新请求检查选中的插件实例及当前会话；依赖覆盖范围不完整',
   'report.title': '配置报告',
@@ -63,7 +89,7 @@ export const reportZhCN: Record<keyof typeof reportEn, string> = {
   'report.sourceAbsent': '捕获时不存在',
   'report.integrity': '快照标识与校验记录',
   'report.credentials':
-    '展示报告不会读取凭据明文。请求头值、Prompt 正文、环境变量值及命令参数均省略。接口仅展示来源，省略路径、查询参数和登录信息。此报告不比较凭据明文轮换。',
+    '查看报告不解析凭据，仅比较存储版本元数据，不解密密钥。报告省略密钥引用、请求头值、Prompt 正文、环境变量值及命令参数。仅显示 endpoint 的来源域名，不显示 URL 路径、查询参数或登录信息。',
   'report.check.inputs.integrity': '已校验捕获文件和快照完整性',
   'report.check.sources.unchanged': '连接时外部来源与捕获记录匹配',
   'report.check.cli.version': '已执行安装版本命令',

@@ -109,3 +109,100 @@ describe('credential vault boundaries', () => {
     await expect(readFile(vault.filePath)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })
+
+describe('credential resolution revisions', () => {
+  it('captures the value and its storage revision in the same queued read during rotation', async () => {
+    const entry = await vault.set(input)
+    let enter!: () => void, release!: () => void
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve
+    })
+    const released = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const decrypt = cipher.decrypt.bind(cipher)
+    cipher.decrypt = async (bytes) => {
+      enter()
+      await released
+      return decrypt(bytes)
+    }
+    const reading = vault.resolveVersioned({ kind: 'credential', id: entry.id }, {})
+    await entered
+    const rotating = vault.set({
+      ...input,
+      id: entry.id,
+      expectedRevision: 1,
+      value: 'rotated-secret',
+    })
+    release()
+    const resolved = await reading
+    await rotating
+    expect(resolved.value).toBe(input.value)
+    expect(resolved.version).toMatchObject({
+      source: 'vault',
+      revision: 1,
+      updatedAt: entry.updatedAt,
+    })
+    const next = await vault.resolveVersioned({ kind: 'credential', id: entry.id }, {})
+    expect(next.value).toBe('rotated-secret')
+    expect(next.version).toMatchObject({ source: 'vault', revision: 2 })
+    expect(next.version).not.toEqual(resolved.version)
+    expect(JSON.stringify(resolved.version)).not.toContain(input.value)
+    expect(JSON.stringify(await vault.versions())).not.toContain('rotated-secret')
+  })
+  it('does not confuse deletion and recreation under the same id with the earlier revision', async () => {
+    const entry = await vault.set({ ...input, id: 'reused' })
+    const previous = await vault.resolveVersioned({ kind: 'credential', id: entry.id }, {})
+    await vault.remove({ id: entry.id, expectedRevision: 1 })
+    await vault.set({ ...input, id: entry.id, value: 'new-incarnation' })
+    const current = await vault.resolveVersioned({ kind: 'credential', id: entry.id }, {})
+    expect(previous.version).toMatchObject({ revision: 1 })
+    expect(current.version).toMatchObject({ revision: 1 })
+    if (previous.version.source !== 'vault' || current.version.source !== 'vault')
+      throw new Error('Missing versions')
+    expect(current.version.versionId).not.toBe(previous.version.versionId)
+  })
+  it('reads legacy metadata without decryption or mutation and adds a version only on explicit resolution', async () => {
+    const entry = await vault.set(input)
+    const stored = JSON.parse(await readFile(vault.filePath, 'utf8'))
+    delete stored.entries[0].versionId
+    await writeFile(vault.filePath, JSON.stringify(stored))
+    const before = await readFile(vault.filePath, 'utf8')
+    const decrypt = cipher.decrypt.bind(cipher)
+    cipher.decrypt = async () => {
+      throw new Error('Must not decrypt for report')
+    }
+    expect((await vault.versions()).entries[0]).toMatchObject({
+      id: entry.id,
+      versionId: null,
+      revision: 1,
+    })
+    expect(await readFile(vault.filePath, 'utf8')).toBe(before)
+    cipher.decrypt = decrypt
+    const resolved = await vault.resolveVersioned({ kind: 'credential', id: entry.id }, {})
+    expect(resolved.version).toMatchObject({
+      source: 'vault',
+      revision: 1,
+      updatedAt: entry.updatedAt,
+    })
+    expect((await vault.versions()).entries[0]!.versionId).toMatch(/^[0-9a-f-]{36}$/)
+  })
+  it('preserves revision identity when the encryption backend asks to rewrap ciphertext', async () => {
+    const entry = await vault.set(input)
+    const before = await vault.versions()
+    const decrypt = cipher.decrypt.bind(cipher)
+    cipher.decrypt = async (bytes) => ({ ...(await decrypt(bytes)), reencrypt: true })
+    await vault.resolveVersioned({ kind: 'credential', id: entry.id }, {})
+    expect(await vault.versions()).toEqual(before)
+  })
+  it('labels environment resolution without names, values, or fingerprints in revision metadata', async () => {
+    const resolved = await vault.resolveVersioned(
+      { kind: 'environment', name: 'PRIVATE_ENV' },
+      { PRIVATE_ENV: input.value },
+    )
+    expect(resolved.version).toEqual({ source: 'environment' })
+    expect(JSON.stringify({ ...resolved, value: undefined })).not.toContain('PRIVATE_ENV')
+    expect(JSON.stringify({ ...resolved, value: undefined })).not.toContain(input.value)
+    await expect(readFile(vault.filePath)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+})

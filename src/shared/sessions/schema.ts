@@ -6,6 +6,7 @@ import {
   type ConfigurationReport,
 } from '../engines/configuration-report'
 import { absolutePath, entityId, runtimeModeSchema } from '../engines/schema'
+import { credentialResolutionsSchema } from '../engines/credential-observation'
 
 const text = z.string().max(65_536)
 const nativeId = z.string().min(1).max(1000)
@@ -236,6 +237,7 @@ export const sessionEventDataSchema = z
         kind: z.literal('run.ready'),
         nativeSessionId: nativeId,
         configurationChecks: configurationChecksSchema.optional(),
+        credentialResolutions: credentialResolutionsSchema.optional(),
       })
       .strict(),
     z.object({ kind: z.literal('turn.started'), messageId: entityId, text }).strict(),
