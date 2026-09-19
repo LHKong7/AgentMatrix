@@ -40,6 +40,15 @@ await mkdir(join(alternateCwd, '.git'), { recursive: true })
 await mkdir(home)
 if (!isPi && !isDsh) {
   for (const directory of [cwd, alternateCwd]) {
+    await mkdir(join(directory, 'native-rules'), { recursive: true })
+    await writeFile(join(directory, 'native-rules/base.md'), 'PRIVATE_INSTRUCTION_BODY')
+    await writeFile(
+      join(directory, 'opencode.json'),
+      JSON.stringify({
+        $schema: 'https://opencode.ai/config.json',
+        instructions: ['native-rules/*.md', 'optional-rules/*.txt'],
+      }),
+    )
     await mkdir(join(directory, '.opencode/agents'), { recursive: true })
     await writeFile(
       join(directory, '.opencode/agents/matrix-observed.md'),
@@ -112,6 +121,7 @@ const server = createServer(async (request, response) => {
         role: body.includes('NEW_ROLE_MARKER') ? 'new' : 'original',
         read,
         plugin: body.includes('DESKTOP_PLUGIN_MARKER'),
+        nativeInstructions: body.includes('PRIVATE_INSTRUCTION_BODY'),
         directoryRead: read
           ? body.includes('SMOKE_FILE_MARKER_ALTERNATE')
             ? 'alternate'
@@ -712,6 +722,31 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
       path: process.env.AGENT_MATRIX_REPORT_SCREENSHOT + (title === '配置报告' ? '.zh.png' : ''),
       fullPage: true,
     })
+  const instructionPanel = dialog.getByTestId('native-instruction-sources')
+  await instructionPanel.locator(':scope > summary').click()
+  if (!isPi && !isDsh) {
+    const instructions = value.instructionSources
+    assert.equal(instructions.version, 1)
+    assert.equal(instructions.patterns.length, 2)
+    assert.deepEqual(
+      instructions.patterns.flatMap((entry) => entry.files.map((file) => file.path)),
+      [join(value.cwd, 'native-rules/base.md')],
+    )
+    assert.equal(instructions.patterns[1].files.length, 0)
+    await instructionPanel.locator('li details > summary').first().click()
+    await instructionPanel
+      .getByText(join(value.cwd, 'native-rules/base.md'), { exact: true })
+      .waitFor()
+    assert.ok(!(await dialog.textContent()).includes('PRIVATE_INSTRUCTION_BODY'))
+  } else assert.equal(value.instructionSources, null)
+  await instructionPanel.scrollIntoViewIfNeeded()
+  if (process.env.AGENT_MATRIX_INSTRUCTION_SCREENSHOT)
+    await page.screenshot({
+      path:
+        process.env.AGENT_MATRIX_INSTRUCTION_SCREENSHOT +
+        (title === '配置报告' ? '.zh.png' : '.en.png'),
+    })
+  await instructionPanel.locator(':scope > summary').click()
   await dialog.locator('.native-resource-sources > summary').click()
   if (!isPi && !isDsh) {
     const directory = value.resourceDirectories.find(
@@ -1429,6 +1464,26 @@ try {
   assert.equal(historicalReport.observation.runId, latest.runId)
   const snapshotFile = join(dataDirectory, 'runs', latest.snapshotId, 'manifest.json')
   const beforeDrift = await readFile(snapshotFile, 'utf8')
+  if (!isPi && !isDsh) {
+    const file = join(alternateCwd, 'native-rules/base.md')
+    const beforeCalls = calls.length
+    await writeFile(file, 'CHANGED_INSTRUCTION_BODY')
+    await page.getByRole('button', { name: 'Resume session', exact: true }).click()
+    await status('Failed')
+    for (const locale of ['en', 'zh-CN']) {
+      await language(locale)
+      const report = await configurationReport(
+        locale === 'en' ? 'Configuration report' : '配置报告',
+        locale === 'en' ? 'Close' : '关闭',
+      )
+      assert.deepEqual(report.diagnostic, { check: 'sources', reason: 'changed', fields: [] })
+      assert.deepEqual(report.instructionSources, historicalReport.instructionSources)
+    }
+    assert.equal(calls.length, beforeCalls)
+    assert.equal(await readFile(snapshotFile, 'utf8'), beforeDrift)
+    await writeFile(file, 'PRIVATE_INSTRUCTION_BODY')
+    await language('en')
+  }
   const nativeControl = isPi
     ? join(dataDirectory, 'runs', latest.snapshotId, 'state/pi/models.json')
     : isDsh
@@ -1607,6 +1662,7 @@ try {
     calls.length > 5 && calls.every((call) => call.authenticated && call.model === 'fixture-model'),
   )
   assert.deepEqual(errors, [])
+  if (!isPi && !isDsh) assert.ok(calls.every((call) => call.nativeInstructions))
   passed = true
   const report = {
     checkedAt: new Date().toISOString(),
@@ -1684,6 +1740,18 @@ try {
               successfulResumeRefreshesReceipt: true,
             }
           : { source: 'unknown' },
+    instructionSourceReport:
+      !isPi && !isDsh
+        ? {
+            nativeRuleReachedModel: true,
+            literalGlobAndEmptyMatches: true,
+            englishAndChinese: true,
+            noRuleBodiesInReport: true,
+            changedRuleRejectsResumeWithoutModelCall: true,
+            historicalMatchesPreserved: true,
+            restoredRuleAllowsNativeResume: true,
+          }
+        : { captured: false },
     skillSourceReport: {
       scope: isPi
         ? 'Native RPC Skill sources'

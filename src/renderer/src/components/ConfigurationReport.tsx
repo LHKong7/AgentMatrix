@@ -8,6 +8,7 @@ import { Modal } from './Modal'
 import { SessionCapabilities } from './SessionCapabilities'
 import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 import { McpConnections } from './McpConnections'
+import { InstructionSources } from './InstructionSources'
 
 export function ConfigurationReport({
   session,
@@ -273,6 +274,7 @@ export function ConfigurationReport({
                 ))}
               </ul>
             </details>
+            <InstructionSources sources={report.instructionSources} />
             <details className="native-resource-sources">
               <summary>{t('report.resourceDirectories')}</summary>
               <p className="hint">{t('report.resourceHint')}</p>

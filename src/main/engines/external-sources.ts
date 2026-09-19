@@ -4,6 +4,7 @@ import { lstat, open, opendir, realpath, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import { appError } from '../../shared/errors'
+import { verifyInstructionSources } from './instruction-sources'
 import type {
   ExternalFile,
   ExternalDirectory,
@@ -161,4 +162,5 @@ export async function verifyExternalSources(
       !isDeepStrictEqual(await observeResourceDirectory(directory.path, directory.kind), directory)
     )
       throw appError('error.runSourceChanged')
+  if (sources.instructionSources) await verifyInstructionSources(sources.instructionSources)
 }

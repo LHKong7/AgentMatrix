@@ -53,6 +53,7 @@ function fixture(legacy = false, configuration = true) {
         ],
     nativePlugins: [],
     mcpServers: [],
+    externalSources: { coverage: 'partial', files: [] },
   } as unknown as RunInputManifest
   const signal = new AbortController(),
     lifetime = new AbortController()

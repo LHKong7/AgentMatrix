@@ -1,5 +1,14 @@
 import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
+  'report.instructionSources': '原生规则文件引用',
+  'report.instructionHint':
+    '记录原生配置候选项匹配到的本地文件，并在复用前重新检查文件内容和匹配列表。这份清单不代表原生配置优先级或最终 Prompt 内容；打开报告不会读取源文件。',
+  'report.instructionsNotCaptured': '本次输入未捕获规则文件引用。',
+  'report.instructionsEmpty': '未捕获直接指定的本地规则文件匹配项。',
+  'report.instructionsNoMatches': '捕获时未匹配到文件；之后出现匹配文件会被视为输入变化。',
+  'report.instructionUnknown.remote': '未观测远程规则内容，未显示其 URL。',
+  'report.instructionUnknown.dynamic': '未观测动态规则引用，也未计算其中的宏。',
+  'report.instructionUnknown.configuration': '无法在支持的范围和大小限制内检查此配置或匹配项。',
   'report.mcpTitle': 'MCP 连接检查',
   'report.mcpHint':
     '检查结果的范围见下方说明，不代表工具已执行或服务持续可用。已保存的配置变更适用于新会话。',

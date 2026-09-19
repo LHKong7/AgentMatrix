@@ -249,6 +249,9 @@ export function buildConfigurationReport(
       exists: file.exists,
       digest: file.exists ? file.sha256 : null,
     })),
+    instructionSources: manifest.externalSources.instructionSources
+      ? structuredClone(manifest.externalSources.instructionSources)
+      : null,
     resourceDirectories:
       manifest.externalSources.directories?.map((directory) => ({
         path: directory.path,

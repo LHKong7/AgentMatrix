@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join } from 'node:path'
 import { observeExternalFile, observeResourceDirectory } from '../../external-sources'
 import { appError } from '../../../../shared/errors'
 import type { GeneratedInputs } from '../../../../shared/engines/run-inputs'
+import { inspectOpenCodeInstructions } from './instructions'
 
 export interface OpenCodeNativeLocations {
   home: string
@@ -35,7 +36,9 @@ export async function inspectOpenCodeSources(
   for (const name of ['opencode.json', 'opencode.jsonc'])
     paths.add(join(locations.home, '.opencode', name))
   let current = await realpath(cwd)
+  const instructionRoots: string[] = []
   for (let depth = 0; depth < 100; depth++) {
+    instructionRoots.push(current)
     resourceRoots.add(join(current, '.opencode'))
     for (const name of ['opencode.json', 'opencode.jsonc', 'AGENTS.md', 'CLAUDE.md', 'CONTEXT.md'])
       paths.add(join(current, name))
@@ -80,5 +83,10 @@ export async function inspectOpenCodeSources(
         throw appError('error.runLimit')
       directories.push(directory)
     }
-  return { coverage: 'partial', files, directories }
+  const instructionSources = await inspectOpenCodeInstructions(
+    files.filter((file) => /\.(?:json|jsonc)$/.test(file.path)),
+    instructionRoots,
+    locations.home,
+  )
+  return { coverage: 'partial', files, directories, instructionSources }
 }

@@ -16,6 +16,7 @@ import {
 import { sessionFailureSchema, sessionSnapshotSchema } from '../src/shared/sessions/schema'
 import { SessionJournal } from '../src/main/sessions/journal'
 import { observeResourceDirectory } from '../src/main/engines/external-sources'
+import { observeInstructionSearches } from '../src/main/engines/instruction-sources'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -396,10 +397,35 @@ describe('configuration report evidence and updates', () => {
     expect(report.fields.every((field) => field.status === 'planned')).toBe(true)
     expect(report.observation).toBeNull()
     expect(report.resourceDirectories).toBeNull()
+    expect(report.instructionSources).toBeNull()
     expect(buildConfigurationReport(f.manifest, f.ready(), f.workspace).observation).toBeNull()
     expect(report.sources).toEqual([
       { path: join(f.manifest.cwd, 'AGENTS.md'), exists: false, digest: null },
     ])
+  })
+  it('retains captured instruction metadata without reading changed or deleted sources', async () => {
+    const f = await fixture(),
+      file = join(f.root, 'rule.md')
+    await writeFile(file, 'PRIVATE_NATIVE_INSTRUCTION')
+    const searches = [{ cwd: f.root, pattern: 'rule.md', dot: true }]
+    f.manifest.externalSources.instructionSources = {
+      version: 1,
+      patterns: [
+        {
+          source: join(f.root, 'opencode.json'),
+          index: 0,
+          searches,
+          files: await observeInstructionSearches(searches),
+        },
+      ],
+      unobserved: [{ source: join(f.root, 'opencode.json'), index: 1, reason: 'remote' }],
+    }
+    await rm(file)
+    const report = buildConfigurationReport(f.manifest, f.initial, f.workspace)
+    expect(report.instructionSources).toEqual(f.manifest.externalSources.instructionSources)
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_NATIVE_INSTRUCTION')
+    report.instructionSources!.patterns.splice(0)
+    expect(f.manifest.externalSources.instructionSources.patterns).toHaveLength(1)
   })
   it('projects historical directory metadata without Markdown, native application claims, or filesystem rescans', async () => {
     const f = await fixture()

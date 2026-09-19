@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-09-19T11:29:26.835Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "opencode",
+  "version": "1.18.16",
+  "externalProviderCalls": false,
+  "localProviderRequests": 3,
+  "literalGlobHomeAndAncestorRulesReachModel": true,
+  "noRuleBodiesInManifest": true,
+  "changedRuleBlocksActiveTurn": true,
+  "changedAddedAndPreviouslyUnmatchedRulesBlockStartAndResume": true,
+  "rejectionBeforeCredentialResolution": true,
+  "originalNativeConversationRestored": true,
+  "immutableManifestPreserved": true
+}

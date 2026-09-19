@@ -1,4 +1,17 @@
 export const reportEn = {
+  'report.instructionSources': 'Native instruction file references',
+  'report.instructionHint':
+    'Captured local file matches from native configuration candidates. Files and match lists are checked again before reuse. This inventory does not establish native precedence or final prompt content; opening this report does not read the sources.',
+  'report.instructionsNotCaptured': 'Instruction references were not captured for these inputs.',
+  'report.instructionsEmpty': 'No literal local instruction selectors were captured.',
+  'report.instructionsNoMatches':
+    'No matching files at capture time; later matches change these inputs.',
+  'report.instructionUnknown.remote':
+    'Remote instruction content is unobserved. The URL is omitted.',
+  'report.instructionUnknown.dynamic':
+    'Dynamic instruction reference is unobserved; macros were not evaluated.',
+  'report.instructionUnknown.configuration':
+    'This configuration or selector could not be inspected within the supported limits.',
   'report.mcpTitle': 'MCP connection checks',
   'report.mcpHint':
     'Recorded checks have the scope stated below. They do not prove tool execution or continuing availability. Saved changes apply to new sessions.',

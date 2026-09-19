@@ -28,7 +28,7 @@ The bilingual **Native resource directories** section of the Configuration repor
 
 ## Remaining boundaries
 
-Coverage remains partial. Remote sources, included files/macros, Skill discovery, plugin dependency trees, dynamic hooks, and complete per-field override provenance are not captured by this inventory. The existing native readback still detects conflicts in fields it can compare. Observation checks are not a filesystem sandbox or a continuous watcher; another process can change files after a check, and active native processes may load later changes.
+Coverage remains partial. The separate [instruction reference observer](opencode-instruction-sources.md) now captures literal local instruction selectors and their matching files. Remote sources, general includes/macros, dynamic nested rules, Skill discovery, plugin dependency trees, dynamic hooks, and complete per-field override provenance remain outside these inventories. The existing native readback still detects conflicts in fields it can compare. Observation checks are not a filesystem sandbox or a continuous watcher; another process can change files after a check, and active native processes may load later changes.
 
 ## Validation
 

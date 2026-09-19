@@ -18,6 +18,7 @@ import { prepareOpenCodePluginAttachment } from './plugins'
 import { openCodeSkillPlanPath, prepareOpenCodeSkillAttachment } from './skills'
 import { openCodeConfigPlanPath, prepareOpenCodeConfigurationAttachment } from './instance-config'
 import { observeOpenCodeMcp } from './mcp'
+import { verifyInstructionSources } from '../../instruction-sources'
 
 interface ConnectOptions {
   store: RunInputStore
@@ -177,6 +178,19 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
       throw new RuntimeFailure('protocol')
     if (signal.aborted || owned.client.signal.aborted) throw new RuntimeFailure('process-exit')
     const id = nativeSessionId
+    const verifyInstructions = async () => {
+      if (!manifest.externalSources.instructionSources) return
+      try {
+        await verifyInstructionSources(manifest.externalSources.instructionSources)
+      } catch {
+        throw new RuntimeFailure('configuration', 'native.instruction-sources', {
+          check: 'sources',
+          reason: 'changed',
+          fields: ['prompts'],
+        })
+      }
+    }
+    await verifyInstructions()
     await instance?.verify(owned.process.pid, lifetime, id)
     const mcpConnections =
       hasConfigObserver && instance && manifest.mcpServers.length
@@ -231,6 +245,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
         cancelled = false
         try {
           await plugins?.verify(owned.process.pid)
+          await verifyInstructions()
           await instance?.verify(owned.process.pid, lifetime, id)
           if (cancelled) return { outcome: 'cancelled', nativeStopReason: null, usage: null }
           submitted = true
@@ -239,6 +254,7 @@ export async function connectOpenCode(options: ConnectOptions): Promise<RuntimeS
             manifest.agent.execution.timeoutMs ?? 600_000,
           )
           await turn.finish()
+          await verifyInstructions()
           await instance?.verify(owned.process.pid, lifetime, id)
           return turn.result(result)
         } catch (error) {

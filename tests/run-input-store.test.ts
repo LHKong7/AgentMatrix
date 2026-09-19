@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
 import { observeExternalFile, RunInputStore } from '../src/main/engines/run-input-store'
 import { observeResourceDirectory } from '../src/main/engines/external-sources'
+import { observeInstructionSearches } from '../src/main/engines/instruction-sources'
 import { migrateWorkspaceDocument } from '../src/shared/engines/migration'
 import type { ResolvedAgentConfiguration } from '../src/shared/engines/resolution'
 import type { GeneratedInputs, RunPaths } from '../src/shared/engines/run-inputs'
@@ -601,9 +602,35 @@ describe('immutable run inputs', () => {
     expect(await fs.readdir(store.root)).toEqual([])
   })
 
-  it('reads earlier manifest-v1 snapshots without adding a directory field or changing their digest', async () => {
+  it('rejects a new instruction match before snapshot publication', async () => {
+    await fs.mkdir(join(root, 'rules'))
+    await expect(
+      create('raced-instructions', async (configuration, paths) => {
+        const generated = await generate(configuration, paths)
+        const searches = [{ cwd: root, pattern: 'rules/*.md', dot: true }]
+        generated.externalSources.instructionSources = {
+          version: 1,
+          patterns: [
+            {
+              source: join(root, 'native.json'),
+              index: 0,
+              searches,
+              files: await observeInstructionSearches(searches),
+            },
+          ],
+          unobserved: [],
+        }
+        await fs.writeFile(join(root, 'rules/new.md'), 'arrived during capture')
+        return generated
+      }),
+    ).rejects.toThrow('error.runSourceChanged')
+    expect(await fs.readdir(store.root)).toEqual([])
+  })
+
+  it('reads earlier manifest-v1 snapshots without adding source fields or changing their digest', async () => {
     const manifest = await create('legacy')
     expect(Object.hasOwn(manifest.externalSources, 'directories')).toBe(false)
+    expect(Object.hasOwn(manifest.externalSources, 'instructionSources')).toBe(false)
     expect(await store.verifyForReuse('legacy')).toEqual(manifest)
   })
 

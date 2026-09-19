@@ -58,6 +58,47 @@ export const externalDirectorySchema = z
   })
   .strict()
 export type ExternalDirectory = z.infer<typeof externalDirectorySchema>
+export const instructionSearchSchema = z
+  .object({
+    cwd: absolutePath,
+    pattern: z
+      .string()
+      .min(1)
+      .max(1024)
+      .refine((value) => !value.includes('\0')),
+    dot: z.boolean(),
+  })
+  .strict()
+export const instructionSourcesSchema = z
+  .object({
+    version: z.literal(1),
+    patterns: z
+      .array(
+        z
+          .object({
+            source: absolutePath,
+            index: z.number().int().nonnegative(),
+            searches: z.array(instructionSearchSchema).min(1).max(100),
+            files: z.array(externalFileSchema).max(1000),
+          })
+          .strict(),
+      )
+      .max(200),
+    unobserved: z
+      .array(
+        z
+          .object({
+            source: absolutePath,
+            index: z.number().int().nonnegative().nullable(),
+            reason: z.enum(['remote', 'dynamic', 'configuration']),
+          })
+          .strict(),
+      )
+      .max(1000),
+  })
+  .strict()
+export type InstructionSearch = z.infer<typeof instructionSearchSchema>
+export type InstructionSources = z.infer<typeof instructionSourcesSchema>
 export const launchEnvironmentSchema = z.discriminatedUnion('kind', [
   z
     .object({
@@ -144,6 +185,7 @@ export const runInputManifestSchema = z
         files: z.array(externalFileSchema).max(1000),
         // No default: adding a field while reading a legacy snapshot would change its digest.
         directories: z.array(externalDirectorySchema).max(1000).optional(),
+        instructionSources: instructionSourcesSchema.optional(),
       })
       .strict(),
     files: z.array(inputFileSchema).max(4096),
