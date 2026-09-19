@@ -45,6 +45,8 @@ npm run probe:providers
 
 The report prefix produces one JSON file per engine and endpoint style. Missing executable variables skip the corresponding cases; ordinary unit tests never launch these CLIs. The [recorded six-case result](probes/2026-09-19-anthropic-provider-acceptance.json) contains 36 primary model requests; OpenCode also makes auxiliary requests. All calls use synthetic credentials and a synthetic model, with no external provider calls.
 
+The shared command now also runs the three [Responses cases](responses-provider-acceptance.md), producing separate `<prefix>.responses.<engine>.json` reports. Append `-- tests/anthropic-provider-installed.probe.ts` to run only this six-case fixture. The combined suite uses one worker.
+
 The full unit suite passed 875 tests across 58 files, including old/new Pi readback and import compatibility. ESLint, TypeScript and production builds passed. The real Electron configuration smoke verifies both localized hints while retaining its existing configuration, migration and credential checks; both language screenshots were visually inspected.
 
 ## Acceptance boundaries

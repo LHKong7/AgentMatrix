@@ -4,7 +4,10 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
     environment: 'node',
-    include: ['tests/anthropic-provider-installed.probe.ts'],
+    include: [
+      'tests/anthropic-provider-installed.probe.ts',
+      'tests/responses-provider-installed.probe.ts',
+    ],
     testTimeout: 120_000,
   },
 })

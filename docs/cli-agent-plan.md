@@ -148,6 +148,8 @@ A probe task produces a recorded result, including failures or unavailable route
 
 **V2 / X2 progress:** The [Anthropic Messages fixture](anthropic-provider-acceptance.md) now verifies all three installed engines with root and versioned endpoints, selected authentication/headers, Prompt application, native tools, cancellation, restoration and failed requests. Shared endpoint normalization fixes a reproduced SDK suffix mismatch; imports preserve native request meaning and old captures retain their semantics. This expands local protocol coverage. Acceptance against the intended external endpoint/model/key remains pending and no delivery gate is promoted.
 
+The [Responses fixture](responses-provider-acceptance.md) also verifies all three pinned engines with a versioned proxy base, selected Bearer credentials and custom headers, fragmented text/tool streams, actual native file results, cancellation and native restoration. HTTP 400/401 and a Chat Completions-only gateway's HTTP 404 fail without protocol fallback. All nine combined provider cases pass locally; malformed successful streams and intended external-service acceptance remain unverified.
+
 ## 5. Phase A: shared configuration and session contracts
 
 | ID  | Work item                                                             | Priority | Depends on         | Deliverable and acceptance                                                                                                                                                                                                                                                                                                                                                                           |
