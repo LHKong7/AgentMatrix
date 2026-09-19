@@ -28,7 +28,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
 - **OpenCode, Pi, and DSH desktop sessions:** explicitly check a saved installation, then start from a saved profile. View messages and tools, answer supported native permission requests, cancel turns, reload history, and resume interrupted sessions. Adapters are pinned to OpenCode 1.18.16, Pi 0.85.1, and experimental DSH 0.1.5-rc.2. DSH displays committed replies; OpenCode and Pi stream text. Native approvals apply to OpenCode and DSH; Pi requires an explicit compatible execution policy; see [setup and verification](docs/desktop-sessions.md).
 - **Shared connections and models:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents.
-- **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit.
+- **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit. A [combined desktop fixture](docs/shared-asset-acceptance.md) verifies one shared Prompt and directory Skill across all three engines, including edits during active turns and old/new versions after native resume.
 - **Skill directory imports:** select a directory in the desktop editor to capture `SKILL.md`, scripts, and references with file digests. Reimport creates a new revision while retaining previous bytes; importing never executes scripts.
 - **MCP definitions:** configure stdio, Streamable HTTP, or SSE, with arguments, environment values, secret references, headers, and authentication metadata.
 - **Resource bundles:** reuse prompt, Skill, and MCP bindings. Native plugins have separate metadata tied to an engine installation. The desktop editor can [inspect selected installed OpenCode plugin files](docs/native-plugin-inspection.md), including entry resolution, package versions, declared engine ranges, and digests; supported installed ESM plugins now have [instance-specific startup and resume checks](docs/opencode-plugin-activation.md). Selected [Pi extensions](docs/pi-plugin-activation.md) also support native startup/resume checks, custom tools, and extension command dialogs; they require unrestricted execution. Selected [DSH modules](docs/dsh-plugin-activation.md) support native boot/session checks, separate instances of the same module, and bilingual JSON options editing.
@@ -53,22 +53,23 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 
 ## Commands
 
-| Command                 | Purpose                                                                                                           |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`           | Start Electron with hot reload                                                                                    |
-| `npm run dev:web`       | Preview the UI in a browser                                                                                       |
-| `npm run check`         | Run ESLint, unit tests, TypeScript, and production builds                                                         |
-| `npm run test:smoke`    | Build and test a real Electron window, including language switching and persistence                               |
-| `npm run test:sessions` | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture |
-| `npm run probe:dsh`     | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes          |
-| `npm run probe:pi`      | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                         |
-| `npm run probe:acp`     | Opt-in installed OpenCode/DSH handshake through the application ACP client                                        |
-| `npm run format`        | Format source and documentation                                                                                   |
-| `npm run format:check`  | Check formatting                                                                                                  |
-| `npm run build`         | Build into `out/`                                                                                                 |
-| `npm start`             | Run the existing production build                                                                                 |
-| `npm run package`       | Create an unsigned app directory for the current platform                                                         |
-| `npm run dist`          | Build platform distributables into `release/`                                                                     |
+| Command                      | Purpose                                                                                                           |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                | Start Electron with hot reload                                                                                    |
+| `npm run dev:web`            | Preview the UI in a browser                                                                                       |
+| `npm run check`              | Run ESLint, unit tests, TypeScript, and production builds                                                         |
+| `npm run test:smoke`         | Build and test a real Electron window, including language switching and persistence                               |
+| `npm run test:sessions`      | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture |
+| `npm run test:shared-assets` | Build and verify shared Prompt/Skill updates across all three installed engines in one desktop workspace          |
+| `npm run probe:dsh`          | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes          |
+| `npm run probe:pi`           | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                         |
+| `npm run probe:acp`          | Opt-in installed OpenCode/DSH handshake through the application ACP client                                        |
+| `npm run format`             | Format source and documentation                                                                                   |
+| `npm run format:check`       | Check formatting                                                                                                  |
+| `npm run build`              | Build into `out/`                                                                                                 |
+| `npm start`                  | Run the existing production build                                                                                 |
+| `npm run package`            | Create an unsigned app directory for the current platform                                                         |
+| `npm run dist`               | Build platform distributables into `release/`                                                                     |
 
 Desktop smoke tests use a temporary configuration directory and clean it up afterward. They require a desktop graphics environment. CI runs `check`, which does not require a display.
 

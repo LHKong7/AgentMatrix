@@ -46,4 +46,6 @@ The [Electron record](probes/2026-09-18-dsh-desktop-sessions.json) covers instal
 
 The later [plugin desktop result](probes/2026-09-18-dsh-plugin-desktop.json) additionally verifies selected native modules, bilingual options editing, native system sections reaching the local provider, activation reports, and fresh checks on native resume. Separate [activation fixtures](dsh-plugin-activation.md) pass both provider routes.
 
-This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, complete effective-configuration reporting, the combined cross-engine asset-update scenario, broader plugin/bundle coverage, remote MCP, and platform coverage beyond macOS remain open.
+This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, complete effective-configuration reporting, broader plugin/bundle coverage, remote MCP, and platform coverage beyond macOS remain open.
+
+The [combined shared-asset desktop fixture](shared-asset-acceptance.md) additionally verifies one Prompt and one directory Skill across all three engines, including edits during active turns, old/new versions, bilingual reports, and native restoration after source deletion. Its local-provider result does not establish external-service acceptance.

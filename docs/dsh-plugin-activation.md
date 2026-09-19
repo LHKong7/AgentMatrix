@@ -52,7 +52,7 @@ This is lifecycle evidence from trusted executable modules. It does not establis
 - The production adapter passes both the [generic pi-ai route](probes/2026-09-18-dsh-plugin-activation-pi-ai.json) and the [native DeepSeek route](probes/2026-09-18-dsh-plugin-activation-deepseek-native.json). The fixtures verify delayed initialization, per-instance options, native system sections, a custom tool round trip, fresh session checks, native resume, and rejection of import/shape/configuration/application/service failures, disposal before a turn, and source changes before resume.
 - The [Electron result](probes/2026-09-18-dsh-plugin-desktop.json) covers bilingual options editing and persistence, native activation in local provider calls, bilingual reports, shared-Prompt revisions, restart, and fresh evidence on resume. It uses an appended shared prompt so both shared instructions and the plugin's native system section remain visible.
 
-These fixtures use synthetic credentials and local HTTP providers on macOS arm64. External endpoint/model/auth acceptance, complete dependency provenance, bundle patch import, remote MCP, cross-engine asset-update acceptance, and other platforms remain open. This increment does not pass D4.
+These fixtures use synthetic credentials and local HTTP providers on macOS arm64. External endpoint/model/auth acceptance, complete dependency provenance, bundle patch import, remote MCP, and other platforms remain open. The combined local [shared-asset update scenario](shared-asset-acceptance.md) has separate desktop evidence. This increment does not pass D4.
 
 ```sh
 AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh \

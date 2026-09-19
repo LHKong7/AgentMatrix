@@ -31,3 +31,5 @@ Captures remain after discarding an imported draft or deleting its library asset
 ## Verification
 
 Filesystem tests exercise byte preservation, frontmatter, binary and hidden files, executable flags, deduplication, source deletion, symlink boundaries, path validation, size/count/depth limits, source changes, write failures, corrupt captures, and workspace revision publication. Real Electron smoke tests cover chooser cancellation, import preview, reimport, old-version preservation, and restart after deleting the original source. The test substitutes the OS chooser's response while exercising the production IPC and capture code.
+
+The [combined shared-asset fixture](shared-asset-acceptance.md) verifies one imported directory Skill across OpenCode, Pi, and DSH in the desktop app. Reimport advances the shared library once; existing and new native sessions read their respective entry/reference versions, including after the source is edited or deleted and conversations are restored.

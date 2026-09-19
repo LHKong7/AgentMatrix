@@ -205,6 +205,8 @@ V4 selected ACP for DSH 0.1.5-rc.2 because the published SDK lacks native cancel
 
 **Cross-engine scenario:** bind one shared prompt and one Skill asset to OpenCode, Pi, and DSH using verified native mappings. Use a common model connection only where all selected routes are proven compatible; otherwise use distinct connections without protocol translation. Run a task in each engine, edit the shared assets, and show correct versions in old and new sessions. Verify MCP separately for OpenCode and the selected DSH composition; Pi without an extension must clearly reject MCP bindings.
 
+**Scenario evidence:** The [combined desktop fixture](shared-asset-acceptance.md) now verifies one shared Prompt and directory Skill across all three profiles, updates while all three have active turns, correct old/new inputs, bilingual impact/version reports, and native resume after deleting the source directory. The common connection is verified against a local Chat Completions provider; external endpoint/model/auth acceptance remains open. MCP retains its separate engine-specific evidence.
+
 ## 9. Later integrations
 
 These engines remain in the research scope but are not prerequisites for the initial three-engine milestone. Their existing documentary mappings are not release claims.
