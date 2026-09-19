@@ -24,6 +24,8 @@ The first delivery includes shared prompts, model connections and credential ref
 
 **Configuration ownership:** import existing native configuration read-only, retain provenance and unknown fields, and generate AgentMatrix-owned run files. Native configuration write-back and bidirectional synchronization are deferred. Existing user/project rules are preserved; unavoidable external sources are reported rather than described as isolated.
 
+**Native import progress:** the first [OpenCode importer](native-configuration-import.md) now previews a selected JSON/JSONC file, appends shared resources and disabled Agent drafts, encrypts credentials and exact source bytes, and retains immutable field mappings and unconverted-field diagnostics. Bilingual Electron import/restart and an imported profile's native model call pass a local fixture. Pi/DSH importers, combined native precedence, referenced-file ingestion, and complete runtime override provenance remain open; this increment does not pass B3/A12 or a delivery gate.
+
 **Native plugin scope:** distinguish resource bundles from executable plugins. Initially recognize and bind explicitly selected installed plugins, with version/source checks. Building the pinned DSH runtime composition is part of its adapter. A general plugin marketplace, arbitrary package installation, and automatic upgrades are deferred. No Pi MCP extension is selected implicitly.
 
 ### 1.1 Shared configuration and per-engine settings

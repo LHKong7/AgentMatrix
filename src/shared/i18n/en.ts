@@ -5,8 +5,10 @@ import { impactEn } from './impact-en'
 import { configurationEn } from './configuration-en'
 import { sessionEn } from './session-en'
 import { reportEn } from './report-en'
+import { nativeImportEn } from './native-import-en'
 
 export const en = {
+  ...nativeImportEn,
   ...pluginEn,
   ...historyEn,
   ...configurationEn,

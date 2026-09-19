@@ -14,6 +14,8 @@ const api: AgentMatrixApi = {
   chooseWorkingDirectory: (input) => ipcRenderer.invoke(channels.workingDirectory, input),
   probeEngine: (input) => ipcRenderer.invoke(channels.engineProbe, input),
   inspectNativePlugin: (input) => ipcRenderer.invoke(channels.pluginInspect, input),
+  previewNativeImport: (input) => ipcRenderer.invoke(channels.nativeImportPreview, input),
+  applyNativeImport: (input) => ipcRenderer.invoke(channels.nativeImportApply, input),
   sessions: {
     history: (input) => ipcRenderer.invoke(sessionChannels.history, input),
     exportHistory: (input) => ipcRenderer.invoke(sessionChannels.exportHistory, input),

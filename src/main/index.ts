@@ -20,6 +20,9 @@ import { resolveWorkingDirectory } from './sessions/working-directory'
 import { exportSessionHistory } from './sessions/history-export'
 import { sessionChannels, sessionExportQuerySchema } from '../shared/sessions/schema'
 import { inspectNativePlugin } from './engines/plugin-inspection'
+import { NativeImportArchive } from './native-import/archive'
+import { NativeImportService } from './native-import/service'
+import { nativeImportQuerySchema } from '../shared/engines/native-import'
 
 app.setName('AgentMatrix')
 if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
@@ -74,7 +77,11 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow?.focus()
   })
 
-  void app.whenReady().then(() => {
+  void app.whenReady().then(async () => {
+    const importArchive = new NativeImportArchive(
+      join(app.getPath('userData'), 'native-imports'),
+      electronCipher,
+    )
     const skillDirectories = new SkillDirectoryStore(
       join(app.getPath('userData'), 'assets', 'skills'),
     )
@@ -82,11 +89,16 @@ if (!app.requestSingleInstanceLock()) {
       join(app.getPath('userData'), 'workspace.json'),
       resolveLocale([app.getLocale()]),
       (revision) => skillDirectories.verify(revision),
+      (record) => importArchive.verify(record),
     )
     const vault = new CredentialVault(
       join(app.getPath('userData'), 'credentials', 'vault.json'),
       electronCipher,
     )
+    const nativeImports = new NativeImportService(store, vault, importArchive)
+    // Storage failures remain visible through the ordinary load/credential UI. Pending
+    // vault transactions block credential mutation/resolution until recovery succeeds.
+    await nativeImports.recover().catch(() => undefined)
     const factory = new DesktopSessionFactory({
       workspace: store,
       runs: new RunInputStore(join(app.getPath('userData'), 'runs'), skillDirectories),
@@ -133,6 +145,35 @@ if (!app.requestSingleInstanceLock()) {
       }),
     )
     let inspectingPlugin = false
+    let choosingImport = false
+    ipcMain.handle(channels.nativeImportPreview, (event, input: unknown) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        const query = nativeImportQuerySchema.parse(input)
+        if (choosingImport) throw appError('error.nativeImportBusy')
+        choosingImport = true
+        try {
+          const result = await dialog.showOpenDialog(mainWindow!, {
+            properties: ['openFile'],
+            filters: [{ name: 'OpenCode JSON / JSONC', extensions: ['json', 'jsonc'] }],
+          })
+          verifySender(event)
+          if (result.canceled || !result.filePaths[0]) return null
+          const preview = await nativeImports.preview(query, result.filePaths[0])
+          verifySender(event)
+          return preview
+        } finally {
+          choosingImport = false
+        }
+      }),
+    )
+    ipcMain.handle(channels.nativeImportApply, (event, input: unknown) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        if (choosingImport) throw appError('error.nativeImportBusy')
+        return nativeImports.apply(input)
+      }),
+    )
     ipcMain.handle(channels.pluginInspect, (event, input: unknown) =>
       safeSessionOperation(async () => {
         verifySender(event)

@@ -8,6 +8,7 @@ import { sessionZhCN } from './session-zh-CN'
 import { reportZhCN } from './report-zh-CN'
 
 export const zhCN = {
+  ...nativeImportZhCN,
   ...pluginZhCN,
   ...historyZhCN,
   ...configurationZh,
@@ -228,3 +229,4 @@ export const zhCN = {
   'validation.min': '最小允许值或长度为 {limit}。',
   'validation.max': '最大允许值或长度为 {limit}。',
 } satisfies Messages
+import { nativeImportZhCN } from './native-import-zh-CN'

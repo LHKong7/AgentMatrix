@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, open, readFile, rename, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { z } from 'zod'
 import { appError } from '../../shared/errors'
@@ -8,6 +8,7 @@ import {
   deleteCredentialSchema,
   type CredentialMetadata,
   type CredentialStatus,
+  type CredentialInput,
 } from '../../shared/credentials'
 import { displayName, entityId, type SecretReference } from '../../shared/engines/schema'
 
@@ -31,7 +32,14 @@ const entrySchema = z
   })
   .strict()
 const vaultSchema = z
-  .object({ schemaVersion: z.literal(1), entries: z.array(entrySchema).max(200) })
+  .object({
+    schemaVersion: z.literal(1),
+    entries: z.array(entrySchema).max(200),
+    pendingImport: z
+      .object({ id: z.uuid(), credentialIds: z.array(entityId).max(200) })
+      .strict()
+      .optional(),
+  })
   .strict()
   .refine(
     (document) =>
@@ -85,6 +93,7 @@ export class CredentialVault {
       const candidate = parsed.data
       await this.requireAvailable()
       const document = await this.read()
+      if (document.pendingImport) throw appError('error.nativeImportRecovery')
       const id = candidate.id ?? randomUUID()
       const existing = document.entries.find((entry) => entry.id === id)
       if ((existing?.revision ?? null) !== candidate.expectedRevision)
@@ -117,6 +126,7 @@ export class CredentialVault {
       const parsed = deleteCredentialSchema.safeParse(input)
       if (!parsed.success) throw appError('error.invalidData')
       const document = await this.read()
+      if (document.pendingImport) throw appError('error.nativeImportRecovery')
       const entry = document.entries.find((item) => item.id === parsed.data.id)
       if (!entry) throw appError('error.credentialMissing')
       if (entry.revision !== parsed.data.expectedRevision) throw appError('error.conflict')
@@ -135,6 +145,7 @@ export class CredentialVault {
       }
       await this.requireAvailable()
       const document = await this.read()
+      if (document.pendingImport) throw appError('error.nativeImportRecovery')
       const entry = document.entries.find((item) => item.id === reference.id)
       if (!entry) throw appError('error.credentialMissing')
       try {
@@ -146,6 +157,79 @@ export class CredentialVault {
         return decrypted.value
       } catch {
         throw appError('error.credentialDecryption')
+      }
+    })
+  }
+  /** Recover the credential half of an import using the atomically published workspace record. */
+  recoverImport(committedIds: ReadonlySet<string>): Promise<void> {
+    return this.enqueue(async () => {
+      const document = await this.read()
+      if (!document.pendingImport) return
+      const pending = document.pendingImport
+      await this.write({
+        schemaVersion: 1,
+        entries: committedIds.has(pending.id)
+          ? document.entries
+          : document.entries.filter((entry) => !pending.credentialIds.includes(entry.id)),
+      })
+    })
+  }
+  /** Main-process import transaction. Plaintext inputs never cross the preload boundary. */
+  importBatch<T>(
+    importId: string,
+    inputs: CredentialInput[],
+    publish: () => Promise<T>,
+    isCommitted: () => Promise<boolean>,
+  ): Promise<T> {
+    return this.enqueue(async () => {
+      z.uuid().parse(importId)
+      await this.requireAvailable()
+      const original = await this.read()
+      if (original.pendingImport) throw appError('error.nativeImportRecovery')
+      const ids = new Set(original.entries.map((entry) => entry.id))
+      const entries = [...original.entries]
+      const added: string[] = []
+      for (const input of inputs) {
+        const parsed = credentialInputSchema.parse(input)
+        if (!parsed.id || parsed.expectedRevision !== null || ids.has(parsed.id))
+          throw appError('error.conflict')
+        ids.add(parsed.id)
+        added.push(parsed.id)
+        let ciphertext: Buffer
+        try {
+          ciphertext = await this.cipher.encrypt(parsed.value)
+        } catch {
+          throw appError('error.credentialEncryption')
+        }
+        entries.push(
+          entrySchema.parse({
+            id: parsed.id,
+            name: parsed.name,
+            kind: parsed.kind,
+            revision: 1,
+            updatedAt: new Date().toISOString(),
+            ciphertext: ciphertext.toString('base64'),
+          }),
+        )
+      }
+      const staged = vaultSchema.parse({
+        schemaVersion: 1,
+        entries,
+        pendingImport: { id: importId, credentialIds: added },
+      })
+      const committed: VaultDocument = { schemaVersion: 1, entries }
+      try {
+        await this.write(staged)
+        const result = await publish()
+        // A failed final cleanup is recoverable from the published import ID on the next attempt/start.
+        await this.write(committed).catch(() => undefined)
+        return result
+      } catch (error) {
+        // Publication may have succeeded before its acknowledgment failed. Never undo those keys.
+        const published = await isCommitted().catch(() => null)
+        if (published !== null)
+          await this.write(published ? committed : original).catch(() => undefined)
+        throw error
       }
     })
   }
@@ -168,7 +252,13 @@ export class CredentialVault {
     const temporary = `${this.filePath}.${randomUUID()}.tmp`
     try {
       await mkdir(dirname(this.filePath), { recursive: true, mode: 0o700 })
-      await writeFile(temporary, JSON.stringify(document) + '\n', { mode: 0o600, flag: 'wx' })
+      const file = await open(temporary, 'wx', 0o600)
+      try {
+        await file.writeFile(JSON.stringify(document) + '\n')
+        await file.sync()
+      } finally {
+        await file.close()
+      }
       await rename(temporary, this.filePath)
     } catch {
       throw appError('error.credentialStorage')

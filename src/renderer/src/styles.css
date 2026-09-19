@@ -1608,6 +1608,7 @@ input[type='checkbox'] {
   }
 }
 
+.native-import-panel .hint,
 .credential-panel .hint {
   margin-bottom: 16px;
 }
@@ -1744,4 +1745,37 @@ input[type='checkbox'] {
 }
 .plugin-inspection summary {
   cursor: pointer;
+}
+
+.native-import-panel {
+  overflow-wrap: anywhere;
+}
+.native-import-panel h3,
+.native-import-panel h4 {
+  margin: 20px 0 12px;
+}
+.native-import-preview,
+.native-import-history {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.native-import-source {
+  margin: 16px 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.native-import-panel summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.native-import-list {
+  max-height: 240px;
+  overflow: auto;
+  padding-left: 24px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.native-import-list li {
+  padding: 4px 0;
 }

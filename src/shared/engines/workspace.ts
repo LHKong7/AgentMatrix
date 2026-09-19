@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { pluginConfigurationSchema } from './plugin-options'
+import { nativeImportRecordSchema } from './native-import'
 import {
   absolutePath,
   agentProfileSchema,
@@ -189,9 +190,17 @@ export const engineWorkspaceSchema = z
     skills: z.array(skillAssetSchema).max(200),
     bundles: z.array(capabilityBundleSchema).max(200),
     nativePlugins: z.array(nativePluginSchema).max(200),
+    nativeImports: z.array(nativeImportRecordSchema).max(500).optional(),
   })
   .strict()
   .superRefine((workspace, context) => {
+    const imports = (workspace.nativeImports ?? []).map((record) => record.id)
+    if (new Set(imports).size !== imports.length)
+      context.addIssue({
+        code: 'custom',
+        path: ['nativeImports'],
+        message: 'validation.duplicateIds',
+      })
     const collections = [
       'installations',
       'connections',

@@ -44,6 +44,7 @@ import { AgentEditor } from './components/AgentEditor'
 import { ResourceEditor } from './components/ResourceEditor'
 import { LanguageSelect } from './components/LanguageSelect'
 import { CredentialPanel } from './components/CredentialPanel'
+import { NativeImportPanel } from './components/NativeImportPanel'
 import { SessionsPanel } from './components/SessionsPanel'
 
 type Editor =
@@ -504,7 +505,12 @@ export function App() {
                     <LanguageSelect />
                     <p className="hint">{t('settings.languageHint')}</p>
                   </section>
-                  <CredentialPanel />
+                  <NativeImportPanel
+                    workspace={workspace}
+                    desktop={info?.storage === 'desktop'}
+                    onImported={setWorkspace}
+                  />
+                  <CredentialPanel key={workspace.nativeImports?.length ?? 0} />
                   <section className="settings-panel">
                     <h2>
                       <ShieldCheck size={20} />

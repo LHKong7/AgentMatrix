@@ -7,6 +7,8 @@ import { migrateWorkspaceDocument } from '../shared/engines/migration'
 import { engineWorkspaceSchema, type EngineWorkspace } from '../shared/engines/workspace'
 import { createInitialEngineWorkspace, validateAssetHistory } from '../shared/engines/editing'
 import type { DirectoryRevision } from './assets/skill-directory-store'
+import type { NativeImportRecord } from '../shared/engines/native-import'
+import { isDeepStrictEqual } from 'node:util'
 
 /** Active schema v2 persistence, including atomic migration of the legacy document. */
 export class EngineWorkspaceStore {
@@ -15,6 +17,7 @@ export class EngineWorkspaceStore {
     readonly filePath: string,
     private readonly initialLocale: Locale = 'en',
     private readonly verifyDirectory?: (revision: DirectoryRevision) => Promise<unknown>,
+    private readonly verifyNativeImport?: (record: NativeImportRecord) => Promise<unknown>,
   ) {}
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.queue.then(operation)
@@ -30,6 +33,19 @@ export class EngineWorkspaceStore {
       if (!parsed.success) throw appError('error.invalidData')
       const current = await this.read()
       if (parsed.data.revision !== current.revision) throw appError('error.conflict')
+      for (const record of current.nativeImports ?? [])
+        if (
+          !isDeepStrictEqual(
+            record,
+            parsed.data.nativeImports?.find((item) => item.id === record.id),
+          )
+        )
+          throw appError('error.nativeImportHistory')
+      for (const record of parsed.data.nativeImports ?? []) {
+        if (current.nativeImports?.some((item) => item.id === record.id)) continue
+        if (!this.verifyNativeImport) throw appError('error.nativeImportArchive')
+        await this.verifyNativeImport(record)
+      }
       validateAssetHistory(current, parsed.data)
       for (const skill of parsed.data.skills) {
         const previous = current.skills.find((item) => item.id === skill.id)

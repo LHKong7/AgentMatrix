@@ -9,7 +9,12 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   { languageOptions: { globals: globals.node } },
   {
-    files: ['scripts/smoke.mjs', 'scripts/session-smoke.mjs', 'scripts/shared-assets-smoke.mjs'],
+    files: [
+      'scripts/smoke.mjs',
+      'scripts/session-smoke.mjs',
+      'scripts/shared-assets-smoke.mjs',
+      'scripts/native-import-smoke.mjs',
+    ],
     languageOptions: { globals: globals.browser },
   },
   {
