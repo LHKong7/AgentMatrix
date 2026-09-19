@@ -2,7 +2,7 @@
 
 A desktop workspace for managing agent configurations locally. Built with **Electron + React + TypeScript**, using electron-vite for development and builds.
 
-Documentation: [Architecture](docs/architecture.md) · [Research: nine CLI agents and configuration design](docs/cli-agent-research.md) · [Integration implementation plan](docs/cli-agent-plan.md).
+Documentation: [Architecture](docs/architecture.md) · [Research: nine CLI agents and configuration design](docs/cli-agent-research.md) · [Integration implementation plan](docs/cli-agent-plan.md) · [Three-engine acceptance checklist](docs/three-engine-acceptance.md).
 
 ## Getting started
 
@@ -67,7 +67,7 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 | `npm run test:native-import`       | Verify OpenCode, Pi or DSH import, OS encryption, bilingual UI, and an imported native session against a local provider                    |
 | `npm run test:credential-rotation` | Verify stored-key rotation, active/new/resumed native sessions, deletion failures, and bilingual revision reports across all three engines |
 | `npm run probe:dsh`                | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes                                   |
-| `npm run probe:providers`          | Opt-in Anthropic Messages endpoint, authentication, tool and lifecycle checks across all three installed engines using a local fixture     |
+| `npm run probe:providers`          | Opt-in Responses and Anthropic Messages endpoint, authentication, tool and lifecycle checks across all three installed engines using local fixtures     |
 | `npm run probe:pi`                 | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                                                  |
 | `npm run probe:acp`                | Opt-in installed OpenCode/DSH handshake through the application ACP client                                                                 |
 | `npm run format`                   | Format source and documentation                                                                                                            |

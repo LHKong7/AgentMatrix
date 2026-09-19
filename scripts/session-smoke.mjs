@@ -15,7 +15,7 @@ import {
   symlink,
   writeFile,
 } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
@@ -1934,6 +1934,13 @@ try {
     architecture: process.arch,
     engine,
     version,
+    executable: executable.startsWith(`${homedir()}/`)
+      ? `~${executable.slice(homedir().length)}`
+      : executable,
+    service: 'Local synthetic HTTP provider',
+    protocol: workspace.connections[0].protocol,
+    model: workspace.models[0].modelId,
+    providerComponent: isDsh ? 'dsh-llm-pi-ai' : 'Engine-native provider',
     route: 'Local Chat Completions protocol fixture',
     externalProviderCalls: false,
     desktopVersionProbe: true,
