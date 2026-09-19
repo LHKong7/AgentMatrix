@@ -6,49 +6,9 @@ import type { ProcessLaunch } from '../../process/managed-process'
 import { captureCommand } from '../../process/capture-command'
 import { RuntimeFailure } from '../../runtime'
 import { capturedSkillSources, skillSourcesMatch } from '../../skill-readback'
-import {
-  configurationFieldSchema,
-  type ConfigurationField,
-} from '../../../../shared/engines/configuration-report'
-
-/** Native parsing may add defaults, but cannot change values explicitly requested by this plan. */
-export function configurationMismatch(
-  expected: unknown,
-  actual: unknown,
-  path = '',
-): string | null {
-  if (path.startsWith('agent.') && path.endsWith('.permission') && typeof expected === 'string') {
-    if (actual === expected) return null
-    if (actual && typeof actual === 'object' && !Array.isArray(actual)) {
-      const rules = actual as Record<string, unknown>
-      if (rules['*'] === expected && Object.values(rules).every((value) => value === expected))
-        return null
-    }
-    return path
-  }
-  if (Array.isArray(expected)) {
-    if (!Array.isArray(actual)) return path
-    if (path === 'instructions') {
-      let index = 0
-      for (const item of actual) if (index < expected.length && item === expected[index]) index++
-      return index === expected.length ? null : path
-    }
-    return JSON.stringify(expected) === JSON.stringify(actual) ? null : path
-  }
-  if (expected !== null && typeof expected === 'object') {
-    if (!actual || typeof actual !== 'object' || Array.isArray(actual)) return path
-    for (const [key, value] of Object.entries(expected)) {
-      const mismatch = configurationMismatch(
-        value,
-        (actual as Record<string, unknown>)[key],
-        path ? `${path}.${key}` : key,
-      )
-      if (mismatch !== null) return mismatch
-    }
-    return null
-  }
-  return expected === actual ? null : path
-}
+import { configurationMismatch, openCodeMismatchFields } from './configuration-mismatch'
+import { matchOpenCodeOverrideSources } from './override-sources'
+export { configurationMismatch, openCodeMismatchFields } from './configuration-mismatch'
 
 /** This preflight observes a separate native process, not the ACP instance's resource cache. */
 export async function verifyOpenCodeSkillReadback(
@@ -97,45 +57,6 @@ export async function verifyOpenCodeSkillReadback(
   }
 }
 
-/** Classify requested mismatches in memory. Dynamic provider/agent/header names never leave this function. */
-export function openCodeMismatchFields(expected: unknown, actual: unknown): ConfigurationField[] {
-  const fields = new Set<ConfigurationField>()
-  const classify = (path: string[]) => {
-    const [root, , leaf, option] = path
-    const add = (...values: ConfigurationField[]) => values.forEach((value) => fields.add(value))
-    if (root === 'provider') {
-      if (leaf === 'models') add(path.at(-1) === 'temperature' ? 'sampling' : 'model')
-      else if (leaf === 'options' && option === 'apiKey') add('authentication')
-      else if (leaf === 'options' && option === 'headers') add('connection', 'authentication')
-      else add('connection')
-    } else if (root === 'agent') {
-      if (leaf === 'prompt') add('prompts')
-      else if (leaf === 'permission') add('execution')
-      else if (leaf === 'temperature' || leaf === 'top_p') add('sampling')
-      else add('engine-options')
-    } else if (root === 'model' || root === 'small_model') add('model')
-    else if (root === 'instructions') add('prompts')
-    else if (root === 'skills') add('skills')
-    else if (root === 'mcp') add('mcp')
-    else if (root === 'plugin') add('plugins')
-    else add('engine-options')
-  }
-  const visit = (wanted: unknown, found: unknown, path: string[]) => {
-    if (wanted !== null && typeof wanted === 'object' && !Array.isArray(wanted)) {
-      const object =
-        found !== null && typeof found === 'object' && !Array.isArray(found)
-          ? (found as Record<string, unknown>)
-          : {}
-      const entries = Object.entries(wanted)
-      if (!entries.length && configurationMismatch(wanted, found, path.join('.')) !== null)
-        classify(path)
-      for (const [key, value] of entries) visit(value, object[key], [...path, key])
-    } else if (configurationMismatch(wanted, found, path.join('.')) !== null) classify(path)
-  }
-  visit(expected, actual, [])
-  return configurationFieldSchema.options.filter((field) => fields.has(field))
-}
-
 /** Compare in memory only: native config readback can include plaintext credentials. */
 export async function verifyOpenCodeReadback(
   manifest: RunInputManifest,
@@ -164,6 +85,7 @@ export async function verifyOpenCodeReadback(
         check: 'opencode-config',
         reason: 'mismatch',
         fields: openCodeMismatchFields(expected, actual),
+        sourceMatches: await matchOpenCodeOverrideSources(manifest, expected, actual, signal),
       })
   } catch (error) {
     if (error instanceof RuntimeFailure) throw error

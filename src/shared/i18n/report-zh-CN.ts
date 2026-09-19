@@ -1,5 +1,10 @@
 import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
+  'report.overrideSources': '匹配的原生配置声明',
+  'report.overrideSourcesHint':
+    '这些已捕获文件中的声明与被拒绝的原生配置值匹配。可能存在多个匹配来源，不能据此判定最终覆盖来源。配置值已省略。这是失败检查时的证据，并非最新扫描。',
+  'report.overrideSourcesUnknown':
+    '在检查过的字面量 JSON/JSONC 来源中未找到匹配声明。动态、已变更、不支持或未检查的来源仍可能造成冲突。',
   'report.redactionRetained':
     '此输入要求保留加密的密钥历史，用于跨进程遮蔽输出。旧密钥不会再次用于身份验证，查看报告也不会解密历史数据。',
   'report.redactionLegacy':

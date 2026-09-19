@@ -191,6 +191,14 @@ export function buildConfigurationReport(
     ),
     failure: snapshot.failure?.code ?? null,
     diagnostic,
+    overrideSources:
+      diagnostic?.sourceMatches && kind === 'opencode'
+        ? diagnostic.sourceMatches.flatMap((match) => {
+            const source = manifest.externalSources.files[match.sourceIndex]
+            if (!source?.exists) throw new RuntimeFailure('configuration', 'report.evidence')
+            return [{ path: source.path, fields: match.fields }]
+          })
+        : null,
     savedState: !workspace.agents.some((agent) => agent.id === snapshot.agentId)
       ? 'missing'
       : !desired

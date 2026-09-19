@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { RunInputManifest } from '../src/shared/engines/run-inputs'
+import { observeExternalFile } from '../src/main/engines/external-sources'
 import {
   prepareOpenCodeConfigurationAttachment,
   openCodeConfigPlanPath,
@@ -43,6 +44,7 @@ async function fixture() {
     agent: {},
     prompts: [{ path: 'role.md' }],
     skills: [],
+    externalSources: { coverage: 'partial', files: [] },
     files: [{ path: openCodeConfigPlanPath }],
   } as unknown as RunInputManifest
   const environment = { SECRET: JSON.stringify(privateKey).slice(1, -1) }
@@ -94,12 +96,16 @@ it('attributes simultaneous current-instance overrides without leaking actual or
   f.actual.provider.privateProvider.options.baseURL = 'https://PRIVATE_OVERRIDE.invalid'
   f.actual.provider.privateProvider.options.apiKey = 'PRIVATE_OTHER_KEY'
   f.actual.agent.build.prompt = 'PRIVATE_OTHER_BODY'
+  const source = join(f.paths.root, 'opencode.jsonc')
+  await writeFile(source, JSON.stringify(f.actual))
+  f.manifest.externalSources.files = [await observeExternalFile(source)]
   const error = await f.verify().catch((error: unknown) => error)
   expect(error).toMatchObject({
     diagnostic: {
       check: 'opencode-instance-config',
       reason: 'mismatch',
       fields: ['connection', 'authentication', 'prompts'],
+      sourceMatches: [{ sourceIndex: 0, fields: ['connection', 'authentication', 'prompts'] }],
     },
   })
   expect(JSON.stringify(error)).not.toMatch(/PRIVATE|privateProvider|example.test/)

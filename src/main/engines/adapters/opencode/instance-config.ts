@@ -13,6 +13,7 @@ import {
   openCodeMismatchFields,
 } from './readback'
 import { prepareOpenCodeInstanceHttp, type OpenCodeInstanceCheck } from './instance-http'
+import { matchOpenCodeOverrideSources } from './override-sources'
 import { openCodeSkillPlanPath, prepareOpenCodeSkillCheck } from './skills'
 
 export const openCodeConfigPlanPath = 'observers/opencode-config.json'
@@ -49,6 +50,7 @@ export async function prepareOpenCodeConfigurationAttachment(
           check: 'opencode-instance-config',
           reason: 'mismatch',
           fields: openCodeMismatchFields(expected, actual),
+          sourceMatches: await matchOpenCodeOverrideSources(manifest, expected, actual),
         })
     },
   }

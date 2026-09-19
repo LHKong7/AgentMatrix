@@ -15,14 +15,14 @@ import {
 } from '../src/shared/engines/configuration-report'
 import { sessionFailureSchema, sessionSnapshotSchema } from '../src/shared/sessions/schema'
 import { SessionJournal } from '../src/main/sessions/journal'
-import { observeResourceDirectory } from '../src/main/engines/external-sources'
+import { observeExternalFile, observeResourceDirectory } from '../src/main/engines/external-sources'
 import { observeInstructionSearches } from '../src/main/engines/instruction-sources'
 
 const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
-async function fixture(credential = false, mcp = false) {
+async function fixture(credential = false, mcp = false, nativeSource = false) {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-config-report-')))
   roots.push(root)
   const cwd = join(root, 'project'),
@@ -52,10 +52,15 @@ async function fixture(credential = false, mcp = false) {
       secret: { kind: 'credential', id: 'private-vault-reference' },
     }
   const store = new RunInputStore(join(root, 'runs'), new SkillDirectoryStore(join(root, 'skills')))
+  const source = join(cwd, 'opencode.jsonc')
+  if (nativeSource) await writeFile(source, '{"agent":{"build":{"prompt":"PRIVATE_SOURCE_BODY"}}}')
+  const sources = nativeSource
+    ? [await observeExternalFile(source)]
+    : [{ path: join(cwd, 'AGENTS.md'), exists: false as const }]
   const manifest = await store.create('inputs', workspace, 'reviewer', (configuration, paths) =>
     planOpenCode(configuration, paths, {
       configHome: join(root, 'config'),
-      sources: { coverage: 'partial', files: [{ path: join(cwd, 'AGENTS.md'), exists: false }] },
+      sources: { coverage: 'partial', files: sources },
       readSkillEntry: async () => {
         throw new Error('Unexpected Skill directory')
       },
@@ -97,6 +102,43 @@ async function fixture(credential = false, mcp = false) {
   return { root, manifest, workspace, initial, ready, store }
 }
 describe('configuration report evidence and updates', () => {
+  it('projects historical source matches through captured indices after restart without reading current source bytes', async () => {
+    const f = await fixture(false, false, true)
+    const journal = new SessionJournal(join(f.root, 'journal'))
+    await journal.create(f.initial)
+    await journal.append(f.initial.id, 0, {
+      runId: 'run',
+      turnId: null,
+      data: { kind: 'run.starting' },
+    })
+    const diagnostic = {
+      check: 'opencode-config' as const,
+      reason: 'mismatch' as const,
+      fields: ['prompts' as const],
+      sourceMatches: [{ sourceIndex: 0, fields: ['prompts' as const] }],
+    }
+    await journal.append(f.initial.id, 1, {
+      runId: 'run',
+      turnId: null,
+      data: {
+        kind: 'run.failed',
+        failure: { code: 'configuration', detail: '', configuration: diagnostic },
+      },
+    })
+    const failed = await new SessionJournal(join(f.root, 'journal')).get(f.initial.id)
+    const path = f.manifest.externalSources.files[0]!.path
+    await rm(path)
+    const report = buildConfigurationReport(f.manifest, failed, f.workspace)
+    expect(report.overrideSources).toEqual([{ path, fields: ['prompts'] }])
+    expect(report.diagnostic).toEqual(diagnostic)
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_SOURCE_BODY')
+    failed.failure!.configuration!.sourceMatches = []
+    expect(buildConfigurationReport(f.manifest, failed, f.workspace).overrideSources).toEqual([])
+    delete failed.failure!.configuration!.sourceMatches
+    expect(buildConfigurationReport(f.manifest, failed, f.workspace).overrideSources).toBeNull()
+    failed.failure!.configuration!.sourceMatches = [{ sourceIndex: 999, fields: ['prompts'] }]
+    expect(() => buildConfigurationReport(f.manifest, failed, f.workspace)).toThrow()
+  })
   it('preserves attachment MCP evidence across restart and failed resume, then replaces it on successful resume', async () => {
     const f = await fixture(false, true),
       directory = join(f.root, 'journal')

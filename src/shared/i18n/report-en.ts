@@ -1,4 +1,9 @@
 export const reportEn = {
+  'report.overrideSources': 'Matching native declarations',
+  'report.overrideSourcesHint':
+    'These captured files contain declarations matching the rejected native values. Matches may have multiple sources and do not establish which source won. Values are omitted. This is evidence from the failed check, not a fresh scan.',
+  'report.overrideSourcesUnknown':
+    'No matching declaration was identified in the checked literal JSON/JSONC sources. Dynamic, changed, unsupported or unexamined sources may still be responsible.',
   'report.redactionRetained':
     'These inputs require encrypted key history for output masking across attachments. Retired keys are never reused for authentication. Reading this report does not decrypt that history.',
   'report.redactionLegacy':

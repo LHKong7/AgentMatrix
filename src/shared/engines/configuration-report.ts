@@ -62,7 +62,7 @@ export const configurationFieldSchema = z.enum([
   'plugins',
 ])
 export type ConfigurationField = z.infer<typeof configurationFieldSchema>
-/** Fixed identifiers only: native object keys, values, paths, and errors must never enter this receipt. */
+/** Fixed identifiers and captured source indices only; never native keys, values, paths or errors. */
 export const configurationDiagnosticSchema = z
   .object({
     check: z.enum([
@@ -88,8 +88,34 @@ export const configurationDiagnosticSchema = z
       .array(configurationFieldSchema)
       .max(12)
       .refine((fields) => new Set(fields).size === fields.length),
+    sourceMatches: z
+      .array(
+        z
+          .object({
+            sourceIndex: z.number().int().min(0).max(999),
+            fields: z
+              .array(configurationFieldSchema)
+              .min(1)
+              .max(12)
+              .refine((fields) => new Set(fields).size === fields.length),
+          })
+          .strict(),
+      )
+      .max(1000)
+      .optional(),
   })
   .strict()
+  .refine(
+    (value) =>
+      !value.sourceMatches ||
+      (['opencode-config', 'opencode-instance-config'].includes(value.check) &&
+        value.reason === 'mismatch' &&
+        new Set(value.sourceMatches.map((source) => source.sourceIndex)).size ===
+          value.sourceMatches.length &&
+        value.sourceMatches.every((source) =>
+          source.fields.every((field) => value.fields.includes(field)),
+        )),
+  )
 export type ConfigurationDiagnostic = z.infer<typeof configurationDiagnosticSchema>
 export interface ConfigurationReport {
   sessionId: string
@@ -114,6 +140,7 @@ export interface ConfigurationReport {
   observationIsCurrent: boolean
   failure: NonNullable<SessionSnapshot['failure']>['code'] | null
   diagnostic: ConfigurationDiagnostic | null
+  overrideSources: { path: string; fields: ConfigurationField[] }[] | null
   savedState: 'same' | 'pending' | 'draft' | 'missing'
   fields: {
     id: ConfigurationField

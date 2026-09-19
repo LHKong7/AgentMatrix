@@ -65,3 +65,5 @@ Recorded desktop results: [OpenCode](probes/2026-09-18-configuration-report-open
 The [combined three-engine desktop fixture](shared-asset-acceptance.md) now checks captured, next-session, and library versions for the same shared Prompt and directory Skill in English and Chinese, including reports during old/new session use and historical/fresh observations after native restoration.
 
 New DSH captures can now show a [session-scoped registry source match](dsh-skill-sources.md) and the mapped native Skill entry. Legacy DSH captures retain unknown source verification. Historical receipts remain tied to their original attachment; reopening a report neither launches DSH nor reloads native Skills.
+
+OpenCode conflict reports now show [matching native declarations](opencode-override-sources.md): captured files whose literal declarations match rejected native values. This is historical failure evidence, with multiple possible sources retained and unsupported/dynamic origins left unknown. Report reads do not inspect source contents or infer a winning file.

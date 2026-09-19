@@ -1591,13 +1591,23 @@ try {
     await language('en')
     await navigate('Sessions')
     await page.getByRole('textbox', { name: 'Working directory', exact: true }).fill(cwd)
-    for (const check of ['opencode-config', 'opencode-instance-config']) {
+    for (const sourceKind of ['json', 'markdown', 'instance']) {
+      const check = sourceKind === 'instance' ? 'opencode-instance-config' : 'opencode-config'
       const nativeOverride =
-        check === 'opencode-config' ? join(cwd, '.opencode/agents/build.md') : instanceOverride
+        sourceKind === 'json'
+          ? join(cwd, 'opencode.jsonc')
+          : sourceKind === 'markdown'
+            ? join(cwd, '.opencode/agents/build.md')
+            : instanceOverride
       const nativeContents =
-        check === 'opencode-config'
-          ? '---\ndescription: Native conflict fixture\n---\nPRIVATE_NATIVE_PROMPT_OVERRIDE\n'
-          : 'Trigger the fixture plugin only in the ACP server'
+        sourceKind === 'json'
+          ? JSON.stringify({
+              $schema: 'https://opencode.ai/config.json',
+              agent: { build: { prompt: 'PRIVATE_NATIVE_PROMPT_OVERRIDE' } },
+            })
+          : sourceKind === 'markdown'
+            ? '---\ndescription: Native conflict fixture\n---\nPRIVATE_NATIVE_PROMPT_OVERRIDE\n'
+            : 'Trigger the fixture plugin only in the ACP server'
       await writeFile(nativeOverride, nativeContents)
       const countBefore = (await sessions()).length
       const callsBeforeMismatch = calls.length
@@ -1609,7 +1619,21 @@ try {
       await status('Failed')
       const selectedId = await page.locator('.conversation').getAttribute('data-session-id')
       const mismatch = (await sessions()).find((session) => session.id === selectedId)
-      const fieldDiagnostic = { check, reason: 'mismatch', fields: ['prompts'] }
+      const capturedPath = join(dataDirectory, 'runs', mismatch.snapshotId, 'manifest.json')
+      const capturedBytes = await readFile(capturedPath, 'utf8')
+      const captured = JSON.parse(capturedBytes)
+      const sourceMatches =
+        sourceKind === 'json'
+          ? [
+              {
+                sourceIndex: captured.externalSources.files.findIndex(
+                  (file) => file.path === nativeOverride,
+                ),
+                fields: ['prompts'],
+              },
+            ]
+          : []
+      const fieldDiagnostic = { check, reason: 'mismatch', fields: ['prompts'], sourceMatches }
       assert.deepEqual(mismatch.failure.configuration, fieldDiagnostic)
       assert.equal(mismatch.nativeSessionId, null)
       assert.equal(calls.length, callsBeforeMismatch)
@@ -1629,6 +1653,24 @@ try {
           selectedId,
         )
         assert.deepEqual(report.diagnostic, fieldDiagnostic)
+        assert.deepEqual(
+          report.overrideSources,
+          sourceKind === 'json' ? [{ path: nativeOverride, fields: ['prompts'] }] : [],
+        )
+        const matches = dialog.getByTestId('configuration-override-sources')
+        await matches
+          .getByText(locale === 'en' ? 'Matching native declarations' : '匹配的原生配置声明', {
+            exact: true,
+          })
+          .waitFor()
+        if (sourceKind === 'json')
+          await matches.getByText(nativeOverride, { exact: true }).waitFor()
+        else
+          await matches
+            .getByText(
+              locale === 'en' ? /^No matching declaration was identified/ : /^在检查过的字面量/,
+            )
+            .waitFor()
         assert.equal(report.observation, null)
         assert.equal(report.fields.find((field) => field.id === 'prompts').status, 'planned')
         assert.ok(!/PRIVATE_(NATIVE|ACP)_PROMPT_OVERRIDE/.test(await dialog.textContent()))
@@ -1636,7 +1678,7 @@ try {
           await page.screenshot({
             path:
               process.env.AGENT_MATRIX_DIAGNOSTIC_SCREENSHOT +
-              (check === 'opencode-config' ? '.field' : '.instance') +
+              `.${sourceKind}` +
               (locale === 'en' ? '.en.png' : '.zh.png'),
           })
         await dialog
@@ -1645,6 +1687,35 @@ try {
           .click()
       }
       assert.equal(await readFile(nativeOverride, 'utf8'), nativeContents)
+      assert.equal(await readFile(capturedPath, 'utf8'), capturedBytes)
+      if (sourceKind === 'json') {
+        // Historical evidence survives deletion and restart; opening it does not inspect files.
+        await rm(nativeOverride)
+        await app.close()
+        app = null
+        await launch()
+        await language('en')
+        await navigate('Sessions')
+        await page.locator(`[data-session-list-id="${selectedId}"]`).click()
+        await status('Failed')
+        await page.getByRole('button', { name: 'Configuration report', exact: true }).click()
+        const restoredDialog = page.getByRole('dialog')
+        await restoredDialog
+          .getByTestId('configuration-override-sources')
+          .getByText(nativeOverride, { exact: true })
+          .waitFor()
+        const restored = await page.evaluate(
+          (sessionId) => window.agentMatrix.sessions.configuration({ sessionId }),
+          selectedId,
+        )
+        assert.deepEqual(restored.diagnostic, fieldDiagnostic)
+        assert.deepEqual(restored.overrideSources, [{ path: nativeOverride, fields: ['prompts'] }])
+        assert.equal(restored.observation, null)
+        assert.equal(restored.fields.find((field) => field.id === 'model').status, 'planned')
+        assert.equal(calls.length, callsBeforeMismatch)
+        await restoredDialog.getByRole('button', { name: 'Close', exact: true }).last().click()
+        await writeFile(nativeOverride, nativeContents)
+      }
       assert.ok(
         !/PRIVATE_(NATIVE|ACP)_PROMPT_OVERRIDE/.test(
           await readFile(join(dataDirectory, 'sessions', `${selectedId}.jsonl`), 'utf8'),
@@ -1788,6 +1859,10 @@ try {
       check: diagnostic.check,
       acpOnlyPromptMismatchAtStartup: !isPi && !isDsh ? true : 'Not part of this engine fixture',
       nativePromptMismatchAtStartup: !isPi && !isDsh ? true : 'Not part of this engine fixture',
+      matchedLiteralSourceAndUnknownDynamicSource:
+        !isPi && !isDsh ? true : 'Not part of this engine fixture',
+      matchedSourceRetainedAfterDeletionAndRestart:
+        !isPi && !isDsh ? true : 'Not part of this engine fixture',
       persistedAfterRestart: true,
       englishAndChinese: true,
       historicalSuccessPreserved: true,

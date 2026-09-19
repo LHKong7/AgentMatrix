@@ -101,6 +101,24 @@ export function ConfigurationReport({
                 {report.failure === 'configuration' && (
                   <ConfigurationFailureDetails diagnostic={report.diagnostic} />
                 )}
+                {report.overrideSources !== null && (
+                  <div data-testid="configuration-override-sources">
+                    <strong>{t('report.overrideSources')}</strong>
+                    <p className="hint">{t('report.overrideSourcesHint')}</p>
+                    {report.overrideSources.length ? (
+                      <ul>
+                        {report.overrideSources.map((source) => (
+                          <li key={source.path}>
+                            <code>{source.path}</code> ·{' '}
+                            {source.fields.map((field) => t(`report.field.${field}`)).join(', ')}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>{t('report.overrideSourcesUnknown')}</p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <div className="report-table">
