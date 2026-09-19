@@ -7,6 +7,7 @@ import {
   nativeImportRecordSchema,
   type NativeImportPreview,
   type NativeImportRecord,
+  type NativeImportEngine,
   type ImportCollection,
 } from '../../shared/engines/native-import'
 import { engineWorkspaceSchema } from '../../shared/engines/workspace'
@@ -15,7 +16,9 @@ import type { EngineWorkspaceStore } from '../engine-workspace-store'
 import type { CredentialVault } from '../credentials/vault'
 import { NativeImportArchive } from './archive'
 import { planOpenCodeImport } from './opencode'
-import { planPiImport } from './pi'
+import { planPiImport, type PiImportDocuments } from './pi'
+import { planDshImport } from './dsh'
+import type { DshImportDocuments } from './dsh-layers'
 import type { NativeImportPlan } from './plan'
 import type { JsonObject } from './jsonc'
 import { readImportFiles, importArchiveBytes, type ImportFile } from './source-files'
@@ -59,12 +62,26 @@ export class NativeImportService {
   preview(input: unknown, paths: string | string[]): Promise<NativeImportPreview> {
     return this.operation(async () => {
       const query = nativeImportQuerySchema.parse(input)
+      if (query.previousPreviewId) {
+        const prior = this.pending
+        if (!prior || prior.record.id !== query.previousPreviewId || prior.expires <= Date.now())
+          throw appError('error.nativeImportExpired')
+        if (
+          prior.record.engine !== 'deepseek-harness' ||
+          prior.installation.id !== query.installationId
+        )
+          throw appError('error.nativeImportSelection')
+        paths = [
+          ...prior.files.map((file) => file.observation.path),
+          ...(typeof paths === 'string' ? [paths] : paths),
+        ]
+      }
       this.discard()
       const current = await this.workspace.load()
       const installation = current.installations.find((item) => item.id === query.installationId)
-      if (!installation || !['opencode', 'pi'].includes(installation.kind))
+      if (!installation || !['opencode', 'pi', 'deepseek-harness'].includes(installation.kind))
         throw appError('error.nativeImportEngine')
-      const engine = installation.kind as 'opencode' | 'pi'
+      const engine = installation.kind as NativeImportEngine
       await this.archive.available()
       const files = await readImportFiles(engine, paths)
       const file = files[0]!
@@ -72,17 +89,28 @@ export class NativeImportService {
       const plan =
         engine === 'opencode'
           ? planOpenCodeImport(file.data as JsonObject, installation.id, id)
-          : planPiImport(
-              Object.fromEntries(files.map((file) => [file.kind, file.data])),
-              installation.id,
-              id,
-            )
+          : engine === 'deepseek-harness'
+            ? planDshImport(
+                Object.fromEntries(
+                  files.map((file) => [file.kind, file.data]),
+                ) as DshImportDocuments,
+                installation.id,
+                id,
+              )
+            : planPiImport(
+                Object.fromEntries(
+                  files.map((file) => [file.kind, file.data]),
+                ) as PiImportDocuments,
+                installation.id,
+                id,
+              )
       const record = nativeImportRecordSchema.parse({
         id,
         engine,
         installationId: installation.id,
-        contractVersion: engine === 'opencode' ? '1.18.16' : '0.85.1',
-        ...(engine === 'pi'
+        contractVersion:
+          engine === 'opencode' ? '1.18.16' : engine === 'pi' ? '0.85.1' : '0.1.5-rc.2',
+        ...(engine !== 'opencode'
           ? {
               sourceKind: file.kind,
               additionalSources: files

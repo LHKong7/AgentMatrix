@@ -1,7 +1,15 @@
 import type { nativeImportEn } from './native-import-en'
 export const nativeImportZhCN: Record<keyof typeof nativeImportEn, string> = {
   'nativeImport.title': '导入原生配置',
-  'nativeImport.description': '选择 OpenCode 或 Pi 原生配置，预览共享资源和 Agent 草稿。',
+  'nativeImport.description':
+    '选择 OpenCode、Pi 或 DeepSeek Harness 原生配置，预览共享资源和 Agent 草稿。',
+  'nativeImport.dshFiles':
+    'DSH 可选择 cordis.yml、cordis.patch.yml、settings.yaml 和/或 .credentials.yaml。仅读取选中的文件；settings 覆盖选中的配置行。不加载 bundle、不执行 JavaScript 或插件。存储的 key 将作为明确的托管凭据副本导入，原生环境优先级需要另行检查。 可通过“向预览添加文件”从其他目录补充文件；同一文件名只能选一次。',
+  'nativeImport.diagnostic.review-precedence':
+    '导入的存储 key 是明确的副本，不读取或复现原生启动环境的覆盖值及 .env 回退。请检查认证方式。',
+  'error.nativeImportYaml':
+    'DSH 需要 YAML 配置行/patch 列表或 settings/credentials 映射。不支持重复或非字符串键、别名、合并键、非有限数值及未知标签。仅 Cordis 文件允许将 JavaScript 标签作为不执行的数据保留。',
+  'nativeImport.addFiles': '向预览添加文件',
   'nativeImport.piFiles':
     'Pi 可从同一目录选择 models.json、auth.json、settings.json、SYSTEM.md 和 APPEND_SYSTEM.md 中的一个或多个文件。仅读取所选文件，不执行命令或扩展，也不读取系统环境变量内容。启用草稿前请核对执行策略。',
   'nativeImport.installation': '导入到引擎安装',
@@ -24,19 +32,19 @@ export const nativeImportZhCN: Record<keyof typeof nativeImportEn, string> = {
   'nativeImport.mapping': '导入字段映射',
   'nativeImport.saved': '配置已导入，请核对新 Agent 草稿，并在就绪后启用。',
   'nativeImport.noInstallation':
-    '请先在引擎页面保存 OpenCode 或 Pi 安装。导入本身不会运行或验证 CLI。',
+    '请先在引擎页面保存 OpenCode、Pi 或 DeepSeek Harness 安装。导入本身不会运行或验证 CLI。',
   'nativeImport.diagnostic.unconverted': '保留在加密源文件中，未应用共享字段映射。',
   'nativeImport.diagnostic.invalid-value': '该值无法用共享字段表示，请核对草稿。',
   'nativeImport.diagnostic.unresolved-reference': '已保留引用，未读取文件或解析环境变量内容。',
-  'nativeImport.diagnostic.review-policy': '需要核对原生执行策略；导入的 Agent 保持禁用。',
+  'nativeImport.diagnostic.review-policy': '需要核对原生配置或执行策略；导入的 Agent 保持禁用。',
   'error.nativeImportDesktopOnly': '原生配置导入仅在桌面应用中可用。',
-  'error.nativeImportEngine': '请为此次导入选择已保存的 OpenCode 或 Pi 安装。',
+  'error.nativeImportEngine': '请为此次导入选择已保存的 OpenCode、Pi 或 DeepSeek Harness 安装。',
   'error.nativeImportSelection':
-    '请选择一个 OpenCode JSON/JSONC 文件，或同一目录下最多五种不同的 Pi 文件：models.json、auth.json、settings.json、SYSTEM.md、APPEND_SYSTEM.md。',
+    '请选择一个 OpenCode JSON/JSONC 文件，或同一目录下最多五种不同的 Pi 文件：models.json、auth.json、settings.json、SYSTEM.md、APPEND_SYSTEM.md；或最多四种 DSH 文件：cordis.yml、cordis.patch.yml、settings.yaml、.credentials.yaml。',
   'error.nativeImportSyntax':
     'JSON 设置必须是无重复键的对象。Pi 需要严格 JSON，OpenCode 也接受 JSONC。源文件内容不会写入日志。',
   'error.nativeImportLimit':
-    '所选文件合计上限为 1 MiB；每份 JSON 上限为 4,000 个值、32 层嵌套及 200 字符的键。',
+    '所选文件合计上限为 1 MiB；每份 JSON/YAML 上限为 4,000 个值、32 层嵌套及 200 字符的键。',
   'error.nativeImportRead': '无法将所选配置读取为普通 UTF-8 文件。',
   'error.nativeImportChanged': '预览后源文件或引擎安装发生变化，请重新选择文件。',
   'error.nativeImportExpired': '导入预览已过期或不可用，请重新选择文件。',

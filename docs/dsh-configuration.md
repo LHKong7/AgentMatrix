@@ -2,6 +2,8 @@
 
 AgentMatrix translates captured shared configuration into an application-owned profile for **DSH 0.1.5-rc.2 over ACP**. The installed CLI passes local provider, Prompt, directory Skill, MCP, and execution-policy fixtures on macOS arm64. This implements the configuration foundation for D1. The [runtime and desktop integration](dsh-runtime.md) now also passes local fixtures. External-provider acceptance and complete effective-configuration reporting remain open.
 
+Selected native sources can now be copied into shared resources through the [DSH configuration importer](dsh-native-configuration-import.md). Import does not execute the CLI and does not imply complete native precedence.
+
 ## Composition and ownership
 
 The adapter reads the installed `dsh-base` and `dsh-acp-app` bundles without importing their code into Electron. It preserves native JavaScript YAML tags as data during inspection. It pins the CLI and DSH component release, records component versions, and observes package manifests, bundle files, and compiled files under the selected components' `lib` directories. Component entry points become absolute file URLs. This prevents a profile-local package with the same name from silently replacing the selected entry point. Observations are rechecked when captured inputs are created and before reuse.

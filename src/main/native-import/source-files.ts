@@ -5,36 +5,44 @@ import {
   nativeImportSources,
   piImportKinds,
   piImportKindSchema,
+  dshImportKinds,
+  dshImportKindSchema,
+  type DshImportKind,
+  type NativeImportEngine,
   type NativeImportRecord,
   type PiImportKind,
 } from '../../shared/engines/native-import'
 import { inspectFile } from '../engines/installed-plugin-files'
-import { parseNativeJsonc, type JsonObject } from './jsonc'
+import { parseNativeJsonc } from './jsonc'
+import { parseImportYaml, type DshValue } from './dsh-yaml'
 
 export interface ImportFile {
-  kind: 'opencode' | PiImportKind
+  kind: 'opencode' | PiImportKind | DshImportKind
   observation: NativeImportRecord['source']
   stamp: string
   content: Buffer
-  data: JsonObject | string
+  data: DshValue
 }
 export async function readImportFiles(
-  engine: 'opencode' | 'pi',
+  engine: NativeImportEngine,
   input: string | string[],
 ): Promise<ImportFile[]> {
   const paths = typeof input === 'string' ? [input] : input
   if (
     !paths.length ||
-    paths.length > (engine === 'pi' ? 5 : 1) ||
+    paths.length > (engine === 'pi' ? 5 : engine === 'deepseek-harness' ? 4 : 1) ||
     paths.some((path) => !isAbsolute(path))
   )
     throw appError('error.nativeImportSelection')
   const kinds = paths.map((path) =>
-    engine === 'opencode' ? ('opencode' as const) : piImportKindSchema.safeParse(basename(path)),
+    engine === 'opencode'
+      ? ('opencode' as const)
+      : (engine === 'pi' ? piImportKindSchema : dshImportKindSchema).safeParse(basename(path)),
   )
   if (
     kinds.some((kind) => typeof kind !== 'string' && !kind.success) ||
-    new Set(paths.map((path) => dirname(resolve(path)))).size !== 1
+    (engine !== 'deepseek-harness' &&
+      new Set(paths.map((path) => dirname(resolve(path)))).size !== 1)
   )
     throw appError('error.nativeImportSelection')
   const roles = kinds.map((kind) => (typeof kind === 'string' ? kind : kind.data!))
@@ -54,18 +62,25 @@ export async function readImportFiles(
         ignoreBOM: kind.endsWith('.md'),
       }).decode(file.content!)
       // Pi uses strict JSON. Its BOM handling is preserved; comments/trailing commas are not accepted.
-      const data = kind.endsWith('.md') ? text : parseNativeJsonc(text, engine === 'pi')
+      const data =
+        engine === 'deepseek-harness'
+          ? parseImportYaml(text, kind === 'cordis.yml' || kind === 'cordis.patch.yml')
+          : kind.endsWith('.md')
+            ? text
+            : parseNativeJsonc(text, engine === 'pi')
       files.push({ kind, ...file, content: file.content!, data })
     }
-    return files.sort(
-      (left, right) =>
-        piImportKinds.indexOf(left.kind as PiImportKind) -
-        piImportKinds.indexOf(right.kind as PiImportKind),
-    )
+    const order: readonly string[] = engine === 'deepseek-harness' ? dshImportKinds : piImportKinds
+    return files.sort((left, right) => order.indexOf(left.kind) - order.indexOf(right.kind))
   } catch (error) {
     for (const file of files) file.content.fill(0)
     const key = getErrorKey(error)
-    if (key === 'error.nativeImportSyntax' || key === 'error.nativeImportLimit') throw error
+    if (
+      key === 'error.nativeImportSyntax' ||
+      key === 'error.nativeImportYaml' ||
+      key === 'error.nativeImportLimit'
+    )
+      throw error
     if (key === 'error.pluginLimit') throw appError('error.nativeImportLimit')
     throw appError('error.nativeImportRead')
   }
@@ -74,7 +89,7 @@ const bundleSchema = z
   .array(
     z
       .object({
-        kind: piImportKindSchema,
+        kind: z.union([piImportKindSchema, dshImportKindSchema]),
         bytes: z
           .string()
           .max(1_398_104)

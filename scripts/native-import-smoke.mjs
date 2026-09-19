@@ -4,13 +4,24 @@ import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { _electron as electron } from 'playwright'
+import { stringify as yaml } from 'yaml'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
 
 const engine = process.env.AGENT_MATRIX_IMPORT_ENGINE ?? 'opencode'
-assert.ok(['opencode', 'pi'].includes(engine), 'Choose opencode or pi')
+assert.ok(
+  ['opencode', 'pi', 'deepseek-harness'].includes(engine),
+  'Choose opencode, pi or deepseek-harness',
+)
 const isPi = engine === 'pi'
-const version = isPi ? '0.85.1' : '1.18.16'
-const executable = process.env[isPi ? 'AGENT_MATRIX_TEST_PI' : 'AGENT_MATRIX_TEST_OPENCODE']
+const isDsh = engine === 'deepseek-harness'
+const nativeDsh = isDsh && process.env.AGENT_MATRIX_DSH_ROUTE === 'deepseek-native'
+const expectedCredentials = nativeDsh ? 1 : 3
+const engineLabel = isDsh ? 'DeepSeek Harness' : isPi ? 'Pi' : 'OpenCode'
+const version = isDsh ? '0.1.5-rc.2' : isPi ? '0.85.1' : '1.18.16'
+const executable =
+  process.env[
+    isDsh ? 'AGENT_MATRIX_TEST_DSH' : isPi ? 'AGENT_MATRIX_TEST_PI' : 'AGENT_MATRIX_TEST_OPENCODE'
+  ]
 assert.ok(
   executable && isAbsolute(executable),
   'Set the selected engine test executable to an absolute path',
@@ -19,7 +30,13 @@ const root = await realpath(await mkdtemp(join(tmpdir(), 'agentmatrix-native-imp
 const dataDirectory = join(root, 'data'),
   cwd = join(root, 'project'),
   testHome = join(root, 'home')
-for (const directory of [dataDirectory, join(cwd, '.git'), testHome])
+for (const directory of [
+  dataDirectory,
+  join(cwd, '.git'),
+  testHome,
+  join(root, 'profile'),
+  join(root, 'native-home'),
+])
   await mkdir(directory, { recursive: true })
 const secret = 'synthetic-import-provider-secret',
   headerSecret = 'synthetic-import-header-secret',
@@ -40,7 +57,11 @@ const server = createServer(async (request, response) => {
     const input = JSON.parse(body)
     assert.equal(request.url, '/v1/chat/completions')
     assert.equal(request.headers.authorization, `Bearer ${secret}`)
-    assert.equal(request.headers['x-imported'], headerSecret)
+    if (!nativeDsh) assert.equal(request.headers['x-imported'], headerSecret)
+    if (isDsh && !nativeDsh) {
+      assert.equal(request.headers['x-literal'], 'dsh-literal-header-secret')
+      assert.equal(request.headers['x-environment'], 'must-not-resolve-at-import')
+    }
     if (isPi) {
       assert.equal(request.headers['x-escaped'], '!literal$header')
       assert.equal(request.headers['x-environment'], 'must-not-resolve-at-import')
@@ -54,6 +75,7 @@ const server = createServer(async (request, response) => {
           input.messages.filter((message) => ['system', 'developer'].includes(message.role)),
         ).includes('IMPORTED_SYSTEM_MARKER'),
       )
+      if (isDsh) assert.ok(!JSON.stringify(input.messages).includes('SHADOWED_PROMPT_MARKER'))
       primaryRequests++
       if (isPi)
         assert.ok(
@@ -96,7 +118,10 @@ await new Promise((resolve, reject) => {
   server.once('error', reject)
   server.listen(0, '127.0.0.1', resolve)
 })
-const source = join(root, isPi ? 'models.json' : 'native-source.jsonc')
+const dshPath = (name) => join(root, name.startsWith('cordis') ? 'profile' : 'native-home', name)
+const source = isDsh
+  ? dshPath('cordis.yml')
+  : join(root, isPi ? 'models.json' : 'native-source.jsonc')
 const commandMarker = join(root, 'command-must-not-run')
 const native = {
   provider: {
@@ -128,7 +153,7 @@ const native = {
   plugin: ['/not-executed-plugin.js'],
   future: { credential: unknownSecret },
 }
-const sourceBytes = isPi
+let sourceBytes = isPi
   ? '\uFEFF' +
     JSON.stringify(
       {
@@ -189,6 +214,68 @@ if (isPi) {
   sources.set(join(root, 'SYSTEM.md'), 'IMPORTED_SYSTEM_MARKER. Follow the user request.\n')
   sources.set(join(root, 'APPEND_SYSTEM.md'), 'IMPORTED_APPEND_MARKER. Additional instructions.\n')
 }
+if (isDsh) {
+  const provider = nativeDsh ? 'deepseek-official' : 'imported'
+  const config = {
+    api: 'openai-completions',
+    apiKeyEnv: 'IMPORT_DSH_KEY',
+    baseURL: 'https://shadowed.example.invalid',
+    ...(!nativeDsh
+      ? { headers: { 'X-Imported': headerSecret, 'X-Literal': 'dsh-literal-header-secret' } }
+      : {}),
+    models: [{ id: 'shadowed-model' }],
+  }
+  if (nativeDsh) delete config.api
+  sourceBytes =
+    '\uFEFF# Original selected composition\r\n' +
+    yaml([
+      {
+        id: 'llm',
+        name: nativeDsh ? '@deepseek-ai/dsh-llm-deepseek' : '@deepseek-ai/dsh-llm-pi-ai',
+        config: { replaced: 'retained-only-in-source' },
+      },
+      {
+        id: 'system',
+        name: '@deepseek-ai/dsh-system-prompt',
+        config: { personaPrefix: 'SHADOWED_PROMPT_MARKER' },
+      },
+    ])
+  sources.clear()
+  sources.set(source, sourceBytes)
+  let patch = yaml([
+    { id: 'llm', config: nativeDsh ? config : { providers: { imported: config } } },
+    { id: 'system', config: { personaSuffix: 'IMPORTED_SYSTEM_MARKER. Follow the user request.' } },
+  ])
+  if (!nativeDsh)
+    patch = patch.replace(
+      'X-Literal: dsh-literal-header-secret',
+      'X-Literal: dsh-literal-header-secret\n          X-Environment: !!js process.env.IMPORT_ENV_REFERENCE',
+    )
+  patch += `- id: unknown-never-executed\n  config: !!js require('node:fs').writeFileSync(${JSON.stringify(commandMarker)}, 'executed')\n`
+  sources.set(dshPath('cordis.patch.yml'), patch)
+  const finalProvider = {
+    baseURL: native.provider.imported.options.baseURL,
+    models: [{ id: 'imported-model' }],
+  }
+  sources.set(
+    dshPath('settings.yaml'),
+    yaml({
+      [nativeDsh ? 'llm-deepseek' : 'llm-pi-ai']: nativeDsh
+        ? finalProvider
+        : { providers: { imported: finalProvider } },
+      'agent-default-model': { provider, model: 'imported-model', reasoningEffort: 'off' },
+      future: { credential: unknownSecret },
+    }),
+  )
+  sources.set(
+    dshPath('.credentials.yaml'),
+    yaml({
+      version: 1,
+      refs: { IMPORT_DSH_KEY: secret },
+      records: { 'llm-pi-ai/unused': { kind: 'grant', payload: { access: unknownSecret } } },
+    }),
+  )
+}
 for (const [path, content] of sources) await writeFile(path, content)
 const secretValues = [
   secret,
@@ -199,12 +286,18 @@ const secretValues = [
   'shadowed-provider-secret',
   'synthetic-refresh-secret',
   '!literal$header',
+  'dsh-literal-header-secret',
+  'host-key-not-imported',
 ]
-const diagnosticPath = isPi ? '/models.json/future/credential' : '/future/credential'
-const profileName = isPi ? 'Imported Pi profile' : 'imported'
+const diagnosticPath = isDsh
+  ? '/settings.yaml/future/credential'
+  : isPi
+    ? '/models.json/future/credential'
+    : '/future/credential'
+const profileName = isDsh ? 'Imported DSH profile' : isPi ? 'Imported Pi profile' : 'imported'
 const workspace = openCodeWorkspace('/not-executed-during-import', cwd)
 workspace.installations[0].kind = engine
-workspace.installations[0].name = isPi ? 'Pi' : 'OpenCode'
+workspace.installations[0].name = engineLabel
 for (const collection of ['agents', 'models', 'connections', 'prompts', 'skills'])
   workspace[collection] = []
 workspace.installations[0].version = null
@@ -217,6 +310,7 @@ const env = {
   XDG_CONFIG_HOME: join(testHome, '.config'),
   AGENT_MATRIX_DATA_DIR: dataDirectory,
   IMPORT_ENV_REFERENCE: 'must-not-resolve-at-import',
+  IMPORT_DSH_KEY: 'host-key-not-imported',
 }
 delete env.ELECTRON_RUN_AS_NODE
 async function launch() {
@@ -240,7 +334,7 @@ async function navigate(name) {
     .getByRole('button', { name: new RegExp(`^${name}`) })
     .click()
 }
-async function choose(locale = 'en', cancel = false) {
+async function choose(locale = 'en', cancel = false, adding = false) {
   await app.evaluate(
     ({ dialog }, selection) => {
       const original = dialog.showOpenDialog
@@ -249,11 +343,23 @@ async function choose(locale = 'en', cancel = false) {
         return { canceled: selection.cancel, filePaths: selection.cancel ? [] : selection.paths }
       }
     },
-    { paths: [...sources.keys()].reverse(), cancel },
+    {
+      paths: (isDsh
+        ? [...sources.keys()].slice(adding ? 2 : 0, adding ? 4 : 2)
+        : [...sources.keys()]
+      ).reverse(),
+      cancel,
+    },
   )
   await page
     .getByRole('button', {
-      name: locale === 'en' ? 'Choose configuration file' : '选择配置文件',
+      name: adding
+        ? locale === 'en'
+          ? 'Add files to preview'
+          : '向预览添加文件'
+        : locale === 'en'
+          ? 'Choose configuration file'
+          : '选择配置文件',
       exact: true,
     })
     .click()
@@ -278,15 +384,26 @@ try {
   assert.equal((await state()).nativeImports, undefined)
   assert.equal((await readdir(dataDirectory)).includes('native-imports'), false)
   await choose()
+  if (isDsh) {
+    await choose('en', true, true)
+    assert.equal(await page.locator('.native-import-preview').count(), 1)
+    await choose('en', false, true)
+  }
   await page
-    .getByText('3 literal secrets will be stored as encrypted credentials.', { exact: false })
+    .getByText(`${expectedCredentials} literal secrets will be stored as encrypted credentials.`, {
+      exact: false,
+    })
     .waitFor()
   if (process.env.AGENT_MATRIX_SMOKE_SCREENSHOT)
     await page.screenshot({ path: process.env.AGENT_MATRIX_SMOKE_SCREENSHOT, fullPage: true })
   assert.equal((await state()).nativeImports, undefined)
   for (const value of secretValues)
     assert.ok(!(await page.locator('body').innerText()).includes(value), 'Preview exposed a secret')
-  const changedSource = isPi ? join(root, 'auth.json') : source
+  const changedSource = isDsh
+    ? dshPath('.credentials.yaml')
+    : isPi
+      ? join(root, 'auth.json')
+      : source
   await writeFile(changedSource, sources.get(changedSource) + '\n')
   await page.getByRole('button', { name: 'Import configuration', exact: true }).click()
   await page.getByRole('alert').filter({ hasText: 'source file or installation changed' }).waitFor()
@@ -294,13 +411,18 @@ try {
   await writeFile(changedSource, sources.get(changedSource))
   await language('zh-CN')
   await choose('zh-CN')
+  if (isDsh) {
+    await page.getByRole('button', { name: '向预览添加文件', exact: true }).waitFor()
+    await choose('zh-CN', false, true)
+    await page.getByText('原生启动环境', { exact: false }).last().waitFor()
+  }
   await page.getByRole('heading', { name: '导入预览', exact: true }).waitFor()
   await page.getByRole('button', { name: '导入配置', exact: true }).click()
   await page.getByRole('status').filter({ hasText: '配置已导入' }).waitFor()
   const imported = await state()
   const record = imported.nativeImports[0]
   assert.equal(imported.nativeImports.length, 1)
-  assert.equal(imported.agents.length, isPi ? 1 : 2)
+  assert.equal(imported.agents.length, isPi || isDsh ? 1 : 2)
   assert.ok(imported.agents.every((entry) => !entry.enabled && entry.execution.cwd === ''))
   if (isPi) {
     assert.equal(record.additionalSources.length, 4)
@@ -314,10 +436,19 @@ try {
       imported.connections.find((entry) => entry.name === 'command').auth.kind,
       'unconfigured',
     )
+  } else if (isDsh) {
+    assert.equal(record.additionalSources.length, 3)
+    assert.ok(record.diagnostics.some((entry) => entry.code === 'review-precedence'))
+    assert.equal(
+      imported.prompts[0].versions[0].content,
+      'IMPORTED_SYSTEM_MARKER. Follow the user request.',
+    )
+    assert.equal(imported.agents[0].engineOptions.appendPosition, 'suffix')
+    assert.equal(imported.models[0].parameters.reasoning, 'off')
   } else assert.equal(imported.mcpServers[0].envRefs.ENV_REFERENCE.name, 'IMPORT_ENV_REFERENCE')
   assert.equal(
     (await page.evaluate(() => window.agentMatrix.getCredentialStatus())).credentials.length,
-    3,
+    expectedCredentials,
   )
   await page.locator('.native-import-history summary').first().click()
   await page.getByText(diagnosticPath, { exact: true }).waitFor()
@@ -335,7 +466,7 @@ try {
           ) === JSON.stringify(expected)
         )
       },
-      { ciphertext: encrypted.ciphertext, expected: [...sources.values()], pi: isPi },
+      { ciphertext: encrypted.ciphertext, expected: [...sources.values()], pi: isPi || isDsh },
     ),
     true,
   )
@@ -429,12 +560,12 @@ try {
     JSON.stringify(
       {
         passed: true,
-        engine: `${isPi ? 'Pi' : 'OpenCode'} ${version}`,
+        engine: `${engineLabel} ${version}`,
         locales: ['en', 'zh-CN'],
         readOnlyPreview: true,
         staleSourceRejected: true,
         exactEncryptedArchive: true,
-        importedCredentials: 3,
+        importedCredentials: expectedCredentials,
         sourceFiles: sources.size,
         ...(isPi
           ? {
@@ -442,6 +573,16 @@ try {
               replacementAndAppend: true,
               escapedAndEnvironmentHeaders: true,
               commandsNotExecuted: true,
+            }
+          : {}),
+        ...(isDsh
+          ? {
+              route: nativeDsh ? 'deepseek-native' : 'pi-ai',
+              patchAndSettingsPrecedence: true,
+              storedCredentialCopy: true,
+              precedenceDiagnostic: true,
+              crossFolderSelection: true,
+              expressionsNotExecuted: true,
             }
           : {}),
         restartAndIdempotentRetry: true,

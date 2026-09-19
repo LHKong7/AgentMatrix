@@ -28,7 +28,10 @@ export interface AgentMatrixApi {
   chooseWorkingDirectory(input: { defaultPath?: string }): Promise<string | null>
   probeEngine(input: { installationId: string }): Promise<EngineWorkspace>
   inspectNativePlugin(input: PluginInspectionQuery): Promise<PluginInspection>
-  previewNativeImport(input: { installationId: string }): Promise<NativeImportPreview | null>
+  previewNativeImport(input: {
+    installationId: string
+    previousPreviewId?: string
+  }): Promise<NativeImportPreview | null>
   applyNativeImport(input: { id: string; workspaceRevision: number }): Promise<EngineWorkspace>
   sessions: SessionApi
 }

@@ -19,8 +19,12 @@ function SourceDetails({ record }: { record: NativeImportRecord }) {
         </p>
       ))}
       <p className="hint">
-        {record.engine === 'pi' ? 'Pi' : 'OpenCode'} {record.contractVersion} ·{' '}
-        {new Date(record.importedAt).toLocaleString(locale)}
+        {record.engine === 'pi'
+          ? 'Pi'
+          : record.engine === 'deepseek-harness'
+            ? 'DeepSeek Harness'
+            : 'OpenCode'}{' '}
+        {record.contractVersion} · {new Date(record.importedAt).toLocaleString(locale)}
       </p>
       <details>
         <summary>
@@ -70,28 +74,33 @@ export function NativeImportPanel({
   onImported: (workspace: EngineWorkspace) => void
 }) {
   const { t, locale, number } = useI18n()
-  const installations = workspace.installations.filter(
-    (entry) => entry.kind === 'opencode' || entry.kind === 'pi',
+  const installations = workspace.installations.filter((entry) =>
+    ['opencode', 'pi', 'deepseek-harness'].includes(entry.kind),
   )
   const [selected, setSelected] = useState('')
   const installationId = installations.some((entry) => entry.id === selected)
     ? selected
     : (installations[0]?.id ?? '')
   const [preview, setPreview] = useState<NativeImportPreview | null>(null)
-  const [busy, setBusy] = useState<'reading' | 'importing' | null>(null)
+  const [busy, setBusy] = useState<'reading' | 'adding' | 'importing' | null>(null)
   const lock = useRef(false)
   const [error, setError] = useState<unknown>(null)
   const [saved, setSaved] = useState(false)
-  async function run(action: 'reading' | 'importing') {
+  async function run(action: 'reading' | 'adding' | 'importing') {
     if (lock.current) return
     lock.current = true
     setBusy(action)
     setError(null)
     setSaved(false)
     try {
-      if (action === 'reading') {
-        setPreview(null)
-        setPreview(await api.previewNativeImport({ installationId }))
+      if (action === 'reading' || action === 'adding') {
+        const previousPreviewId = action === 'adding' ? preview?.id : undefined
+        if (action === 'reading') setPreview(null)
+        const next = await api.previewNativeImport({
+          installationId,
+          ...(previousPreviewId ? { previousPreviewId } : {}),
+        })
+        if (next || action === 'reading') setPreview(next)
       } else if (preview) {
         const result = await api.applyNativeImport({
           id: preview.id,
@@ -102,6 +111,7 @@ export function NativeImportPanel({
         setSaved(true)
       }
     } catch (failure) {
+      if (action === 'adding') setPreview(null)
       setError(failure)
     } finally {
       lock.current = false
@@ -117,6 +127,9 @@ export function NativeImportPanel({
       <p className="hint">{t('nativeImport.description')}</p>
       {installations.find((entry) => entry.id === installationId)?.kind === 'pi' && (
         <p className="hint">{t('nativeImport.piFiles')}</p>
+      )}
+      {installations.find((entry) => entry.id === installationId)?.kind === 'deepseek-harness' && (
+        <p className="hint">{t('nativeImport.dshFiles')}</p>
       )}
       {!desktop && <p className="hint">{t('error.nativeImportDesktopOnly')}</p>}
       {!installations.length && <p className="hint">{t('nativeImport.noInstallation')}</p>}
@@ -146,6 +159,11 @@ export function NativeImportPanel({
       >
         {t(busy === 'reading' ? 'nativeImport.reading' : 'nativeImport.choose')}
       </button>
+      {preview?.record.engine === 'deepseek-harness' && (
+        <button className="button secondary" disabled={!!busy} onClick={() => void run('adding')}>
+          {t(busy === 'adding' ? 'nativeImport.reading' : 'nativeImport.addFiles')}
+        </button>
+      )}
       {error !== null && (
         <p className="error-banner" role="alert">
           {formatError(error, locale)}

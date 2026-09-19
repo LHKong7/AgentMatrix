@@ -522,3 +522,128 @@ describe('credential journal recovery', () => {
     expect(await readFile(vault.filePath, 'utf8')).toBe(before)
   })
 })
+
+describe('DSH native file-group import', () => {
+  async function fixture() {
+    const current = await store.load()
+    current.installations[0] = { ...current.installations[0]!, id: 'dsh', kind: 'deepseek-harness' }
+    await store.save(current)
+    const documents = {
+      'cordis.yml':
+        '\uFEFF# Exact bytes retained\r\n- id: system\r\n  name: "@deepseek-ai/dsh-system-prompt"\r\n  config: {personaPrefix: Before}\r\n',
+      'cordis.patch.yml':
+        '- id: system\n  config: {personaSuffix: Imported instructions}\n- id: unknown\n  config: {value: !!js process.exit(1)}\n',
+      'settings.yaml':
+        'llm-pi-ai:\n  providers:\n    gateway:\n      api: openai-completions\n      baseURL: https://example.test/v1\n      apiKeyEnv: CUSTOM_KEY\n      models: [{id: imported-model}]\nagent-default-model: {provider: gateway, model: imported-model}\n',
+      '.credentials.yaml': `version: 1\nrefs:\n  CUSTOM_KEY: ${secret}\n`,
+    }
+    const paths = Object.keys(documents).map((kind) => join(root, kind))
+    for (const [kind, content] of Object.entries(documents))
+      await writeFile(join(root, kind), content)
+    return {
+      documents,
+      paths,
+      preview: () => service.preview({ installationId: 'dsh' }, [...paths].reverse()),
+    }
+  }
+  it('atomically imports, verifies exact per-file bytes, reopens and retries without CLI or expression evaluation', async () => {
+    const f = await fixture(),
+      preview = await f.preview()
+    expect(preview.record).toMatchObject({
+      engine: 'deepseek-harness',
+      contractVersion: '0.1.5-rc.2',
+      sourceKind: 'cordis.yml',
+    })
+    expect(preview.credentials).toBe(1)
+    expect(JSON.stringify(preview)).not.toContain(secret)
+    const query = { id: preview.id, workspaceRevision: preview.workspaceRevision }
+    const committed = await service.apply(query)
+    expect(committed.agents[0]).toMatchObject({
+      enabled: false,
+      engineOptions: { appendPosition: 'suffix' },
+    })
+    expect(committed.prompts[0]!.versions[0]!.content).toBe('Imported instructions')
+    const record = committed.nativeImports![0]!
+    await archive.verify(record)
+    const envelope = JSON.parse(
+      await readFile(join(root, 'native-imports', record.id + '.json'), 'utf8'),
+    )
+    const decrypted = await cipher.decrypt(Buffer.from(envelope.ciphertext, 'base64'))
+    expect(
+      unpackImportArchive(record, Buffer.from(decrypted.value, 'base64')).map((value) =>
+        value.toString(),
+      ),
+    ).toEqual(Object.values(f.documents))
+    for (const path of f.paths) await unlink(path)
+    const reopened = new NativeImportService(store, vault, archive)
+    expect(await reopened.apply(query)).toEqual(committed)
+    const credential = (await vault.status()).credentials[0]!
+    expect(await vault.resolve({ kind: 'credential', id: credential.id }, {})).toBe(secret)
+    const modified = structuredClone(committed)
+    if (modified.nativeImports![0]!.engine !== 'opencode')
+      modified.nativeImports![0]!.additionalSources[0]!.source.sha256 = '0'.repeat(64)
+    await expect(store.save(modified)).rejects.toThrow('nativeImportHistory')
+  })
+  it.each(['cordis.yml', 'cordis.patch.yml', 'settings.yaml', '.credentials.yaml'])(
+    'rejects a changed %s before any publication',
+    async (name) => {
+      const f = await fixture(),
+        preview = await f.preview()
+      const path = join(root, name)
+      await writeFile(path, (await readFile(path, 'utf8')) + '\n')
+      await expect(
+        service.apply({ id: preview.id, workspaceRevision: preview.workspaceRevision }),
+      ).rejects.toThrow('nativeImportChanged')
+      expect((await vault.status()).credentials).toEqual([])
+      expect((await store.load()).nativeImports).toBeUndefined()
+    },
+  )
+  it('rolls back imported credentials when publication fails and leaves source bytes untouched', async () => {
+    const f = await fixture(),
+      preview = await f.preview()
+    vi.spyOn(store, 'save').mockRejectedValueOnce(new Error('publish failed'))
+    await expect(
+      service.apply({ id: preview.id, workspaceRevision: preview.workspaceRevision }),
+    ).rejects.toThrow('publish failed')
+    expect((await vault.status()).credentials).toEqual([])
+    for (const [kind, content] of Object.entries(f.documents))
+      expect(await readFile(join(root, kind), 'utf8')).toBe(content)
+  })
+  it('adds explicitly chosen files to a preview, invalidates the old token and rejects forged or duplicate additions', async () => {
+    const f = await fixture()
+    const first = await service.preview({ installationId: 'dsh' }, f.paths.slice(0, 2))
+    await expect(
+      service.preview({ installationId: 'dsh', previousPreviewId: randomUUID() }, f.paths.slice(2)),
+    ).rejects.toThrow('nativeImportExpired')
+    const second = await service.preview(
+      { installationId: 'dsh', previousPreviewId: first.id },
+      f.paths.slice(2),
+    )
+    expect(nativeImportSources(second.record)).toHaveLength(4)
+    expect(second.credentials).toBe(1)
+    await expect(
+      service.apply({ id: first.id, workspaceRevision: first.workspaceRevision }),
+    ).rejects.toThrow('nativeImportExpired')
+    expect(
+      (await service.apply({ id: second.id, workspaceRevision: second.workspaceRevision }))
+        .nativeImports,
+    ).toHaveLength(1)
+    const third = await f.preview()
+    await expect(
+      service.preview({ installationId: 'dsh', previousPreviewId: third.id }, f.paths[0]!),
+    ).rejects.toThrow('nativeImportSelection')
+  })
+  it('never reads adjacent credentials and rejects duplicate/unknown selected roles', async () => {
+    const f = await fixture()
+    await writeFile(join(root, '.credentials.yaml'), 'version: !!js process.exit(1)')
+    const preview = await service.preview({ installationId: 'dsh' }, join(root, 'settings.yaml'))
+    expect(preview.credentials).toBe(0)
+    await expect(f.preview()).rejects.toThrow('nativeImportYaml')
+    await expect(
+      service.preview({ installationId: 'dsh' }, [f.paths[0]!, f.paths[0]!]),
+    ).rejects.toThrow('nativeImportSelection')
+    await expect(
+      service.preview({ installationId: 'dsh' }, join(root, 'package.json')),
+    ).rejects.toThrow('nativeImportSelection')
+  })
+})

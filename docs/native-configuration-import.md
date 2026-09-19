@@ -58,7 +58,7 @@ Its assertions cover cancellation, read-only preview, English/Chinese UI, change
 
 **Recorded result:** the macOS arm64 fixture passed on 2026-09-19 with OpenCode 1.18.16 and one completed primary provider round trip. [Redacted result](probes/2026-09-19-opencode-native-import-desktop.json). The initial installation path deliberately points to a nonexistent executable; import succeeds before the test selects and explicitly probes the real CLI.
 
-Remaining work includes the DSH importer, combined native precedence and discovery, OpenCode file-based instruction/Skill ingestion and native authentication-store discovery, complete per-field runtime override provenance, expanded provider/model and OAuth mappings, import archive retention/export, and external-provider/platform acceptance. Native-file write-back and bidirectional synchronization remain deferred.
+The [DSH selected-source importer](dsh-native-configuration-import.md) now also shares this persistence contract. Remaining work includes combined native precedence and discovery, OpenCode file-based instruction/Skill ingestion and native authentication-store discovery, complete per-field runtime override provenance, expanded provider/model and OAuth mappings, import archive retention/export, and external-provider/platform acceptance. Native-file write-back and bidirectional synchronization remain deferred.
 
 ## Primary references
 

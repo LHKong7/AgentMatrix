@@ -153,16 +153,22 @@ if (!app.requestSingleInstanceLock()) {
         const kind = (await store.load()).installations.find(
           (entry) => entry.id === query.installationId,
         )?.kind
-        if (kind !== 'opencode' && kind !== 'pi') throw appError('error.nativeImportEngine')
+        if (kind !== 'opencode' && kind !== 'pi' && kind !== 'deepseek-harness')
+          throw appError('error.nativeImportEngine')
         if (choosingImport) throw appError('error.nativeImportBusy')
         choosingImport = true
         try {
           const result = await dialog.showOpenDialog(mainWindow!, {
-            properties: kind === 'pi' ? ['openFile', 'multiSelections'] : ['openFile'],
+            properties:
+              kind === 'opencode'
+                ? ['openFile']
+                : ['openFile', 'multiSelections', 'showHiddenFiles'],
             filters:
               kind === 'pi'
                 ? [{ name: 'Pi JSON / Markdown', extensions: ['json', 'md'] }]
-                : [{ name: 'OpenCode JSON / JSONC', extensions: ['json', 'jsonc'] }],
+                : kind === 'deepseek-harness'
+                  ? [{ name: 'DSH YAML', extensions: ['yaml', 'yml'] }]
+                  : [{ name: 'OpenCode JSON / JSONC', extensions: ['json', 'jsonc'] }],
           })
           verifySender(event)
           if (result.canceled || !result.filePaths[0]) return null

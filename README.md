@@ -28,7 +28,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
 - **OpenCode, Pi, and DSH desktop sessions:** explicitly check a saved installation, then start from a saved profile. View messages and tools, answer supported native permission requests, cancel turns, reload history, and resume interrupted sessions. Adapters are pinned to OpenCode 1.18.16, Pi 0.85.1, and experimental DSH 0.1.5-rc.2. DSH displays committed replies; OpenCode and Pi stream text. Native approvals apply to OpenCode and DSH; Pi requires an explicit compatible execution policy; see [setup and verification](docs/desktop-sessions.md).
 - **Shared connections and models:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents.
-- **Native configuration import:** preview an [OpenCode JSON/JSONC file](docs/native-configuration-import.md) or [Pi model/auth/settings and Prompt files](docs/pi-native-configuration-import.md) in Settings, then import shared resources and disabled Agent drafts. Known credentials enter the encrypted vault; exact source bytes and unknown fields remain in an encrypted archive with immutable per-file provenance.
+- **Native configuration import:** preview an [OpenCode JSON/JSONC file](docs/native-configuration-import.md), [Pi model/auth/settings and Prompt files](docs/pi-native-configuration-import.md), or [DSH composition/settings/credentials](docs/dsh-native-configuration-import.md) in Settings, then import shared resources and disabled Agent drafts. Known credentials enter the encrypted vault; exact source bytes and unknown fields remain in an encrypted archive with immutable per-file provenance.
 - **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit. A [combined desktop fixture](docs/shared-asset-acceptance.md) verifies one shared Prompt and directory Skill across all three engines, including edits during active turns and old/new versions after native resume.
 - **Skill directory imports:** select a directory in the desktop editor to capture `SKILL.md`, scripts, and references with file digests. Reimport creates a new revision while retaining previous bytes; importing never executes scripts.
 - **MCP definitions:** configure stdio, Streamable HTTP, or SSE, with arguments, environment values, secret references, headers, and authentication metadata.
@@ -40,7 +40,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Browser preview disables credential storage.
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
-All three engines are connected to the desktop UI and verified on macOS against local provider fixtures. DSH has separate [configuration](docs/dsh-configuration.md) and [runtime](docs/dsh-runtime.md) evidence, including both its generic and native DeepSeek provider components. External provider acceptance, complete native override provenance, DSH native configuration import, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
+All three engines are connected to the desktop UI and verified on macOS against local provider fixtures. DSH has separate [configuration](docs/dsh-configuration.md) and [runtime](docs/dsh-runtime.md) evidence, including both its generic and native DeepSeek provider components. External provider acceptance, complete native override provenance, complete native source ingestion, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
 
 Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires native adapter compatibility checks before launch.
 
@@ -54,24 +54,24 @@ Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `co
 
 ## Commands
 
-| Command                      | Purpose                                                                                                            |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `npm run dev`                | Start Electron with hot reload                                                                                     |
-| `npm run dev:web`            | Preview the UI in a browser                                                                                        |
-| `npm run check`              | Run ESLint, unit tests, TypeScript, and production builds                                                          |
-| `npm run test:smoke`         | Build and test a real Electron window, including language switching and persistence                                |
-| `npm run test:sessions`      | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture  |
-| `npm run test:shared-assets` | Build and verify shared Prompt/Skill updates across all three installed engines in one desktop workspace           |
-| `npm run test:native-import` | Verify OpenCode or Pi import, OS encryption, bilingual UI, and an imported native session against a local provider |
-| `npm run probe:dsh`          | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes           |
-| `npm run probe:pi`           | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                          |
-| `npm run probe:acp`          | Opt-in installed OpenCode/DSH handshake through the application ACP client                                         |
-| `npm run format`             | Format source and documentation                                                                                    |
-| `npm run format:check`       | Check formatting                                                                                                   |
-| `npm run build`              | Build into `out/`                                                                                                  |
-| `npm start`                  | Run the existing production build                                                                                  |
-| `npm run package`            | Create an unsigned app directory for the current platform                                                          |
-| `npm run dist`               | Build platform distributables into `release/`                                                                      |
+| Command                      | Purpose                                                                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                | Start Electron with hot reload                                                                                          |
+| `npm run dev:web`            | Preview the UI in a browser                                                                                             |
+| `npm run check`              | Run ESLint, unit tests, TypeScript, and production builds                                                               |
+| `npm run test:smoke`         | Build and test a real Electron window, including language switching and persistence                                     |
+| `npm run test:sessions`      | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture       |
+| `npm run test:shared-assets` | Build and verify shared Prompt/Skill updates across all three installed engines in one desktop workspace                |
+| `npm run test:native-import` | Verify OpenCode, Pi or DSH import, OS encryption, bilingual UI, and an imported native session against a local provider |
+| `npm run probe:dsh`          | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes                |
+| `npm run probe:pi`           | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                               |
+| `npm run probe:acp`          | Opt-in installed OpenCode/DSH handshake through the application ACP client                                              |
+| `npm run format`             | Format source and documentation                                                                                         |
+| `npm run format:check`       | Check formatting                                                                                                        |
+| `npm run build`              | Build into `out/`                                                                                                       |
+| `npm start`                  | Run the existing production build                                                                                       |
+| `npm run package`            | Create an unsigned app directory for the current platform                                                               |
+| `npm run dist`               | Build platform distributables into `release/`                                                                           |
 
 Desktop smoke tests use a temporary configuration directory and clean it up afterward. They require a desktop graphics environment. CI runs `check`, which does not require a display.
 
