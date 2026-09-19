@@ -247,7 +247,11 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
                 checkedAt: expect.any(String),
                 statuses: ['connected', 'connected', 'connected'],
               }
-            : undefined,
+            : {
+                source: 'dsh-mcp-startup',
+                checkedAt: expect.any(String),
+                statuses: ['startup-complete', 'startup-complete', 'startup-complete'],
+              },
         )
         await send(runtime, 'success')
         for (const kind of httpMcpKinds) {
@@ -273,6 +277,22 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
               .some((event) => event.kind === 'tool.updated' && event.status === 'failed'),
           ).toBe(true)
         }
+        if (!isOpenCode) {
+          const recorded = structuredClone(runtime.mcpConnections)
+          const callStart = mcp.calls.length
+          const outputStart = outputs.length
+          mcp.fail('unauthorized')
+          // Native registrations survive a failed connection; initialization is not liveness.
+          await send(runtime, 'tool-error')
+          expect(mcp.calls).toHaveLength(callStart)
+          expect(
+            outputs
+              .slice(outputStart)
+              .some((event) => event.kind === 'tool.updated' && event.status === 'failed'),
+          ).toBe(true)
+          expect(runtime.mcpConnections).toEqual(recorded)
+          mcp.fail('none')
+        }
         for (const secret of Object.values(httpMcpSecrets))
           expect(JSON.stringify(outputs)).not.toContain(secret)
         const captured = [
@@ -285,9 +305,12 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
         ].join('\n')
         for (const secret of Object.values(httpMcpSecrets)) expect(captured).not.toContain(secret)
         const nativeId = runtime.nativeSessionId
+        const initialMcpReceipt = runtime.mcpConnections
         await runtime.dispose()
         runtime = await connect('capture', nativeId)
         expect(runtime.nativeSessionId).toBe(nativeId)
+        expect(runtime.mcpConnections?.source).toBe(initialMcpReceipt?.source)
+        expect(runtime.mcpConnections?.checkedAt).not.toBe(initialMcpReceipt?.checkedAt)
         await send(runtime, 'success')
         await runtime.dispose()
         const failureResults: Record<string, string> = {}
@@ -333,6 +356,39 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
         expect(providerErrors).toEqual([])
         expect(mcp.calls).toHaveLength(11)
         await store.verifyForReuse('capture')
+        if (!isOpenCode) {
+          const path = join(root, 'replace-mcp-config.mjs')
+          await writeFile(
+            path,
+            `export const inject = ['loader', 'appReady'];
+export function apply(ctx) {
+  ctx.effect(() => ctx.appReady.onReady(() => {
+    const entry = [...ctx.loader.entries()].find(e => e.options.id.startsWith('agentmatrix-mcp-am-'));
+    entry.options.config.serverName = 'PRIVATE_REPLACEMENT';
+  }));
+}`,
+          )
+          workspace.nativePlugins = [
+            {
+              id: 'mcp-override',
+              name: 'MCP override fixture',
+              nativeId: 'mcp-override',
+              engineInstallationId: 'dsh',
+              version: 'fixture',
+              source: 'local fixture',
+              path,
+              options: { kind: 'deepseek-harness', config: {} },
+            },
+          ]
+          workspace.agents[0]!.nativePluginIds = ['mcp-override']
+          await capture('mcp-override')
+          const before = providerCalls
+          await expect(connect('mcp-override')).rejects.toMatchObject({
+            code: 'configuration',
+            diagnostic: { check: 'dsh-mcp', reason: 'unavailable', fields: ['mcp'] },
+          })
+          expect(providerCalls).toBe(before)
+        }
         if (process.env.AGENT_MATRIX_HTTP_MCP_REPORT)
           await writeFile(
             `${process.env.AGENT_MATRIX_HTTP_MCP_REPORT}.${route}.json`,
@@ -364,6 +420,14 @@ for (const route of ['opencode', 'dsh-pi-ai', 'dsh-deepseek-native'] as const) {
                 oauthFlowVerified: false,
                 legacySseVerified: false,
                 runtimeConnectivityReceiptImplemented: isOpenCode,
+                ...(isOpenCode
+                  ? {}
+                  : {
+                      runtimeInitializationReceipt: true,
+                      freshInitializationReceiptOnResume: true,
+                      retainedToolsAfterServiceFailureDoNotClaimConnectivity: true,
+                      nativeMcpConfigurationOverrideRejectedBeforeProviderCall: true,
+                    }),
               },
               null,
               2,

@@ -266,8 +266,9 @@ export default { id: 'desktop-plugin', async server() { return Object.freeze({
   ]
   workspace.agents[0].nativePluginIds = ['desktop-plugin']
 }
-if (!isPi && !isDsh) {
-  workspace.mcpServers = ['available', 'recovering'].map((id) => ({
+if (!isPi) {
+  const ids = isDsh ? ['available'] : ['available', 'recovering']
+  workspace.mcpServers = ids.map((id) => ({
     id,
     name: `Desktop MCP ${id}`,
     description: '',
@@ -279,7 +280,7 @@ if (!isPi && !isDsh) {
     timeoutMs: 5000,
     auth: { kind: 'bearer', secret: { kind: 'environment', name: 'AGENT_MATRIX_SESSION_KEY' } },
   }))
-  workspace.agents[0].mcpServerIds = ['available', 'recovering']
+  workspace.agents[0].mcpServerIds = ids
 }
 workspace.installations[0].version = null
 workspace.installations[0].probedAt = null
@@ -626,20 +627,24 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     ),
   )
   const capabilities = value.capabilities
-  if (!isPi && !isDsh) {
-    assert.equal(value.mcp.source, 'opencode-acp')
+  if (!isPi) {
+    const source = isDsh ? 'dsh-mcp-startup' : 'opencode-acp'
+    const statuses = isDsh ? ['startup-complete'] : expectedMcpStatuses
+    assert.equal(value.mcp.source, source)
     assert.deepEqual(
       value.mcp.entries.map((entry) => entry.status),
-      expectedMcpStatuses,
+      statuses,
     )
     assert.ok(value.mcp.checkedAt)
+    await dialog.locator(`[data-mcp-source="${source}"]`).waitFor()
+    if (isDsh) assert.ok(value.observation.checks.includes('dsh.mcp-startup'))
     assert.ok(!(await dialog.textContent()).includes('PRIVATE_MCP_AUTH_FAILURE'))
     const mcpTable = dialog.getByRole('table', {
       name: title === '配置报告' ? 'MCP 连接检查' : 'MCP connection checks',
       exact: true,
     })
-    assert.equal(await mcpTable.locator('[data-mcp-slot]').count(), 2)
-    for (const [slot, status] of expectedMcpStatuses.entries())
+    assert.equal(await mcpTable.locator('[data-mcp-slot]').count(), statuses.length)
+    for (const [slot, status] of statuses.entries())
       await mcpTable.locator(`[data-mcp-slot="${slot}"][data-mcp-status="${status}"]`).waitFor()
     await mcpTable.scrollIntoViewIfNeeded()
     if (process.env.AGENT_MATRIX_MCP_SCREENSHOT)
@@ -650,10 +655,10 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     assert.equal(mcpRequests, beforeMcpRequests, 'Report reads must not connect MCP services')
     const row = capabilities.capabilities.find((entry) => entry.feature === 'mcp-connectivity')
     const passed = expectedMcpStatuses.every((status) => status === 'connected')
-    assert.equal(row.verification, passed ? 'passed' : 'failed')
+    assert.equal(row.verification, isDsh ? 'untested' : passed ? 'passed' : 'failed')
     assert.equal(
       row.availability,
-      capabilities.current ? (passed ? 'ready' : 'blocked') : 'unknown',
+      !isDsh && capabilities.current ? (passed ? 'ready' : 'blocked') : 'unknown',
     )
   } else {
     assert.equal(value.mcp.source, 'unknown')
@@ -1469,6 +1474,7 @@ try {
     assert.deepEqual(failedReport.diagnostic, diagnostic)
     assert.equal(failedReport.observationIsCurrent, false)
     assert.equal(failedReport.observation.runId, latest.runId)
+    assert.deepEqual(failedReport.mcp, historicalReport.mcp)
     assert.equal(
       failedReport.fields.some((field) => field.rejected),
       false,
@@ -1501,7 +1507,7 @@ try {
   assert.equal(resumed.snapshotDigest, latest.snapshotDigest)
   expectedMcpStatuses = ['connected', 'connected']
   const resumedReport = await configurationReport()
-  if (!isPi && !isDsh) assert.notEqual(resumedReport.mcp.checkedAt, historicalReport.mcp.checkedAt)
+  if (!isPi) assert.notEqual(resumedReport.mcp.checkedAt, historicalReport.mcp.checkedAt)
   assert.equal(resumedReport.diagnostic, null)
   assert.equal(
     resumedReport.fields.some((field) => field.rejected),
@@ -1666,7 +1672,18 @@ try {
             connectivityScope:
               'Native status at attachment; no continuous monitoring or tool-execution claim',
           }
-        : { source: 'unknown' },
+        : isDsh
+          ? {
+              source: 'dsh-mcp-startup',
+              nativeInitializationReceipt: true,
+              connectivityRemainsUnverified: true,
+              englishAndChinese: true,
+              reportReadMakesNoMcpRequest: true,
+              historicalReceiptPreservedAfterRestart: true,
+              failedResumePreservesPreviousReceipt: true,
+              successfulResumeRefreshesReceipt: true,
+            }
+          : { source: 'unknown' },
     skillSourceReport: {
       scope: isPi
         ? 'Native RPC Skill sources'

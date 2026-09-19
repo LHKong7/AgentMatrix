@@ -13,8 +13,12 @@ export function mcpObservation(
   const parsed = mcpObservationSchema.safeParse(recorded)
   if (
     !parsed.success ||
-    manifest.installation.kind !== 'opencode' ||
-    !observation.checks.includes('opencode.instance-config') ||
+    (parsed.data.source === 'opencode-acp'
+      ? manifest.installation.kind !== 'opencode' ||
+        !observation.checks.includes('opencode.instance-config')
+      : manifest.installation.kind !== 'deepseek-harness' ||
+        !observation.checks.includes('dsh.mcp-startup') ||
+        !observation.checks.includes('dsh.composition')) ||
     parsed.data.statuses.length !== manifest.mcpServers.length ||
     Date.parse(parsed.data.checkedAt) > Date.parse(observation.checkedAt)
   )

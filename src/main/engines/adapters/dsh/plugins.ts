@@ -168,12 +168,37 @@ export async function prepareDshPluginAttachment(manifest: RunInputManifest, pat
   } catch {
     return fail()
   }
-  const directory = await mkdtemp(join(paths.state, 'dsh-plugin-attachment-'))
+  return prepareDshRowAttachment(
+    manifest,
+    paths,
+    plan.identity,
+    plan.bindings.map((binding) => binding.rowId),
+    'PLUGIN',
+  )
+}
+
+/** Fresh challenge receipts for active native Loader rows, shared by plugins and MCP components. */
+export async function prepareDshRowAttachment(
+  manifest: RunInputManifest,
+  paths: RunPaths,
+  identity: string,
+  rowIds: string[],
+  channel: 'PLUGIN' | 'MCP',
+) {
+  const field = channel === 'MCP' ? 'dsh.mcp-startup' : 'dsh.plugins'
+  const fail = (): never => {
+    throw new RuntimeFailure(
+      'configuration',
+      field,
+      channel === 'MCP' ? { check: 'dsh-mcp', reason: 'unavailable', fields: ['mcp'] } : undefined,
+    )
+  }
+  const directory = await mkdtemp(join(paths.state, `dsh-${channel.toLowerCase()}-attachment-`))
   const nonce = randomUUID()
   return {
     environment: {
-      AGENT_MATRIX_DSH_PLUGIN_NONCE: nonce,
-      AGENT_MATRIX_DSH_PLUGIN_RECEIPTS: directory,
+      [`AGENT_MATRIX_DSH_${channel}_NONCE`]: nonce,
+      [`AGENT_MATRIX_DSH_${channel}_RECEIPTS`]: directory,
     },
     async verify(
       pid: number | undefined,
@@ -186,7 +211,10 @@ export async function prepareDshPluginAttachment(manifest: RunInputManifest, pat
         if (!pid) return fail()
         for (;;) {
           if (signal.aborted) throw new RuntimeFailure('process-exit')
-          if (Date.now() >= deadline) throw new RuntimeFailure('timeout', 'dsh.plugins')
+          if (Date.now() >= deadline) {
+            if (channel === 'MCP') return fail()
+            throw new RuntimeFailure('timeout', field)
+          }
           const challenge = randomUUID(),
             target = join(directory, `${challenge}.json`)
           const request = join(directory, 'request.json')
@@ -197,7 +225,10 @@ export async function prepareDshPluginAttachment(manifest: RunInputManifest, pat
           let receipt: z.infer<typeof receiptSchema> | undefined
           while (!receipt) {
             if (signal.aborted) throw new RuntimeFailure('process-exit')
-            if (Date.now() >= deadline) throw new RuntimeFailure('timeout', 'dsh.plugins')
+            if (Date.now() >= deadline) {
+              if (channel === 'MCP') return fail()
+              throw new RuntimeFailure('timeout', field)
+            }
             try {
               const file = await inspectFile(target, 128 * 1024, true)
               receipt = receiptSchema.parse(JSON.parse(file.content!.toString('utf8')))
@@ -211,7 +242,7 @@ export async function prepareDshPluginAttachment(manifest: RunInputManifest, pat
             receipt.nonce !== nonce ||
             receipt.challenge !== challenge ||
             receipt.pid !== pid ||
-            receipt.identity !== plan.identity ||
+            receipt.identity !== identity ||
             receipt.cwd !== manifest.cwd
           )
             return fail()
@@ -222,10 +253,8 @@ export async function prepareDshPluginAttachment(manifest: RunInputManifest, pat
           if (
             !receipt.ready ||
             !receipt.healthy ||
-            receipt.plugins.length !== plan.bindings.length ||
-            receipt.plugins.some(
-              (plugin, index) => plugin.id !== plan.bindings[index]!.rowId || !plugin.uid,
-            ) ||
+            receipt.plugins.length !== rowIds.length ||
+            receipt.plugins.some((plugin, index) => plugin.id !== rowIds[index] || !plugin.uid) ||
             new Set(receipt.plugins.map((plugin) => plugin.uid)).size !== receipt.plugins.length ||
             (sessionId === null
               ? receipt.session !== null

@@ -165,7 +165,7 @@ export function buildSessionCapabilities(
         },
       ]
       if (observation && contractMatches && used) {
-        if (feature === 'mcp-connectivity' && mcp) {
+        if (feature === 'mcp-connectivity' && mcp?.source === 'opencode-acp') {
           verified = mcp.statuses.every((status) => status === 'connected')
           failed = mcp.statuses.some((status) => status !== 'connected' && status !== 'unknown')
           evidence.push({

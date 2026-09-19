@@ -19,10 +19,8 @@ import { isMessageKey, catalogs } from '../src/shared/i18n'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
 import { piWorkspace } from './helpers/pi-fixture'
 import { dshWorkspace } from './helpers/dsh-fixture'
-import {
-  mcpObservationSchema,
-  type McpConnectionStatus,
-} from '../src/shared/engines/mcp-observation'
+import { mcpObservationSchema } from '../src/shared/engines/mcp-observation'
+import { buildMcpReport } from '../src/main/engines/mcp-report'
 
 const at = '2026-09-19T00:00:00.000Z'
 function fixture(kind: SupportedEngine = 'opencode') {
@@ -118,6 +116,68 @@ const row = (
 ) => report.capabilities.find((item) => item.feature === feature)!
 
 describe('native session capability aggregation', () => {
+  it('persists DSH initialization independently of connection availability', () => {
+    const f = fixture('deepseek-harness')
+    f.manifest.mcpServers = [
+      {
+        id: 'one',
+        name: 'Captured service',
+        description: '',
+        enabled: true,
+        transport: 'streamable-http',
+        url: 'https://PRIVATE.invalid/mcp',
+        headers: {},
+        secretHeaders: {},
+        auth: { kind: 'none' },
+      },
+    ]
+    const session = applySessionEvent(f.starting, {
+      sessionId: f.initial.id,
+      cursor: 2,
+      timestamp: at,
+      runId: 'run',
+      turnId: null,
+      data: sessionEventDataSchema.parse({
+        kind: 'run.ready',
+        nativeSessionId: 'native',
+        configurationChecks: ['dsh.composition', 'dsh.mcp-startup'],
+        mcpConnections: {
+          source: 'dsh-mcp-startup',
+          checkedAt: at,
+          statuses: ['startup-complete'],
+        },
+      }),
+    })
+    const report = buildMcpReport(f.manifest, session.configuration!)
+    expect(report).toEqual({
+      source: 'dsh-mcp-startup',
+      checkedAt: at,
+      entries: [
+        {
+          slot: 0,
+          name: 'Captured service',
+          transport: 'streamable-http',
+          status: 'startup-complete',
+        },
+      ],
+    })
+    expect(JSON.stringify(report)).not.toContain('PRIVATE')
+    for (const status of ['ready', 'interrupted'] as const) {
+      session.status = status
+      expect(row(buildSessionCapabilities(f.manifest, session), 'mcp-connectivity')).toMatchObject({
+        verification: 'untested',
+        availability: 'unknown',
+      })
+      expect(buildMcpReport(f.manifest, session.configuration!)).toEqual(report)
+    }
+    for (const checks of [[], ['dsh.composition'], ['dsh.mcp-startup']] as ConfigurationCheck[][]) {
+      const observation = { ...session.configuration!, checks }
+      expect(() => buildMcpReport(f.manifest, observation)).toThrow('report.mcp-identity')
+    }
+    expect(() => buildMcpReport(fixture().manifest, session.configuration!)).toThrow(
+      'report.mcp-identity',
+    )
+  })
   it.each([
     [['connected', 'connected'], 'passed', 'ready'],
     [['connected', 'unknown'], 'untested', 'unknown'],
@@ -144,7 +204,7 @@ describe('native session capability aggregation', () => {
       session.configuration!.mcpConnections = {
         source: 'opencode-acp',
         checkedAt: at,
-        statuses: [...statuses] as McpConnectionStatus[],
+        statuses: [...statuses],
       }
       const report = buildSessionCapabilities(f.manifest, session)
       expect(row(report, 'mcp-connectivity')).toMatchObject({ verification, availability })
@@ -207,6 +267,9 @@ describe('native session capability aggregation', () => {
       { ...valid, statuses: [{ status: 'connected', error: 'PRIVATE' }] },
       { ...valid, source: 'remote-http' },
       { ...valid, statuses: ['future-status'] },
+      { ...valid, statuses: ['startup-complete'] },
+      { ...valid, source: 'dsh-mcp-startup' },
+      { ...valid, source: 'dsh-mcp-startup', statuses: ['failed'] },
     ])
       expect(
         sessionEventDataSchema.safeParse({

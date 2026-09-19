@@ -1,6 +1,7 @@
 import { piApis as apis } from '../../../../shared/engines/contracts'
 import { planDshPlugins } from './plugins'
 import { planDshSkillObservation } from './skills'
+import { planDshMcpObservation } from './mcp'
 import { assertEngineConfiguration } from '../../../../shared/engines/validation'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -280,6 +281,7 @@ export async function planDsh(
     },
   })
   const mcpMappings = []
+  const mcpRows: DshRow[] = []
   for (const server of configuration.mcpServers) {
     const serverName = `am-${createHash('sha256').update(server.id).digest('hex').slice(0, 20)}`
     const common = {
@@ -308,7 +310,7 @@ export async function planDsh(
         headers.Authorization = secret(server.auth.secret, 'Bearer ')
       config = { ...common, transport: 'streamable-http', url: server.url, headers }
     } else return dshUnsupported('mcp.transport-or-auth')
-    rows.push({
+    mcpRows.push({
       id: `agentmatrix-mcp-${serverName}`,
       name: pathToFileURL(
         context.composition.entries['@deepseek-ai/dsh-mcp-client'] ??
@@ -318,6 +320,14 @@ export async function planDsh(
     })
     mcpMappings.push({ id: server.id, serverName, transport: server.transport })
   }
+  rows.push(...mcpRows)
+  await planDshMcpObservation(
+    configuration.installation.executable,
+    mcpRows,
+    paths,
+    generated,
+    rows,
+  )
   planDshSkillObservation(
     skills.map((skill) => skill.name),
     paths,

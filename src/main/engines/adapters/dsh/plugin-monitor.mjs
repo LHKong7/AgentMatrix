@@ -4,6 +4,8 @@ import { join } from 'node:path'
 
 export const inject = ['loader', 'sessions', 'appReady']
 export function apply(ctx, config) {
+  // MCP expectations remain inert so Loader interpolation cannot turn expressions into secret values.
+  const plannedRows = config.rowsJson === undefined ? config.rows : JSON.parse(config.rowsJson)
   const nonce = process.env.AGENT_MATRIX_DSH_PLUGIN_NONCE
   const directory = process.env.AGENT_MATRIX_DSH_PLUGIN_RECEIPTS
   if (!nonce || !directory) throw new Error('AgentMatrix DSH observation unavailable')
@@ -11,7 +13,7 @@ export function apply(ctx, config) {
     failed = false
   const fibers = new Map()
   const entries = () =>
-    config.rows.map((row) => {
+    plannedRows.map((row) => {
       const matches = [...ctx.loader.entries()].filter((entry) => entry.options.id === row.id)
       const entry = matches.length === 1 ? matches[0] : undefined
       return { row, entry }

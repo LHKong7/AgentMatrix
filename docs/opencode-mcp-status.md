@@ -30,7 +30,7 @@ The coordinator publishes the receipt with `run.ready`. A failed Ready write can
 
 In the capability table, all selected services must be `connected` to pass the scoped MCP check. Any explicit failed/disabled/auth-required/registration-required state produces a failed check. Otherwise the result remains untested. Availability is ready/blocked only for the matching current attachment and contract; historical evidence has unknown availability. A failed MCP capability does not mean the entire conversation is blocked.
 
-Existing journals without a receipt remain readable and unverified. Captures with the existing instance-configuration marker can gain fresh evidence on their next successful start/resume. Captures without that marker retain their narrower legacy behavior. DSH and Pi do not manufacture OpenCode receipts: DSH still has local HTTP behavioral evidence without a per-server runtime receipt; Pi still requires an explicitly verified MCP extension.
+Existing journals without a receipt remain readable and unverified. Captures with the existing instance-configuration marker can gain fresh evidence on their next successful start/resume. Captures without that marker retain their narrower legacy behavior. DSH and Pi do not manufacture OpenCode receipts: DSH now records separate [native initialization evidence](dsh-mcp-startup.md), which leaves current connectivity unverified; Pi still requires an explicitly verified MCP extension.
 
 ## Validation and remaining work
 
@@ -40,7 +40,7 @@ The bilingual Electron fixture configures one available service and one returnin
 
 Validated on **2026-09-19, macOS arm64**: **815 unit tests across 54 files**, all **six installed OpenCode fixtures**, ESLint, TypeScript, formatting and production build passed. All three engines passed their full bilingual Electron lifecycle fixtures. English/Chinese MCP screenshots were inspected. Records: [native OpenCode status and tool calls](probes/2026-09-19-opencode-mcp-status-native.json), [OpenCode desktop status and recovery](probes/2026-09-19-opencode-mcp-status-desktop.json), and [Pi/DSH desktop regressions](probes/2026-09-19-mcp-report-regression.json).
 
-The authentication and registration enum mappings have unit coverage. OAuth registration/login/token refresh, dedicated user recovery actions, DSH runtime status receipts, Pi extension acceptance, external services, continuous monitoring and other platforms remain open. Neither A4/A8/X2 nor a delivery gate is marked complete by this increment.
+The authentication and registration enum mappings have unit coverage. OAuth registration/login/token refresh, dedicated user recovery actions, DSH current-connection status, Pi extension acceptance, external services, continuous monitoring and other platforms remain open. Neither A4/A8/X2 nor a delivery gate is marked complete by this increment.
 
 ```sh
 AGENT_MATRIX_TEST_OPENCODE=/absolute/path/to/opencode \

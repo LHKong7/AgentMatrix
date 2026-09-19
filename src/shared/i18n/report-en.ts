@@ -1,7 +1,16 @@
 export const reportEn = {
   'report.mcpTitle': 'MCP connection checks',
   'report.mcpHint':
-    'Native status sampled at the last attachment. These checks do not prove tool execution or continuing availability. OpenCode may keep the conversation usable when an MCP service fails. Saved changes apply to new sessions.',
+    'Recorded checks have the scope stated below. They do not prove tool execution or continuing availability. Saved changes apply to new sessions.',
+  'report.mcpScope.opencode-acp':
+    'OpenCode native status at attachment. The conversation may remain usable when an MCP service fails.',
+  'report.mcpScope.dsh-mcp-startup':
+    'DSH native components completed initial connection and tool discovery. This does not read current connection state; registrations may survive a disconnect.',
+  'report.mcpScope.unknown': 'No engine-specific MCP runtime evidence is available.',
+  'report.mcpStatus.startup-complete': 'Native MCP initialization completed',
+  'report.check.dsh.mcp-startup':
+    'Pinned native MCP components completed startup; matching rows and current session checked',
+  'report.diagnosticCheck.dsh-mcp': 'DSH native MCP component startup',
   'report.mcpUnobserved': 'No native MCP connection check was recorded for this attachment.',
   'report.mcpEmpty': 'No MCP services were selected in these captured inputs.',
   'report.mcpServer': 'Captured service',

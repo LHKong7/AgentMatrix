@@ -7,6 +7,9 @@ export function McpConnections({ report, current }: { report: McpReport; current
     <section className="mcp-connections">
       <h3>{t('report.mcpTitle')}</h3>
       <p className="hint">{t('report.mcpHint')}</p>
+      <p className="hint" data-mcp-source={report.source}>
+        {t(`report.mcpScope.${report.source}`)}
+      </p>
       {report.checkedAt ? (
         <p data-testid="mcp-observation">
           {new Date(report.checkedAt).toLocaleString(locale)} ·{' '}

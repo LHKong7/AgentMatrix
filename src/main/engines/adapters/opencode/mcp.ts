@@ -15,7 +15,7 @@ export async function observeOpenCodeMcp(
 ): Promise<McpObservation> {
   const statuses = await instance.observe(pid, signal, sessionId, async (read) => {
     const actual = z.record(z.string(), z.unknown()).parse(await read('/mcp'))
-    return serverIds.map((id): McpConnectionStatus => {
+    return serverIds.map((id): Exclude<McpConnectionStatus, 'startup-complete'> => {
       const entry = actual[`agentmatrix-${id}`]
       const status = z.object({ status: z.string() }).safeParse(entry)
       if (!status.success) return 'unknown'

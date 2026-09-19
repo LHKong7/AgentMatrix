@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   resolveAgentProfile,
   type ResolvedAgentConfiguration,
@@ -18,6 +18,10 @@ import {
 import { planDsh } from '../src/main/engines/adapters/dsh/configuration'
 import { verifyDshHome } from '../src/main/engines/adapters/dsh/launch'
 import { dshWorkspace } from './helpers/dsh-fixture'
+vi.mock('../src/main/engines/adapters/dsh/plugins', async (original) => ({
+  ...(await original<typeof import('../src/main/engines/adapters/dsh/plugins')>()),
+  inspectDshPluginFramework: vi.fn().mockResolvedValue([]),
+}))
 
 const roots: string[] = []
 const rowIds = [

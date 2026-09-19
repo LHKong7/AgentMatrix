@@ -2,7 +2,15 @@ import type { reportEn } from './report-en'
 export const reportZhCN: Record<keyof typeof reportEn, string> = {
   'report.mcpTitle': 'MCP 连接检查',
   'report.mcpHint':
-    '原生状态记录于最近一次启动或恢复时，不代表工具已执行或服务持续可用。MCP 服务失败时，OpenCode 仍可能继续会话。已保存的配置变更适用于新会话。',
+    '检查结果的范围见下方说明，不代表工具已执行或服务持续可用。已保存的配置变更适用于新会话。',
+  'report.mcpScope.opencode-acp':
+    'OpenCode 在启动或恢复时的原生状态。MCP 服务失败时，会话仍可能继续。',
+  'report.mcpScope.dsh-mcp-startup':
+    'DSH 原生组件已完成初始连接和工具发现。这不是当前连接状态；连接断开后，工具注册仍可能保留。',
+  'report.mcpScope.unknown': '尚无此引擎的 MCP 运行时证据。',
+  'report.mcpStatus.startup-complete': '原生 MCP 初始化已完成',
+  'report.check.dsh.mcp-startup': '固定版本的原生 MCP 组件已完成启动，并核对了组件配置与当前会话',
+  'report.diagnosticCheck.dsh-mcp': 'DSH 原生 MCP 组件启动',
   'report.mcpUnobserved': '这次运行尚无原生 MCP 连接检查记录。',
   'report.mcpEmpty': '本次捕获的配置未选择 MCP 服务。',
   'report.mcpServer': '捕获的服务',

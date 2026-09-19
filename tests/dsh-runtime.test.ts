@@ -173,6 +173,8 @@ describe('DSH runtime contract', () => {
     const f = fixture(),
       runtime = await f.connect()
     expect(runtime.configurationChecks).not.toContain('dsh.skill-sources')
+    expect(runtime.configurationChecks).not.toContain('dsh.mcp-startup')
+    expect(runtime.mcpConnections).toBeUndefined()
     expect(prepareDshSkillAttachment).not.toHaveBeenCalled()
     await runtime.dispose()
   })
