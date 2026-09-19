@@ -1,6 +1,6 @@
 # DeepSeek Harness runtime and desktop sessions
 
-AgentMatrix now runs **DSH 0.1.5-rc.2 over ACP** from saved profiles. The production desktop factory, runtime, coordinator, and journal pass two installed-CLI fixtures on macOS arm64: the generic `dsh-llm-pi-ai` route and the separate `dsh-llm-deepseek` route. A real Electron fixture also passes the generic route in English and Chinese. DSH remains labeled experimental.
+AgentMatrix now runs **DSH 0.1.5-rc.2 over ACP** from saved profiles. The production desktop factory, runtime, coordinator, and journal pass two installed-CLI fixtures on macOS arm64: the generic `dsh-llm-pi-ai` route and the separate `dsh-llm-deepseek` route. The full Electron lifecycle fixture also passes both routes in English and Chinese, with separate records. DSH remains labeled experimental.
 
 ## Launch and native readback
 
@@ -32,11 +32,21 @@ DSH cards, terminal interaction, elicitation, forks, native transcript replay, S
 ```sh
 AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh \
 AGENT_MATRIX_DSH_RUNTIME_REPORT=/absolute/path/to/runtime-report \
-npx vitest run --config vitest.dsh.config.ts tests/dsh-runtime-installed.probe.ts
+npx vitest run --config vitest.dsh.config.ts tests/dsh-runtime-installed.probe.ts --maxWorkers=1
 
 AGENT_MATRIX_SESSION_ENGINE=dsh \
 AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh \
 AGENT_MATRIX_SESSION_REPORT=/absolute/path/to/desktop-report.json \
+npm run test:sessions
+```
+
+The desktop fixture defaults to `AGENT_MATRIX_DSH_ROUTE=pi-ai`. Set `AGENT_MATRIX_DSH_ROUTE=deepseek-native` to select `dsh-llm-deepseek` with the shared `deepseek-official` protocol. A route option for another engine, or an unknown DSH route, is rejected before creating fixture resources. Run the two routes sequentially; each report identifies its actual component and protocol.
+
+```sh
+AGENT_MATRIX_SESSION_ENGINE=dsh \
+AGENT_MATRIX_DSH_ROUTE=deepseek-native \
+AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh \
+AGENT_MATRIX_SESSION_REPORT=/absolute/path/to/native-desktop-report.json \
 npm run test:sessions
 ```
 
@@ -46,7 +56,17 @@ The [Electron record](probes/2026-09-18-dsh-desktop-sessions.json) covers instal
 
 The later [plugin desktop result](probes/2026-09-18-dsh-plugin-desktop.json) additionally verifies selected native modules, bilingual options editing, native system sections reaching the local provider, activation reports, and fresh checks on native resume. Separate [activation fixtures](dsh-plugin-activation.md) pass both provider routes.
 
-This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, complete effective-configuration reporting, broader plugin/bundle coverage, remote MCP, and platform coverage beyond macOS remain open.
+### Full desktop checks for both provider routes
+
+The **2026-09-19** [two-route verification record](probes/2026-09-19-dsh-desktop-routes.json) links fresh full lifecycle results for [native DeepSeek](probes/2026-09-19-dsh-desktop-deepseek-native.json) and [Pi-AI](probes/2026-09-19-dsh-desktop-pi-ai.json). Both use DSH 0.1.5-rc.2 on macOS arm64 with a local synthetic provider and `fixture-model`. The test selects a route before saving the workspace, verifies the resulting capture's protocol identity, and exercises the same complete desktop flow rather than substituting a shorter imported turn.
+
+The native route uses `deepseek-official`, no unsupported custom provider headers, and explicit `high` reasoning. Primary HTTP requests must target `/v1/chat/completions` with `thinking.type=enabled` and `reasoning_effort=high`; the fixture supplies a reasoning delta and confirms its marker enters application history. English/Chinese reports require the matching native reasoning receipt and value. Pi-AI keeps reasoning off and its native reasoning observation unknown. The runtime's existing native provider/model-selector and composition checks remain required before Ready. These assertions verify configuration and protocol behavior, not a real model's reasoning quality.
+
+Each route passes installation probing, draft rejection, directory selection including Unicode/spaces, tools and permissions, streaming/permission cancellation, renderer reload without resubmission, captured Prompt revisions, plugin options/activation, source-change rejection, Skill registry evidence and MCP initialization reports. Quit/restart and a main-process `SIGKILL` both preserve recoverable history; the crash fixture requires four owned groups to disappear and the provider stream to close. Explicit resume restores the original native ID and snapshot. Full history pagination, bounded JSONL export, confirmed close, reference-aware retention and unused-data cleanup also pass. MCP initialization remains separate from live connectivity and tool execution.
+
+The native-route English/Chinese configuration report screenshots were visually inspected. TypeScript, production build, script lint and formatting checks pass. Application runtime/UI code is unchanged in this increment, so the preceding 923-test unit run remains separate evidence; the two new Electron runs test the extended fixture. The [acceptance checklist](three-engine-acceptance.md) now marks local DSH desktop lifecycle coverage for both routes. Credential rotation on the native route, the full X3 audit and external-service acceptance remain separate work.
+
+This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, remaining effective-configuration evidence and the full X3 audit remain open. Local Streamable HTTP MCP has separate [both-route evidence](http-mcp-acceptance.md); external MCP services and platform coverage beyond macOS remain unverified. General native-plugin installation remains outside the initial milestone.
 
 The [combined shared-asset desktop fixture](shared-asset-acceptance.md) additionally verifies one Prompt and one directory Skill across all three engines, including edits during active turns, old/new versions, bilingual reports, and native restoration after source deletion. Its local-provider result does not establish external-service acceptance.
 

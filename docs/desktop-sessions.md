@@ -56,6 +56,8 @@ npm run test:sessions
 
 For DSH, set `AGENT_MATRIX_SESSION_ENGINE=dsh` and `AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh` using the same command. The [DSH desktop record](probes/2026-09-18-dsh-desktop-sessions.json) verifies committed messages, tools, approvals, both cancellation paths, immutable Prompt revisions, reload/restart, native resume, and both languages. Separate [runtime fixtures](dsh-runtime.md) cover both provider components.
 
+The DSH desktop fixture also accepts `AGENT_MATRIX_DSH_ROUTE=deepseek-native` to run its native DeepSeek component; the default is `pi-ai`. Use separate report paths and run the routes sequentially. The [DSH verification commands](dsh-runtime.md#verification) describe the distinction. The native-route fixture requests `high` reasoning and checks the native selector, actual request fields and retained reasoning messages; the generic route keeps its unsupported reasoning observation explicit.
+
 The script requires a desktop graphics environment. It creates isolated application/home/config/project directories, uses synthetic credentials and engine-specific isolation (controlled OpenCode configuration or a private Pi/DSH home), and binds an HTTP fixture on loopback. It does not use the user's workspace or call an external model provider. Successful runs remove temporary fixture state; failed runs retain it for diagnosis. Report and screenshot output paths are optional.
 
 Current reports identify the selected executable, service, protocol, model and provider component alongside engine/version/platform/time. The [three-engine acceptance checklist](three-engine-acceptance.md) links fresh full lifecycle results and keeps them separate from historical auxiliary fixtures and external-provider acceptance.

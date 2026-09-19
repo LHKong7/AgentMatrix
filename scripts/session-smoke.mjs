@@ -24,6 +24,10 @@ const engine = process.env.AGENT_MATRIX_SESSION_ENGINE || 'opencode'
 assert.ok(['opencode', 'pi', 'dsh'].includes(engine), 'Select opencode, pi, or dsh')
 const isPi = engine === 'pi'
 const isDsh = engine === 'dsh'
+const dshRoute = process.env.AGENT_MATRIX_DSH_ROUTE || 'pi-ai'
+assert.ok(['pi-ai', 'deepseek-native'].includes(dshRoute), 'Select pi-ai or deepseek-native')
+assert.ok(isDsh || !process.env.AGENT_MATRIX_DSH_ROUTE, 'DSH route requires the DSH engine')
+const nativeDsh = isDsh && dshRoute === 'deepseek-native'
 const version = isPi ? '0.85.1' : isDsh ? '0.1.5-rc.2' : '1.18.16'
 const executable = process.env[`AGENT_MATRIX_TEST_${engine.toUpperCase()}`]
 assert.ok(
@@ -67,6 +71,7 @@ let mcpRecovered = false
 let expectedMcpStatuses = ['connected', 'failed']
 let mcpRequests = 0
 const calls = []
+const providerErrors = []
 const pluginDependencyPath = join(
   root,
   isDsh ? 'desktop-plugin-helper.cjs' : 'desktop-plugin-helper.mjs',
@@ -123,6 +128,12 @@ const server = createServer(async (request, response) => {
     }
     const input = JSON.parse(body)
     const main = input.tools?.some((tool) => tool.function?.name === 'read')
+    assert.equal(request.url, '/v1/chat/completions')
+    if (main && nativeDsh) {
+      assert.deepEqual(input.thinking, { type: 'enabled' })
+      assert.equal(input.reasoning_effort, 'high')
+      assert.equal(request.headers['x-probe'], undefined)
+    }
     const read = input.messages.some(
       (message) =>
         message.role === 'tool' && JSON.stringify(message.content).includes('SMOKE_FILE_MARKER'),
@@ -131,6 +142,7 @@ const server = createServer(async (request, response) => {
       calls.push({
         authenticated: request.headers.authorization === `Bearer ${secret}`,
         model: input.model,
+        reasoning: input.reasoning_effort ?? null,
         role: body.includes('NEW_ROLE_MARKER') ? 'new' : 'original',
         read,
         plugin: body.includes('DESKTOP_PLUGIN_MARKER'),
@@ -172,6 +184,8 @@ const server = createServer(async (request, response) => {
       response.write(
         `data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', created: 1, model: input.model, choices: [{ index: 0, delta, finish_reason }] })}\n\n`,
       )
+    if (main && nativeDsh)
+      chunk({ role: 'assistant', reasoning_content: 'NATIVE_REASONING_MARKER' })
     if (main && behavior === 'stream') {
       activeStreams.add(response)
       response.once('close', () => activeStreams.delete(response))
@@ -203,8 +217,9 @@ const server = createServer(async (request, response) => {
       chunk({}, 'stop')
     }
     response.end('data: [DONE]\n\n')
-  } catch {
-    response.writeHead(400)
+  } catch (error) {
+    providerErrors.push(error)
+    if (!response.headersSent) response.writeHead(400)
     response.end('Fixture request rejected')
   }
 })
@@ -331,6 +346,11 @@ workspace.installations[0].probedAt = null
 workspace.installations[0].modes = []
 workspace.connections[0].baseUrl = `http://127.0.0.1:${address.port}/v1`
 workspace.connections[0].auth.secret.name = 'AGENT_MATRIX_SESSION_KEY'
+if (nativeDsh) {
+  workspace.connections[0].protocol = 'deepseek-official'
+  workspace.connections[0].headers = {}
+  workspace.models[0].parameters.reasoning = 'high'
+}
 await writeFile(join(dataDirectory, 'workspace.json'), JSON.stringify(workspace))
 const env = {
   ...process.env,
@@ -690,6 +710,17 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
     }
   }
   assert.equal(value.fields.find((field) => field.id === 'model').status, 'observed')
+  if (isDsh) {
+    assert.equal(
+      value.fields.find((field) => field.id === 'connection').value.split('\n')[0],
+      nativeDsh ? 'deepseek-official' : 'openai-chat-completions',
+    )
+    assert.equal(value.fields.find((field) => field.id === 'authentication').status, 'composition')
+    const reasoning = value.fields.find((field) => field.id === 'reasoning')
+    assert.equal(reasoning.status, nativeDsh ? 'observed' : 'unknown')
+    assert.equal(reasoning.value, nativeDsh ? 'high' : 'off')
+    assert.equal(value.observation.checks.includes('dsh.session-reasoning'), nativeDsh)
+  }
   assert.equal(value.fields.find((field) => field.id === 'plugins').status, 'observed')
   assert.equal(value.pluginDependencies.length, 1)
   assert.ok(
@@ -798,6 +829,7 @@ async function configurationReport(title = 'Configuration report', close = 'Clos
   assert.equal(capabilities.identity.snapshotDigest, value.snapshotDigest)
   assert.equal(capabilities.identity.runId, value.observation.runId)
   assert.equal(capabilities.identity.nativeSessionId, value.nativeSessionId)
+  assert.equal(capabilities.identity.protocol, workspace.connections[0].protocol)
   assert.equal(capabilities.capabilities.length, 18)
   for (const feature of [
     'session-protocol',
@@ -1442,6 +1474,16 @@ try {
     original.id,
   )
   assert.ok(!JSON.stringify(history).includes(secret))
+  if (nativeDsh)
+    assert.ok(
+      history.events
+        .filter(
+          (event) => event.data.kind === 'message.delta' && event.data.channel === 'reasoning',
+        )
+        .map((event) => event.data.text)
+        .join('')
+        .includes('NATIVE_REASONING_MARKER'),
+    )
   const requestsBeforeReload = calls.length
   await page.reload()
   await page.locator('.card-grid').waitFor()
@@ -1925,6 +1967,8 @@ try {
     calls.length > 5 && calls.every((call) => call.authenticated && call.model === 'fixture-model'),
   )
   assert.deepEqual(errors, [])
+  assert.deepEqual(providerErrors, [])
+  if (nativeDsh) assert.ok(calls.every((call) => call.reasoning === 'high'))
   if (!isPi && !isDsh) assert.ok(calls.every((call) => call.nativeInstructions))
   assert.ok(calls.every((call) => call.dependency))
   passed = true
@@ -1940,7 +1984,22 @@ try {
     service: 'Local synthetic HTTP provider',
     protocol: workspace.connections[0].protocol,
     model: workspace.models[0].modelId,
-    providerComponent: isDsh ? 'dsh-llm-pi-ai' : 'Engine-native provider',
+    providerComponent: isDsh
+      ? nativeDsh
+        ? 'dsh-llm-deepseek'
+        : 'dsh-llm-pi-ai'
+      : 'Engine-native provider',
+    ...(isDsh
+      ? {
+          dshRoute,
+          reasoning: {
+            configured: nativeDsh ? 'high' : 'off',
+            nativeObservation: nativeDsh ? 'observed' : 'unknown',
+            nativeRequestAndHistory: nativeDsh ? true : 'Not requested for the Pi-AI route',
+            checkedInBothLanguages: true,
+          },
+        }
+      : {}),
     route: 'Local Chat Completions protocol fixture',
     externalProviderCalls: false,
     desktopVersionProbe: true,
