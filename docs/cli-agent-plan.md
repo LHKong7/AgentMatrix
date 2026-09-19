@@ -243,6 +243,8 @@ X1–X4 are repeated acceptance requirements at B7, C4, and D4 for the relevant 
 
 **X3 progress:** [Encrypted credential masking history](credential-redaction-history.md) prevents previously resolved keys echoed after rotation and native resume from entering application journals/exports. New captures require the encrypted history before launch; legacy coverage and native plaintext transcript limits remain explicit. Authentication still resolves current references, and capture cleanup removes retained masking copies. This fixes a reproduced boundary failure without completing the full audit.
 
+**V3 / X3 / X4 crash cleanup:** An independent [process guardian](process-crash-recovery.md) now retains native group ownership after the application is forcibly killed. Subprocess checks cover host and guardian crashes, resistant descendants and bounded stream drainage. Per-engine Electron fixtures separately verify active-turn interruption, provider-stream closure, no automatic resubmission and explicit native recovery. Platform, distribution and external-provider acceptance remain separate; this change does not complete these gates.
+
 Required regression scenarios include schema migration with bundle bindings, unresolved drafts blocked at launch, two runs from one profile, shared-asset edits during execution, native configuration conflicts, credential replacement, cancellation while awaiting approval, renderer reload, app interruption, and history reattachment without duplicate events. Unsupported native operations must produce a clear capability diagnostic.
 
 ## 11. Decisions and boundaries

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { createServer } from 'node:http'
+import { promisify } from 'node:util'
 import {
   mkdtemp,
   mkdir,
@@ -65,6 +67,7 @@ let mcpRecovered = false
 let expectedMcpStatuses = ['connected', 'failed']
 let mcpRequests = 0
 const calls = []
+const activeStreams = new Set()
 const server = createServer(async (request, response) => {
   try {
     if (request.url?.startsWith('/mcp/')) {
@@ -154,6 +157,8 @@ const server = createServer(async (request, response) => {
         `data: ${JSON.stringify({ id: 'fixture', object: 'chat.completion.chunk', created: 1, model: input.model, choices: [{ index: 0, delta, finish_reason }] })}\n\n`,
       )
     if (main && behavior === 'stream') {
+      activeStreams.add(response)
+      response.once('close', () => activeStreams.delete(response))
       chunk({ role: 'assistant', content: 'Waiting for cancellation '.repeat(8) })
       streamStarted = true
       return
@@ -316,6 +321,55 @@ async function launch() {
   page.setDefaultTimeout(20_000)
   page.on('pageerror', (error) => errors.push(error.message))
   await page.locator('.card-grid').waitFor()
+}
+async function crashApplication() {
+  const host = app.process()
+  // Inspect only identities, never command arguments or environments containing credentials.
+  const { stdout } = await promisify(execFile)('/bin/ps', ['-axo', 'pid=,ppid=,pgid='])
+  const rows = stdout
+    .trim()
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/).map(Number))
+  const descendants = new Set([host.pid])
+  for (;;) {
+    const before = descendants.size
+    for (const [pid, parent] of rows) if (descendants.has(parent)) descendants.add(pid)
+    if (before === descendants.size) break
+  }
+  const groups = rows
+    .filter(([pid, , group]) => pid !== host.pid && descendants.has(pid) && pid === group)
+    .map(([pid]) => pid)
+  assert.ok(groups.length >= 2, 'Expected owned guardian and native process groups')
+  const exists = (pid) => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch (error) {
+      if (error.code === 'ESRCH') return false
+      throw error
+    }
+  }
+  const exited = new Promise((resolve) => host.once('exit', resolve))
+  host.kill('SIGKILL')
+  await exited
+  app = null
+  try {
+    await waitForIpc(
+      () => groups.every((pid) => !exists(-pid)) && activeStreams.size === 0,
+      'native groups and provider streams after application SIGKILL',
+      10_000,
+    )
+  } finally {
+    for (const pid of groups) {
+      if (!exists(-pid)) continue
+      try {
+        process.kill(-pid, 'SIGKILL')
+      } catch {
+        /* Test-owned group already exited. */
+      }
+    }
+  }
+  return groups.length
 }
 async function language(locale) {
   await page.locator('.language-select select').first().selectOption(locale)
@@ -1448,13 +1502,24 @@ try {
   const directoryReport = await configurationReport()
   assert.equal(directoryReport.cwd, alternateCwd)
   assert.equal(directoryReport.fields.find((field) => field.id === 'execution').changed, true)
-  await app.close()
-  app = null
+  behavior = 'stream'
+  streamStarted = false
+  await send('WAIT_STREAM_BEFORE_APPLICATION_CRASH')
+  await waitForIpc(() => streamStarted, 'active turn before application SIGKILL')
+  const requestsBeforeCrash = calls.length
+  const crashGroups = await crashApplication()
+  behavior = 'tool'
   mcpRecovered = true
   await launch()
   await language('en')
   await navigate('Sessions')
+  // A hard crash need not flush the renderer's optional last-selection cache.
+  await page.locator(`[data-session-list-id="${latest.id}"]`).click()
   await status('Interrupted')
+  assert.equal(calls.length, requestsBeforeCrash)
+  const interrupted = (await sessions()).find((session) => session.id === latest.id)
+  assert.equal(interrupted.nativeSessionId, latest.nativeSessionId)
+  assert.equal(interrupted.snapshotDigest, latest.snapshotDigest)
   directory = page.getByRole('textbox', { name: 'Working directory', exact: true })
   assert.equal(await directory.inputValue(), cwd)
   // The pending launch field must not affect restoration of a captured native session.
@@ -1880,6 +1945,15 @@ try {
       englishAndChinese: true,
     },
     appQuitAndRestart: true,
+    applicationCrash: {
+      signal: 'SIGKILL',
+      activeProviderTurn: true,
+      ownedGroupsGone: crashGroups,
+      providerStreamClosed: true,
+      interruptedAfterRestart: true,
+      noAutomaticResubmission: true,
+      sameNativeIdAndSnapshotOnExplicitResume: true,
+    },
     nativeResume: true,
     confirmedClose: true,
     retention: {

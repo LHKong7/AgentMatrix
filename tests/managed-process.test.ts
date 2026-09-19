@@ -80,6 +80,30 @@ describe('bounded streaming diagnostic redaction', () => {
 })
 
 describe.skipIf(process.platform === 'win32')('owned POSIX process groups', () => {
+  it('cancels before guardian startup without launching the requested executable', async () => {
+    const child = fixture("process.stdout.write('must-not-run')")
+    const closed = await child.terminate()
+    await expect(child.ready).rejects.toMatchObject({ code: 'spawn' })
+    expect(child.pid).toBeUndefined()
+    expect(await output(child)).toBe('')
+    expect(closed.failure).toBeNull()
+  })
+  it('preserves native exit codes and complete output through the guardian', async () => {
+    const child = fixture("process.stdout.write('x'.repeat(200000), () => process.exit(42))")
+    await child.ready
+    expect((await output(child)).length).toBe(200000)
+    expect(await child.closed).toMatchObject({ code: 42, signal: null, outputTruncated: false })
+  })
+  it('bounds guardian cleanup when the stdout consumer stops reading', async () => {
+    const child = fixture(
+      "process.stdout.write('x'.repeat(1000000)); process.stderr.write('ready'); setInterval(()=>{},1000)",
+    )
+    await child.ready
+    await expect.poll(() => child.diagnostics).toContain('ready')
+    expect(await child.terminate()).toMatchObject({ outputTruncated: true, failure: null })
+    expect(exists(child.pid!)).toBe(false)
+    expect(() => process.kill(-child.pid!, 0)).toThrow()
+  })
   it('retains all owned commands for application-level cleanup', async () => {
     const first = fixture('setInterval(()=>{},1000)')
     const second = fixture('setInterval(()=>{},1000)')

@@ -26,6 +26,8 @@ Switching pages or reloading the renderer attaches to durable history and curren
 
 Quitting the app or closing its final window, including on macOS, aborts active work and waits for owned process cleanup. Sessions become interrupted and can be explicitly resumed after restart when their native engine supports it. **Close session** instead creates a terminal closed conversation after cleanup. A cleanup failure blocks quit and shows an error so cleanup can be retried; it is never reported as a confirmed close.
 
+An independent guardian also cleans owned native process groups when the main process is forcibly killed. Restart marks unfinished conversations interrupted without resubmitting a prompt. The optional last-selected-session cache may not survive an abrupt exit; durable history remains selectable by session identity. Explicit resume still verifies native persistence and the retained inputs. See [crash recovery and its limits](process-crash-recovery.md).
+
 Only the selected session ID and language preference are cached in renderer localStorage. Transcripts live in the main-process journal; run inputs and mutable native state live under the run store. Known injected credentials are redacted from application events, including matching user text. Native CLI storage remains engine-owned and is not covered by the application's journal redaction guarantee.
 
 ## IPC and launch boundaries

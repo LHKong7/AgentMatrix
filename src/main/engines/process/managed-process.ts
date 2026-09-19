@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { isAbsolute } from 'node:path'
 import { Readable, Writable } from 'node:stream'
 import { RedactedTail } from './redacted-tail'
+import guardianSource from './guardian.cjs?raw'
 
 export class ProcessFailure extends Error {
   constructor(
@@ -31,6 +32,7 @@ interface ProcessLimits {
   drainMs: number
   stopTimeoutMs: number
 }
+type ProcessExit = Omit<ProcessResult, 'stderr' | 'cleanup'>
 
 const ownedProcesses = new Set<ManagedProcess>()
 /** Also retains failed-start/readback processes whose immediate caller timed out during cleanup. */
@@ -71,7 +73,10 @@ export class ManagedProcess {
   private readonly child: ChildProcessWithoutNullStreams
   private readonly tail: RedactedTail
   private readonly limits: ProcessLimits
-  private result: Omit<ProcessResult, 'stderr' | 'cleanup'> = {
+  private nativePid?: number
+  private nativeExit = false
+  private groupGone = false
+  private result: ProcessExit = {
     code: null,
     signal: null,
     forced: false,
@@ -108,13 +113,12 @@ export class ManagedProcess {
     this.closed = new Promise((resolve) => {
       this.finish = resolve
     })
-    this.child = spawn(launch.executable, launch.args, {
-      cwd: launch.cwd,
-      env: { ...launch.environment },
-      stdio: 'pipe',
+    this.child = spawn(process.execPath, ['-e', guardianSource], {
+      env: { ...baseProcessEnvironment(process.env), ELECTRON_RUN_AS_NODE: '1' },
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
       shell: false,
       detached: true,
-    })
+    }) as ChildProcessWithoutNullStreams
     ownedProcesses.add(this)
     void this.closed.then(() => ownedProcesses.delete(this))
     this.stdout = Readable.toWeb(this.child.stdout, {
@@ -122,8 +126,70 @@ export class ManagedProcess {
     }) as ReadableStream<Uint8Array>
     this.stdin = Writable.toWeb(this.child.stdin) as WritableStream<Uint8Array>
     this.ready = new Promise((resolve, reject) => {
-      this.child.once('spawn', resolve)
+      let booted = false
+      const startup = setTimeout(() => {
+        reject(new ProcessFailure('spawn'))
+        this.result.failure = 'spawn'
+        this.beginShutdown()
+        // No launch was sent before boot, so terminating this failed helper cannot orphan a CLI.
+        if (!booted) this.child.kill('SIGKILL')
+      }, this.limits.stopTimeoutMs)
+      this.child.on('message', (message) => {
+        const event = message as {
+          kind: string
+          pid?: number
+          code?: number | null
+          signal?: NodeJS.Signals | null
+          result?: ProcessExit
+        }
+        if (event.kind === 'boot') {
+          booted = true
+          this.child.send?.(
+            this.shuttingDown
+              ? { kind: 'stop' }
+              : {
+                  kind: 'launch',
+                  limits: this.limits,
+                  launch: {
+                    executable: launch.executable,
+                    args: launch.args,
+                    cwd: launch.cwd,
+                    environment: launch.environment,
+                  },
+                },
+            () => {},
+          )
+        } else if (event.kind === 'ready' && Number.isSafeInteger(event.pid) && event.pid! > 0) {
+          this.nativePid = event.pid
+          clearTimeout(startup)
+          resolve()
+          if (this.shuttingDown) this.sendSignal('SIGTERM')
+        } else if (event.kind === 'exit') {
+          this.nativeExit = true
+          this.result.code = event.code ?? null
+          this.result.signal = event.signal ?? null
+          this.beginShutdown()
+        } else if (event.kind === 'spawn-error') {
+          this.result.failure = 'spawn'
+          clearTimeout(startup)
+          reject(new ProcessFailure('spawn'))
+          this.beginShutdown()
+        } else if (event.kind === 'closed' && event.result) {
+          this.nativeExit = true
+          this.result = {
+            ...event.result,
+            forced: this.result.forced || event.result.forced,
+            outputTruncated: this.result.outputTruncated || event.result.outputTruncated,
+            failure: this.result.failure ?? event.result.failure,
+          }
+        }
+      })
+      this.child.once('exit', () => {
+        clearTimeout(startup)
+        reject(new ProcessFailure('spawn'))
+      })
       this.child.once('error', () => {
+        clearTimeout(startup)
         this.result.failure = 'spawn'
         this.leaderExited = true
         reject(new ProcessFailure('spawn'))
@@ -143,24 +209,25 @@ export class ManagedProcess {
     })
     this.child.stderr.on('data', (bytes: Buffer) => this.tail.push(bytes))
     this.child.stderr.once('end', () => this.tail.finish())
-    this.child.once('exit', (code, signal) => {
+    this.child.once('exit', () => {
       this.leaderExited = true
-      this.result.code = code
-      this.result.signal = signal
+      if (!this.nativeExit) {
+        this.result.code = null
+        this.result.signal = null
+        this.result.failure ??= 'io'
+      }
       this.beginShutdown()
     })
-    this.child.once('close', (code, signal) => {
+    this.child.once('close', () => {
       this.pipesClosed = true
       this.leaderExited = true
-      this.result.code = code
-      this.result.signal = signal
       this.beginShutdown()
       this.checkClosed()
     })
   }
 
   get pid(): number | undefined {
-    return this.child.pid
+    return this.nativePid
   }
   get done(): boolean {
     return this.finished
@@ -170,18 +237,20 @@ export class ManagedProcess {
   }
 
   private groupAlive(): boolean {
-    if (!this.child.pid) return false
+    if (!this.nativePid || this.groupGone) return false
     try {
-      process.kill(-this.child.pid, 0)
+      process.kill(-this.nativePid, 0)
       return true
     } catch (error) {
-      return (error as NodeJS.ErrnoException).code !== 'ESRCH'
+      if ((error as NodeJS.ErrnoException).code !== 'ESRCH') return true
+      this.groupGone = true
+      return false
     }
   }
   private sendSignal(signal: NodeJS.Signals): void {
-    if (this.finished || !this.child.pid) return
+    if (this.finished || this.groupGone || !this.nativePid) return
     try {
-      process.kill(-this.child.pid, signal)
+      process.kill(-this.nativePid, signal)
     } catch {
       /* Closed is proven separately; a failed signal must not masquerade as cleanup. */
     }
@@ -190,6 +259,7 @@ export class ManagedProcess {
     if (this.shuttingDown || this.finished) return
     this.shuttingDown = true
     this.child.stdin.destroy()
+    this.child.send?.({ kind: 'stop' }, () => {})
     this.sendSignal('SIGTERM')
     this.force = setTimeout(() => {
       if (this.groupAlive()) {
@@ -198,8 +268,8 @@ export class ManagedProcess {
       }
     }, this.limits.graceMs)
     this.poll = setInterval(() => this.checkClosed(), 25)
-    this.poll.unref()
-    this.force.unref()
+    // A crashed guardian may leave no other event-loop handles while its native group survives.
+    // Keep cleanup alive until the group is gone, including during application shutdown.
     this.checkClosed()
   }
   private checkClosed(): void {
