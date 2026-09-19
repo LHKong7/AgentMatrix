@@ -23,6 +23,7 @@ import type { DshImportDocuments } from './dsh-layers'
 import type { NativeImportPlan } from './plan'
 import type { JsonObject } from './jsonc'
 import { readImportFiles, importArchiveBytes, type ImportFile } from './source-files'
+import { verifyImportSecretBoundary } from './secret-boundary'
 
 interface Pending {
   record: NativeImportRecord
@@ -193,6 +194,13 @@ export class NativeImportService {
         mappings: plan.mappings,
         diagnostics: plan.diagnostics,
       })
+      try {
+        verifyImportSecretBoundary(plan, record, promptReferences)
+      } catch (error) {
+        for (const file of files) file.content.fill(0)
+        for (const credential of plan.credentials) credential.value = ''
+        throw error
+      }
       const next = structuredClone(current)
       for (const collection of Object.keys(plan.additions) as ImportCollection[])
         (next[collection] as { id: string }[]).push(...plan.additions[collection])

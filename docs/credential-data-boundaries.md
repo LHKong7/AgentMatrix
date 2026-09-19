@@ -12,6 +12,16 @@ An offending identity fails with a static protocol error and closes the attachme
 
 The regression cases live in `tests/opencode-runtime.test.ts`. `tests/managed-process.test.ts` covers encoded identity matching, unrelated prefixes, empty values, invalid UTF-16 normalization and the existing variant-input budget. The full suite includes the unchanged streaming-redactor cases.
 
+## Import preview and ordinary configuration
+
+The next audit found that an extracted literal credential could also be copied into an ordinary imported field or provenance key. Encrypting the credential's primary field did not prevent that copy from appearing in preview metadata or the saved workspace. A 27-case service-level matrix reproduced accepted plans across OpenCode, Pi and DSH before the fix.
+
+`native-import/secret-boundary.ts` now checks the complete plan's ordinary additions, credential metadata, source paths, mappings, diagnostics and Prompt references before publishing a preview. It rejects recognized copies with a static bilingual error, invalidates prior pending state and preserves the original files. JSON-pointer and percent decoding supplement the shared known-value matcher. It does not rewrite source names or silently alter imported content. See the [import boundary contract](native-configuration-import.md#known-credentials-copied-into-ordinary-data) for supported forms and limits.
+
+This prevents recognized copies from being published into workspace data and later captures through native import. Direct user edits, unknown/unselected secrets and legacy data are separate paths; no global secret-search claim is made.
+
+The [four-route desktop record](probes/2026-09-19-native-import-credential-boundary.json) verifies rejection through real IPC in both languages, unchanged workspace/vault data and no archive or model call during rejection. Every route then completes the existing corrected-import, restart and native-call fixture. The full unit suite passes 958 cases, including 30 added import-boundary cases. This closes the recorded native-import copy defect without attesting every configuration-entry path.
+
 ## Inspected surfaces and current evidence
 
 | Surface                                 | Application boundary                                                                                                                                                                                                                 | Evidence and limits                                                                                                                                                                                                                                                                                 |

@@ -50,6 +50,8 @@ The shared Prompt assets are copies of the selected files. Later changes to nati
 
 ## Storage and recovery
 
+The shared [credential-copy check](native-configuration-import.md#known-credentials-copied-into-ordinary-data) rejects extracted literal credentials repeated in ordinary additions or source metadata before returning a preview. It covers selected Prompt files as well as model/auth sources without resolving ambient values. Correct the source and preview again; originals remain unchanged.
+
 Pi history records identify the first canonical source with `sourceKind` and retain up to four `additionalSources`. Each source has its own path, resolved path, SHA-256, and byte count. The archive encrypts a canonical envelope of original file bytes; verification checks the role, count, length, and digest of every file. Existing OpenCode records and their single-file payload remain compatible.
 
 Every selected file is rechecked before publication. Changing any source or the workspace after preview rejects application. The existing credential journal and committed import ID govern rollback, interrupted-import recovery, and idempotent retries. Import does not modify original files, create Pi lockfiles, or call Pi's native settings/authentication loaders. Unreferenced encrypted archives after failed publication and retention/export controls have the same limits described in the [shared persistence contract](native-configuration-import.md#read-and-persistence-boundaries).

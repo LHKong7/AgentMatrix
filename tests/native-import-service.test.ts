@@ -92,6 +92,176 @@ const preview = () => service.preview({ installationId: 'opencode' }, source)
 const selectPrompt = (prior: NativeImportPreview, referencePath: string, path: string) =>
   service.preview({ installationId: 'opencode', previousPreviewId: prior.id, referencePath }, path)
 
+describe('known credential copies outside secret storage', () => {
+  const key = 'synthetic-import-"secret/~中文'
+  it('rejects a credential in the selected source path without returning its metadata', async () => {
+    const path = join(root, encodeURIComponent(secret) + '.jsonc')
+    await writeFile(path, original)
+    await expect(service.preview({ installationId: 'opencode' }, path)).rejects.toThrow(
+      'error.nativeImportSecretCopy',
+    )
+    expect((await store.load()).nativeImports).toBeUndefined()
+    expect((await vault.status()).credentials).toEqual([])
+  })
+  it('invalidates an unsafe Prompt addition and allows a fresh corrected import', async () => {
+    await writeFile(source, original.replace('"Shared role"', '"{file:role.md}"'))
+    const captured = await preview()
+    const path = join(root, 'role.md')
+    await writeFile(path, `Role ${encodeURIComponent(secret)}`)
+    await expect(selectPrompt(captured, '/agent/worker/prompt', path)).rejects.toThrow(
+      'error.nativeImportSecretCopy',
+    )
+    await expect(
+      service.apply({ id: captured.id, workspaceRevision: captured.workspaceRevision }),
+    ).rejects.toThrow('error.nativeImportExpired')
+    expect((await vault.status()).credentials).toEqual([])
+    await writeFile(path, 'Corrected role')
+    const corrected = await selectPrompt(await preview(), '/agent/worker/prompt', path)
+    const imported = await service.apply({
+      id: corrected.id,
+      workspaceRevision: corrected.workspaceRevision,
+    })
+    expect(imported.prompts[0]!.versions[0]!.content).toBe('Corrected role')
+    expect(JSON.stringify(imported)).not.toContain(secret)
+    const credential = (await vault.status()).credentials[0]!
+    expect(await vault.resolve({ kind: 'credential', id: credential.id }, {})).toBe(secret)
+  })
+  it('checks more than one run-sized credential batch without rejecting a valid import', async () => {
+    const headers = Object.fromEntries(
+      Array.from({ length: 257 }, (_, index) => [
+        `X-Key-${index}`,
+        `synthetic-large-import-${String(index).padStart(3, '0')}-end`,
+      ]),
+    )
+    await writeFile(
+      source,
+      JSON.stringify({
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: { baseURL: 'https://example.test/v1', headers },
+          },
+        },
+      }),
+    )
+    const captured = await preview()
+    expect(captured.credentials).toBe(257)
+    await writeFile(
+      source,
+      JSON.stringify({
+        provider: {
+          custom: {
+            npm: '@ai-sdk/openai-compatible',
+            options: { baseURL: 'https://example.test/v1', headers },
+          },
+        },
+        [headers['X-Key-256']!]: 'unsupported',
+      }),
+    )
+    await expect(preview()).rejects.toThrow('error.nativeImportSecretCopy')
+    expect((await vault.status()).credentials).toEqual([])
+  })
+  const cases = (['opencode', 'pi', 'deepseek-harness'] as const).flatMap((engine) =>
+    (['raw', 'URL', 'JSON'] as const).flatMap((encoding) =>
+      (['diagnostic', 'prompt', 'endpoint'] as const).map((surface) => ({
+        engine,
+        encoding,
+        surface,
+      })),
+    ),
+  )
+  it.each(cases)(
+    'rejects $engine $encoding credentials in $surface before publication',
+    async ({ engine, encoding, surface }) => {
+      const current = await store.load()
+      current.installations[0]!.kind = engine
+      await store.save(current)
+      const encoded =
+        encoding === 'URL'
+          ? encodeURIComponent(key)
+          : encoding === 'JSON'
+            ? JSON.stringify(key).slice(1, -1)
+            : key
+      const endpoint =
+        surface === 'endpoint' ? `https://example.test/v1/${encoded}` : 'https://example.test/v1'
+      const prompt = surface === 'prompt' ? `Role ${encoded}` : 'Safe role'
+      const unknown = surface === 'diagnostic' ? { [encoded]: 'unsupported' } : {}
+      const documents: Record<string, unknown> =
+        engine === 'opencode'
+          ? {
+              'opencode.jsonc': {
+                provider: {
+                  custom: {
+                    npm: '@ai-sdk/openai-compatible',
+                    options: { baseURL: endpoint, apiKey: key },
+                  },
+                },
+                model: 'custom/model',
+                agent: { worker: { prompt } },
+                ...unknown,
+              },
+            }
+          : engine === 'pi'
+            ? {
+                'models.json': {
+                  providers: {
+                    custom: {
+                      api: 'openai-completions',
+                      baseUrl: endpoint,
+                      apiKey: key,
+                      models: [{ id: 'model' }],
+                    },
+                  },
+                  ...unknown,
+                },
+                'SYSTEM.md': prompt,
+              }
+            : {
+                'settings.yaml': {
+                  'llm-pi-ai': {
+                    providers: {
+                      custom: {
+                        api: 'openai-completions',
+                        baseURL: endpoint,
+                        apiKeyEnv: 'CUSTOM_KEY',
+                        models: [{ id: 'model' }],
+                      },
+                    },
+                  },
+                  'agent-default-model': { provider: 'custom', model: 'model' },
+                  ...unknown,
+                },
+                '.credentials.yaml': { version: 1, refs: { CUSTOM_KEY: key } },
+                'cordis.yml': [
+                  {
+                    id: 'system',
+                    name: '@deepseek-ai/dsh-system-prompt',
+                    config: { personaPrefix: prompt },
+                  },
+                ],
+              }
+      const paths = Object.keys(documents).map((name) => join(root, name))
+      for (const [name, value] of Object.entries(documents))
+        await writeFile(
+          join(root, name),
+          name === 'SYSTEM.md' ? String(value) : JSON.stringify(value),
+        )
+      const before = await readFile(store.filePath)
+      const originals = await Promise.all(paths.map((path) => readFile(path)))
+      const encrypt = vi.spyOn(cipher, 'encrypt')
+      const archiveSave = vi.spyOn(archive, 'save')
+      await expect(service.preview({ installationId: 'opencode' }, paths)).rejects.toThrow(
+        'error.nativeImportSecretCopy',
+      )
+      expect(await readFile(store.filePath)).toEqual(before)
+      expect(await Promise.all(paths.map((path) => readFile(path)))).toEqual(originals)
+      expect((await vault.status()).credentials).toEqual([])
+      expect(encrypt).not.toHaveBeenCalled()
+      expect(archiveSave).not.toHaveBeenCalled()
+    },
+  )
+})
+
 describe('explicit OpenCode Prompt file selection', () => {
   const role = '\uFEFF  Selected role 中文 {file:/never-read} {env:NEVER_READ}\r\n'
   const appendix = '\uFEFFSelected appendix\r\n'

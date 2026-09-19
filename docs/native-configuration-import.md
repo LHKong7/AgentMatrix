@@ -57,6 +57,14 @@ The main process owns the import plan and accepts only its token and expected wo
 
 A failed publication can leave an encrypted, unreferenced source archive for recovery/inspection. Archive retention and deletion controls are deferred. This is process-interruption recovery, not a claim of cross-file atomicity under filesystem corruption or sudden storage loss.
 
+## Known credentials copied into ordinary data
+
+Before returning a preview, the importer checks the values it extracted from supported literal credential fields against all ordinary additions, credential metadata, source observations, mapping/diagnostic paths and Prompt-reference metadata. If a known value is copied into a Prompt, endpoint, name, field key or selected path, the entire preview fails with an English/Chinese error. Nothing is imported or archived, originals remain unchanged and any previous preview token is invalidated. Correct the source and start a fresh preview. Selected Prompt additions go through the same check.
+
+The check shares the runtime redactor's complete raw, UTF-8-normalized, JSON-escaped and URL-encoded forms. It also examines decoded JSON-pointer tokens and one level of percent decoding, accounting for provenance and endpoint normalization. Matching is conservative, including short credential values. Known-value matching is not a detector for arbitrary transformations or unrelated secrets. The importer does not resolve environment/file references, execute native expressions, read unselected credential stores or inspect existing vault contents for this check. Unconverted source bodies remain encrypted. This change does not clean up previously imported plaintext copies.
+
+The regression matrix reproduced 27 accepted unsafe plans before the fix: three engines, three encodings and three destinations (diagnostic metadata, Prompt and endpoint). Additional tests cover selected source filenames, failed Prompt additions followed by corrected imports, and credential sets larger than one run's 256-value redaction budget. Import checking compiles bounded batches rather than imposing that per-run limit on a file group.
+
 ## Verification and remaining work
 
 The unit suite covers inert JSONC parsing, duplicate/depth/size rejection, field conversion, unknown siblings, escaped provenance pointers, secret omission, exact-byte encrypted archival, immutable history, source/symlink changes, revision conflicts, idempotent retry, encryption/publication failures, and both outcomes of interrupted credential-journal recovery. Selected Prompt cases cover ordered replacement/append bindings, literal nested macros, cross-folder selection, assignment replacement, repeated physical sources, source changes during attachment/apply, unsupported/forged input, size/count limits and legacy single-file archive compatibility.
@@ -74,6 +82,8 @@ Its assertions cover cancellation, read-only preview, English/Chinese UI, change
 **Selected Prompt result:** the three-file macOS arm64 fixture passed on 2026-09-19, including English/Chinese preview, cancellation, secondary-source drift, exact encrypted bytes, restart and one native primary provider round trip. [Redacted result](probes/2026-09-19-opencode-prompt-import-desktop.json). Pi and both DSH provider routes also pass the shared importer regression; [verification record](probes/2026-09-19-prompt-import-regression.json).
 
 The [DSH selected-source importer](dsh-native-configuration-import.md) also shares this persistence contract. Remaining work includes combined native precedence and discovery, automatic instruction/glob composition, native Skill ingestion and authentication-store discovery, complete per-field runtime override provenance, expanded provider/model and OAuth mappings, import archive retention/export, and external-provider/platform acceptance. Native-file write-back and bidirectional synchronization remain deferred. This increment does not pass B3/A12 or a delivery gate.
+
+**Credential-copy boundary result:** the [four-route follow-up](probes/2026-09-19-native-import-credential-boundary.json) passes OpenCode, Pi and both DSH routes sequentially. Each case rejects copied credentials in diagnostic metadata in English and Chinese without a preview, archive, vault mutation, workspace mutation or model call. Corrected sources then pass the existing encrypted import, restart and native-call checks. The OpenCode rejection screenshots were visually inspected in both languages. The full suite passes 958 tests across 61 files with two workers; lint, typecheck, production build and changed-file formatting also pass. These local synthetic-provider results do not complete X3 or external-service acceptance.
 
 ## Primary references
 

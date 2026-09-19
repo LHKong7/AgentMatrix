@@ -80,6 +80,8 @@ The earlier [configuration editor record](probes/2026-09-19-plugin-options-edito
 
 ## Remaining work and gate decisions
 
+The subsequent [native-import credential boundary](native-configuration-import.md#known-credentials-copied-into-ordinary-data) closes a reproduced ordinary-field/provenance copy defect. Its four desktop routes verify bilingual rejection followed by successful corrected imports and native calls. Item 6 remains partial: direct edits, remaining logging/input paths and combined run-resource boundaries still need complete X3 acceptance evidence.
+
 The X2 checklist artifact now exists. Its partial rows remain partial, and B7/C4/D4 are not promoted by collecting the reports. B0 requires its own foundation acceptance decision; an external provider is not a B0 prerequisite.
 
 | Next work                             | Required evidence / decision                                                                                                                                                                                                                   |

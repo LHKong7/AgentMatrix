@@ -63,6 +63,8 @@ export const nativeImportEn = {
     'Selected files are limited to 1 MiB in total; each JSON/YAML document to 4,000 values, 32 levels, and 200-character keys.',
   'error.nativeImportRead':
     'The selected configuration file could not be read as a regular UTF-8 file.',
+  'error.nativeImportSecretCopy':
+    'A credential also appears in ordinary configuration or source metadata. Remove that copy from fields, names, or paths and preview again. No configuration was imported.',
   'error.nativeImportChanged':
     'The source file or installation changed after preview. Choose the file again.',
   'error.nativeImportExpired':

@@ -7,7 +7,13 @@ export function redactText(text: string, secrets: readonly string[]): string {
 
 /** Full-value matching for native identifiers; truncated stream prefixes are not identities. */
 export function containsSecret(value: string, secrets: readonly string[] = []): boolean {
-  return secretVariants(secrets).some((secret) => value.includes(secret))
+  return createSecretMatcher(secrets)(value)
+}
+
+/** Compile once when inspecting multiple fields with the same bounded secret set. */
+export function createSecretMatcher(secrets: readonly string[]): (value: string) => boolean {
+  const variants = secretVariants(secrets)
+  return (value) => variants.some((secret) => value.includes(secret))
 }
 
 function secretVariants(secrets: readonly string[]): string[] {

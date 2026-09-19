@@ -420,6 +420,56 @@ async function choosePrompts(locale = 'en') {
     })
     .waitFor()
 }
+async function rejectCredentialCopy(locale) {
+  const target = isDsh ? dshPath('settings.yaml') : source
+  const original = sources.get(target)
+  const changed = isDsh
+    ? original + `\n${JSON.stringify(secret)}: copied-credential\n`
+    : JSON.stringify({
+        ...(isPi ? JSON.parse(original.replace(/^\uFEFF/, '')) : native),
+        [secret]: 'copied-credential',
+      })
+  const before = await state()
+  await writeFile(target, changed)
+  try {
+    await app.evaluate(
+      ({ dialog }, paths) => {
+        const original = dialog.showOpenDialog
+        dialog.showOpenDialog = async () => {
+          dialog.showOpenDialog = original
+          return { canceled: false, filePaths: paths }
+        }
+      },
+      isOpenCode ? [source] : [...sources.keys()],
+    )
+    await page
+      .getByRole('button', {
+        name: locale === 'en' ? 'Choose configuration file' : '选择配置文件',
+        exact: true,
+      })
+      .click()
+    const alert = page.getByRole('alert').filter({
+      hasText: locale === 'en' ? 'A credential also appears' : '凭据同时出现在',
+    })
+    await alert.waitFor()
+    await alert.scrollIntoViewIfNeeded()
+    assert.equal(await page.locator('.native-import-preview').count(), 0)
+    assert.ok(!(await page.locator('body').innerText()).includes(secret))
+    assert.deepEqual(await state(), before)
+    assert.deepEqual(
+      (await page.evaluate(() => window.agentMatrix.getCredentialStatus())).credentials,
+      [],
+    )
+    assert.equal((await readdir(dataDirectory)).includes('native-imports'), false)
+    assert.equal(primaryRequests, 0)
+    if (process.env.AGENT_MATRIX_IMPORT_REJECTION_SCREENSHOT)
+      await page.screenshot({
+        path: `${process.env.AGENT_MATRIX_IMPORT_REJECTION_SCREENSHOT}.${locale}.png`,
+      })
+  } finally {
+    await writeFile(target, original)
+  }
+}
 const state = () => page.evaluate(() => window.agentMatrix.loadWorkspace())
 async function poll(read, label) {
   const end = Date.now() + 90_000
@@ -438,6 +488,11 @@ try {
   assert.equal(await page.locator('.native-import-preview').count(), 0)
   assert.equal((await state()).nativeImports, undefined)
   assert.equal((await readdir(dataDirectory)).includes('native-imports'), false)
+  for (const locale of ['en', 'zh-CN']) {
+    await language(locale)
+    await rejectCredentialCopy(locale)
+  }
+  await language('en')
   await choose()
   if (isDsh) {
     await choose('en', true, true)
@@ -646,10 +701,16 @@ try {
   console.log(
     JSON.stringify(
       {
+        checkedAt: new Date().toISOString(),
+        platform: process.platform,
+        architecture: process.arch,
         passed: true,
         engine: `${engineLabel} ${version}`,
         locales: ['en', 'zh-CN'],
         readOnlyPreview: true,
+        copiedCredentialPreviewRejected: true,
+        rejectionLeavesWorkspaceAndVaultUnchanged: true,
+        correctedImportSucceeds: true,
         staleSourceRejected: true,
         exactEncryptedArchive: true,
         importedCredentials: expectedCredentials,

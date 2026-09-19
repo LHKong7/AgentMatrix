@@ -56,6 +56,8 @@ export const nativeImportZhCN: Record<keyof typeof nativeImportEn, string> = {
   'error.nativeImportLimit':
     '所选文件合计上限为 1 MiB；每份 JSON/YAML 上限为 4,000 个值、32 层嵌套及 200 字符的键。',
   'error.nativeImportRead': '无法将所选配置读取为普通 UTF-8 文件。',
+  'error.nativeImportSecretCopy':
+    '凭据同时出现在普通配置或来源信息中。请从字段、名称或路径中移除这份副本，再重新预览。尚未导入任何配置。',
   'error.nativeImportChanged': '预览后源文件或引擎安装发生变化，请重新选择文件。',
   'error.nativeImportExpired': '导入预览已过期或不可用，请重新选择文件。',
   'error.nativeImportBusy': '另一项原生配置导入正在进行。',
