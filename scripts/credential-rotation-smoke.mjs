@@ -422,7 +422,7 @@ async function showReport(session, locale, state) {
   await page.waitForFunction((value) => document.documentElement.lang === value, locale)
   await page
     .getByRole('navigation')
-    .getByRole('button', { name: new RegExp(`^${locale === 'en' ? 'Sessions' : '会话'}`) })
+    .getByRole('button', { name: locale === 'en' ? 'Sessions' : '会话', exact: true })
     .click()
   await page.locator(`[data-session-list-id="${session.id}"]`).click()
   await page

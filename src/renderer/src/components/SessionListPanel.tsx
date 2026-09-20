@@ -237,7 +237,7 @@ export function SessionListPanel({
             <button
               key={session.id}
               type="button"
-              data-session-list-id={session.id}
+              data-session-record-id={session.id}
               aria-current={selected === session.id}
               onClick={() => setSelected(session.id)}
               className={cn(

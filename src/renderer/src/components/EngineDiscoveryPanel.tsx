@@ -37,6 +37,12 @@ const statusBadges = {
   missing: { variant: 'muted', Icon: CircleSlash },
 } as const
 
+/**
+ * The automatic check runs a version command per candidate, so its result is kept for the
+ * lifetime of the window. Reopening this page reuses it; **Check again** always re-reads.
+ */
+let lastReport: EngineDiscovery | null = null
+
 export function EngineDiscoveryPanel({
   workspace,
   desktop,
@@ -53,19 +59,25 @@ export function EngineDiscoveryPanel({
   onWorkspace: (workspace: EngineWorkspace) => void
 }) {
   const { t, locale } = useI18n()
-  const [report, setReport] = useState<EngineDiscovery | null>(null)
+  const [report, setReport] = useState<EngineDiscovery | null>(lastReport)
   const [checking, setChecking] = useState(false)
   const [working, setWorking] = useState<SupportedEngine | null>(null)
   const [error, setError] = useState<unknown>(null)
   const locked = useRef(false)
 
+  const remember = (value: EngineDiscovery) => {
+    lastReport = value
+    setReport(value)
+  }
   const check = useCallback(async () => {
     if (locked.current) return
     locked.current = true
     setChecking(true)
     setError(null)
     try {
-      setReport(await api.discoverEngines())
+      const value = await api.discoverEngines()
+      lastReport = value
+      setReport(value)
     } catch (failure) {
       setError(failure)
     } finally {
@@ -73,9 +85,9 @@ export function EngineDiscoveryPanel({
       setChecking(false)
     }
   }, [])
-  // The automatic check runs once when this page opens; later checks are explicit.
+  // Check automatically the first time this page opens, then only when asked.
   useEffect(() => {
-    void check()
+    if (!lastReport) void check()
   }, [check])
 
   async function act(kind: SupportedEngine, operation: () => Promise<void>) {
@@ -113,7 +125,7 @@ export function EngineDiscoveryPanel({
       )
     }
     onWorkspace(await api.probeEngine({ installationId }))
-    setReport(await api.discoverEngines())
+    remember(await api.discoverEngines())
   }
 
   const entries = report?.engines ?? []
@@ -173,7 +185,7 @@ export function EngineDiscoveryPanel({
                 onDownload={() =>
                   void act(entry.kind, async () => {
                     const result = await api.downloadEngine({ kind: entry.kind })
-                    setReport(result.discovery)
+                    remember(result.discovery)
                     await adopt(entry.kind, result.candidate)
                   })
                 }
