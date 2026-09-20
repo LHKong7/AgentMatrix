@@ -41,20 +41,25 @@ opened while the operating system is light and the preference is dark flashes li
 ## Components
 
 `src/renderer/src/components/ui/` contains the shadcn primitives: `button` (with `buttonVariants`
-for elements that must stay plain tags), `card`, `badge`, `input` (with `Textarea` and a native
-`Select`), `checkbox`, `label`, `separator`, `alert`, `skeleton`, `tabs`, `table`, `disclosure`,
-`dialog` and `dropdown-menu`. `cn()` in `src/renderer/src/lib/utils.ts` merges classes.
+for elements that must stay plain tags), `card`, `badge`, `input` (with `Textarea`), `select`,
+`checkbox`, `label`, `separator`, `alert`, `skeleton`, `tabs`, `table`, `disclosure`, `dialog` and
+`dropdown-menu`. `cn()` in `src/renderer/src/lib/utils.ts` merges classes.
 
 Shared form fields (`ConfigurationFields.tsx`) render these primitives, so every editor that uses
-`TextField`, `NumberField`, `SelectField` or `JsonField` picks up the same styling. Selects stay
-native `<select>` elements on purpose: the desktop acceptance tests drive them with real
-`selectOption` calls, and a native listbox keeps platform keyboard behavior.
+`TextField`, `NumberField`, `SelectField` or `JsonField` picks up the same styling.
+
+`select` is the Radix listbox with shadcn styling. It keeps the `<option>`-children API and a
+native-shaped change event, so the editors did not change, and each item carries its value in
+`data-value`. Because a modal `<dialog>` owns the top layer, the list portals into the nearest
+`<dialog>` when there is one. The desktop acceptance tests drive it through
+`scripts/lib/select.mjs`, which opens the trigger and clicks an option instead of calling
+Playwright's `selectOption`.
 
 The `dialog` primitive keeps the native `<dialog>` element and its `::backdrop` rather than moving
-to a portal, so the platform focus trap, top-layer stacking and Escape handling stay as they were;
-`checkbox` and `Select` stay real form controls for the same reason — the desktop tests drive them
-with `check()` and `selectOption()`. `disclosure` styles `<details>`/`<summary>`, which keeps the
-open state and the `summary` hooks those tests use.
+to a portal, so the platform focus trap, top-layer stacking and Escape handling stay as they were.
+`input`, `textarea` and `checkbox` are styled native elements, as they are in shadcn itself, which
+also keeps `fill()` and `check()` working in the desktop tests. `disclosure` styles
+`<details>`/`<summary>`, which keeps the open state and the `summary` hooks those tests use.
 
 ## Adding a screen
 

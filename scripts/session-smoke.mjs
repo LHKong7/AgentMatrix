@@ -18,6 +18,7 @@ import {
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
+import { chooseOption, languageSelect } from './lib/select.mjs'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
 
 const engine = process.env.AGENT_MATRIX_SESSION_ENGINE || 'opencode'
@@ -432,7 +433,7 @@ async function crashApplication() {
   return groups.length
 }
 async function language(locale) {
-  await page.locator('.language-select select').first().selectOption(locale)
+  await chooseOption(page, languageSelect(page), locale)
 }
 async function navigate(label) {
   await page
@@ -1398,8 +1399,8 @@ try {
   await page.getByRole('alert').filter({ hasText: 'Choose an existing folder' }).waitFor()
   assert.equal((await sessions()).length, 0)
   await directory.fill(alternateCwd)
-  await page.getByLabel('Agent configuration', { exact: true }).selectOption('')
-  await page.getByLabel('Agent configuration', { exact: true }).selectOption('reviewer')
+  await chooseOption(page, page.getByLabel('Agent configuration', { exact: true }), '')
+  await chooseOption(page, page.getByLabel('Agent configuration', { exact: true }), 'reviewer')
   assert.equal(await directory.inputValue(), cwd)
   assert.deepEqual(await page.evaluate(() => window.agentMatrix.loadWorkspace()), beforeDirectory)
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()

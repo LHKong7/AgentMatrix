@@ -6,6 +6,7 @@ import { isAbsolute, join } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { stringify as yaml } from 'yaml'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
+import { chooseOption, languageSelect } from './lib/select.mjs'
 
 const engine = process.env.AGENT_MATRIX_IMPORT_ENGINE ?? 'opencode'
 assert.ok(
@@ -342,7 +343,7 @@ async function launch() {
   await page.locator('.card-grid').waitFor()
 }
 async function language(locale) {
-  await page.locator('.language-select select').first().selectOption(locale)
+  await chooseOption(page, languageSelect(page), locale)
   await page.waitForFunction((value) => document.documentElement.lang === value, locale)
 }
 async function navigate(name) {
@@ -655,15 +656,17 @@ try {
   const editor = page.getByRole('dialog')
   await editor.getByLabel('Working directory', { exact: true }).fill(cwd)
   if (isPi)
-    await editor
-      .getByLabel('Requested execution policy', { exact: true })
-      .selectOption('unrestricted')
+    await chooseOption(
+      page,
+      editor.getByLabel('Requested execution policy', { exact: true }),
+      'unrestricted',
+    )
   await editor.locator('input[type="checkbox"]').first().check()
   await editor.getByRole('button', { name: 'Save Agent', exact: true }).click()
   await editor.waitFor({ state: 'hidden' })
   const agent = (await state()).agents.find((entry) => entry.name === profileName)
   await navigate('Sessions')
-  await page.getByLabel('Agent configuration', { exact: true }).selectOption(agent.id)
+  await chooseOption(page, page.getByLabel('Agent configuration', { exact: true }), agent.id)
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
   let sessionId
   await poll(async () => {

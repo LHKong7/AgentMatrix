@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
+import { chooseOption, languageSelect } from './lib/select.mjs'
 
 const dataDirectory = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-'))
 const skillSource = await mkdtemp(join(tmpdir(), 'agent-matrix-smoke-skill-'))
@@ -90,7 +91,7 @@ async function launch() {
 }
 const state = () => page.evaluate(() => window.agentMatrix.loadWorkspace())
 async function language(locale) {
-  await page.locator('.language-select select').first().selectOption(locale)
+  await chooseOption(page, languageSelect(page), locale)
   await page.waitForFunction((expected) => document.documentElement.lang === expected, locale)
 }
 async function navigate(label) {
@@ -180,7 +181,7 @@ try {
     ['deepseek-harness', 'Smoke DSH'],
   ]) {
     await addResource('Engines', name, async (dialog) => {
-      await dialog.getByLabel('Engine product', { exact: true }).selectOption(kind)
+      await chooseOption(page, dialog.getByLabel('Engine product', { exact: true }), kind)
       await dialog.getByLabel('Executable path', { exact: true }).fill(`/opt/smoke/${kind}`)
     })
   }
@@ -220,9 +221,9 @@ try {
   })
   await page.reload()
   await addResource('Native plugins', 'Smoke Plugin', async (dialog) => {
-    await dialog
-      .getByLabel('Engine installation', { exact: true })
-      .selectOption({ label: 'Smoke OpenCode' })
+    await chooseOption(page, dialog.getByLabel('Engine installation', { exact: true }), {
+      label: 'Smoke OpenCode',
+    })
     await dialog.getByLabel('Native plugin ID', { exact: true }).fill('smoke-native-id')
     await dialog.getByLabel('Version', { exact: true }).fill('0.9.0')
     await dialog.getByLabel('Source', { exact: true }).fill('User-supplied origin')
@@ -252,7 +253,9 @@ try {
         'The declared range excludes saved OpenCode version 2.0.0.',
       ],
     ]) {
-      await dialog.getByLabel('Engine installation', { exact: true }).selectOption({ label: name })
+      await chooseOption(page, dialog.getByLabel('Engine installation', { exact: true }), {
+        label: name,
+      })
       assert.equal(await dialog.getByTestId('plugin-engine-range').count(), 0)
       await dialog.getByRole('button', { name: 'Inspect installed files', exact: true }).click()
       await dialog.getByText(message, { exact: true }).waitFor()
@@ -261,9 +264,9 @@ try {
         status,
       )
     }
-    await dialog
-      .getByLabel('Engine installation', { exact: true })
-      .selectOption({ label: 'Smoke OpenCode' })
+    await chooseOption(page, dialog.getByLabel('Engine installation', { exact: true }), {
+      label: 'Smoke OpenCode',
+    })
     await dialog.getByRole('button', { name: 'Inspect installed files', exact: true }).click()
     await dialog
       .getByText('Check the engine installation before comparing its version.', { exact: true })
@@ -308,9 +311,9 @@ try {
   await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
   await pluginDialog.getByRole('status').filter({ hasText: '文件已检查 · 激活尚未验证' }).waitFor()
   await pluginDialog.getByText('请先检查引擎安装，再比较版本。', { exact: true }).waitFor()
-  await pluginDialog
-    .getByLabel('引擎安装', { exact: true })
-    .selectOption({ label: 'Mismatching range fixture' })
+  await chooseOption(page, pluginDialog.getByLabel('引擎安装', { exact: true }), {
+    label: 'Mismatching range fixture',
+  })
   await pluginDialog.getByRole('button', { name: '检查已安装文件', exact: true }).click()
   await pluginDialog
     .getByText('声明的范围不包含已保存的 OpenCode 版本 2.0.0。', { exact: true })
@@ -330,7 +333,9 @@ try {
   await pluginDialog
     .getByLabel('OpenCode 插件配置（JSON）', { exact: true })
     .fill('{"marker":"KEEP_OPTIONS"}')
-  await pluginDialog.getByLabel('引擎安装', { exact: true }).selectOption({ label: 'Smoke Pi' })
+  await chooseOption(page, pluginDialog.getByLabel('引擎安装', { exact: true }), {
+    label: 'Smoke Pi',
+  })
   await pluginDialog
     .getByText('这些选项属于其他引擎。请先清除，再配置当前引擎；不会自动转换选项含义。', {
       exact: true,
@@ -347,13 +352,15 @@ try {
     await pluginDialog.getByLabel('OpenCode 插件配置（JSON）', { exact: true }).count(),
     0,
   )
-  await pluginDialog.getByLabel('引擎安装', { exact: true }).selectOption({ label: 'Smoke DSH' })
+  await chooseOption(page, pluginDialog.getByLabel('引擎安装', { exact: true }), {
+    label: 'Smoke DSH',
+  })
   await pluginDialog
     .getByLabel('DSH 插件配置（JSON）', { exact: true })
     .fill('{"marker":"KEEP_DSH"}')
-  await pluginDialog
-    .getByLabel('引擎安装', { exact: true })
-    .selectOption({ label: 'Smoke OpenCode' })
+  await chooseOption(page, pluginDialog.getByLabel('引擎安装', { exact: true }), {
+    label: 'Smoke OpenCode',
+  })
   assert.equal(
     JSON.parse(await pluginDialog.getByLabel('DSH 插件配置（JSON）', { exact: true }).inputValue())
       .marker,
@@ -420,7 +427,7 @@ try {
     const label = kind === 'pi' ? 'Smoke Pi' : 'Smoke DSH'
     const name = `${label} Plugin`
     await addResource('Native plugins', name, async (dialog) => {
-      await dialog.getByLabel('Engine installation', { exact: true }).selectOption({ label })
+      await chooseOption(page, dialog.getByLabel('Engine installation', { exact: true }), { label })
       await dialog.getByLabel('Native plugin ID', { exact: true }).fill(`${kind}-native-id`)
       await dialog.getByLabel('Version', { exact: true }).fill('0.9.0')
       await dialog.getByLabel('Source', { exact: true }).fill('User-supplied origin')
@@ -528,7 +535,11 @@ try {
   }, unprobedInstallations)
   await page.reload()
   await addResource('Connections', 'Smoke Connection', async (dialog) => {
-    await dialog.getByLabel('API protocol', { exact: true }).selectOption('anthropic-messages')
+    await chooseOption(
+      page,
+      dialog.getByLabel('API protocol', { exact: true }),
+      'anthropic-messages',
+    )
     await dialog
       .getByLabel('API Base URL', { exact: true })
       .fill('https://gateway.example/proxy/v1')
@@ -545,23 +556,31 @@ try {
         })
     }
     await language('en')
-    await dialog.getByLabel('API protocol', { exact: true }).selectOption('openai-chat-completions')
+    await chooseOption(
+      page,
+      dialog.getByLabel('API protocol', { exact: true }),
+      'openai-chat-completions',
+    )
     await dialog.getByLabel('API Base URL', { exact: true }).fill('http://localhost:12345/v1')
-    await dialog.getByLabel('Authentication', { exact: true }).selectOption('bearer')
-    await dialog.getByLabel('Credential reference', { exact: true }).selectOption('environment')
+    await chooseOption(page, dialog.getByLabel('Authentication', { exact: true }), 'bearer')
+    await chooseOption(
+      page,
+      dialog.getByLabel('Credential reference', { exact: true }),
+      'environment',
+    )
     await dialog
       .getByLabel('Environment variable name', { exact: true })
       .fill('AGENTMATRIX_SMOKE_KEY')
   })
   await addResource('Models', 'Smoke Model', async (dialog) => {
-    await dialog
-      .getByLabel('Model connection', { exact: true })
-      .selectOption({ label: 'Smoke Connection' })
+    await chooseOption(page, dialog.getByLabel('Model connection', { exact: true }), {
+      label: 'Smoke Connection',
+    })
     await dialog.getByLabel('Model ID', { exact: true }).fill('test-model')
     assert.equal(await dialog.getByLabel('Temperature', { exact: true }).inputValue(), '')
   })
   await addResource('Shared prompts', 'Smoke Prompt', async (dialog) => {
-    await dialog.getByLabel('Prompt purpose', { exact: true }).selectOption('role')
+    await chooseOption(page, dialog.getByLabel('Prompt purpose', { exact: true }), 'role')
     await dialog.getByLabel('Prompt content', { exact: true }).fill('Shared original instructions')
   })
   await addResource('Skills', 'Smoke Skill', async (dialog) => {
@@ -575,9 +594,11 @@ try {
   })
   await addResource('Resource bundles', 'Smoke Bundle', async (dialog) => {
     await dialog.getByRole('checkbox', { name: /Smoke Prompt/ }).check()
-    await dialog
-      .getByLabel('Instruction mode · Smoke Prompt', { exact: true })
-      .selectOption('append')
+    await chooseOption(
+      page,
+      dialog.getByLabel('Instruction mode · Smoke Prompt', { exact: true }),
+      'append',
+    )
     await dialog.getByRole('checkbox', { name: /Smoke MCP/ }).check()
     await dialog.getByRole('checkbox', { name: /Smoke Skill/ }).check()
   })
@@ -592,34 +613,48 @@ try {
     const dialog = page.getByRole('dialog')
     await dialog.getByLabel('Name', { exact: true }).fill(agentName)
     const current = await state()
-    await dialog
-      .getByLabel('Engine installation', { exact: true })
-      .selectOption(current.installations.find((item) => item.name === engineName).id)
-    await dialog
-      .getByLabel('Model profile', { exact: true })
-      .selectOption(current.models.find((item) => item.name === 'Smoke Model').id)
+    await chooseOption(
+      page,
+      dialog.getByLabel('Engine installation', { exact: true }),
+      current.installations.find((item) => item.name === engineName).id,
+    )
+    await chooseOption(
+      page,
+      dialog.getByLabel('Model profile', { exact: true }),
+      current.models.find((item) => item.name === 'Smoke Model').id,
+    )
     await dialog
       .getByLabel('Working directory', { exact: true })
       .fill('/tmp/agentmatrix-smoke-project')
     await dialog.getByRole('tab', { name: 'Bindings', exact: true }).click()
     await dialog.getByRole('checkbox', { name: /Smoke Prompt/ }).check()
-    await dialog
-      .getByLabel('Instruction mode · Smoke Prompt', { exact: true })
-      .selectOption('append')
+    await chooseOption(
+      page,
+      dialog.getByLabel('Instruction mode · Smoke Prompt', { exact: true }),
+      'append',
+    )
     if (agentName === 'Smoke Agent')
-      await dialog.getByLabel('Version selection · Smoke Prompt', { exact: true }).selectOption('1')
+      await chooseOption(
+        page,
+        dialog.getByLabel('Version selection · Smoke Prompt', { exact: true }),
+        '1',
+      )
     if (agentName === 'Pi Agent')
       await dialog.getByRole('checkbox', { name: /Smoke Skill/ }).check()
     else await dialog.getByRole('checkbox', { name: /Smoke Bundle/ }).check()
     if (agentName === 'Pi Agent') {
       await dialog.getByRole('tab', { name: 'Engine settings', exact: true }).click()
-      await dialog.getByLabel('Pi project files', { exact: true }).selectOption('trust-once')
-      await dialog.getByLabel('Pi context files', { exact: true }).selectOption('ignore')
+      await chooseOption(page, dialog.getByLabel('Pi project files', { exact: true }), 'trust-once')
+      await chooseOption(page, dialog.getByLabel('Pi context files', { exact: true }), 'ignore')
       await dialog.getByLabel('Pi thinking level', { exact: true }).fill('high')
     }
     if (agentName === 'DSH Agent') {
       await dialog.getByRole('tab', { name: 'Engine settings', exact: true }).click()
-      await dialog.getByLabel('DSH instruction placement', { exact: true }).selectOption('prefix')
+      await chooseOption(
+        page,
+        dialog.getByLabel('DSH instruction placement', { exact: true }),
+        'prefix',
+      )
     }
     await dialog.getByRole('tab', { name: 'Resolved preview', exact: true }).click()
     await dialog
@@ -636,9 +671,11 @@ try {
       for (const name of ['Smoke Agent', 'Pi Agent', 'DSH Agent']) {
         const agent = workspace.agents.find((item) => item.name === name)
         assert.ok(agent)
-        await page
-          .getByLabel(locale === 'en' ? 'Agent configuration' : 'Agent 配置', { exact: true })
-          .selectOption(agent.id)
+        await chooseOption(
+          page,
+          page.getByLabel(locale === 'en' ? 'Agent configuration' : 'Agent 配置', { exact: true }),
+          agent.id,
+        )
         assert.equal(
           await page
             .getByRole('button', {
@@ -816,8 +853,16 @@ try {
         fullPage: true,
       })
     dialog = await editResource('Connections', 'Smoke Connection')
-    await dialog.getByLabel('Credential reference', { exact: true }).selectOption('credential')
-    await dialog.getByLabel('Saved credential', { exact: true }).selectOption(savedCredential.id)
+    await chooseOption(
+      page,
+      dialog.getByLabel('Credential reference', { exact: true }),
+      'credential',
+    )
+    await chooseOption(
+      page,
+      dialog.getByLabel('Saved credential', { exact: true }),
+      savedCredential.id,
+    )
     await saveResource()
     const workspaceBytes = await readFile(join(dataDirectory, 'workspace.json'), 'utf8')
     assert.ok(!workspaceBytes.includes(syntheticSecret))

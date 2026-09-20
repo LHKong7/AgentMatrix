@@ -6,6 +6,7 @@ import { homedir, tmpdir } from 'node:os'
 import { isAbsolute, join, relative, sep } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
+import { chooseOption, languageSelect } from './lib/select.mjs'
 
 const engines = [
   {
@@ -418,7 +419,7 @@ function checkReport(value, state, attached, stored) {
     assert.ok(!JSON.stringify(value).includes(secret))
 }
 async function showReport(session, locale, state) {
-  await page.locator('.language-select select').first().selectOption(locale)
+  await chooseOption(page, languageSelect(page), locale)
   await page.waitForFunction((value) => document.documentElement.lang === value, locale)
   await page
     .getByRole('navigation')

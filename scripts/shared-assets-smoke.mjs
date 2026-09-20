@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
+import { chooseOption, languageSelect } from './lib/select.mjs'
 
 // One workspace, one connection, and one revision history for each shared asset.
 // Only the native folder chooser is substituted; all edits and session actions use the UI.
@@ -243,7 +244,7 @@ async function launch() {
   await language('en')
 }
 async function language(locale) {
-  await page.locator('.language-select select').first().selectOption(locale)
+  await chooseOption(page, languageSelect(page), locale)
   await page.waitForFunction((value) => document.documentElement.lang === value, locale)
 }
 async function navigate(name) {
@@ -287,7 +288,7 @@ async function ready(id) {
 }
 async function create(engine) {
   await navigate('Sessions')
-  await page.getByLabel('Agent configuration', { exact: true }).selectOption(engine)
+  await chooseOption(page, page.getByLabel('Agent configuration', { exact: true }), engine)
   const before = new Set((await sessions()).map((value) => value.id))
   await page.getByRole('button', { name: 'Start new session', exact: true }).click()
   let created

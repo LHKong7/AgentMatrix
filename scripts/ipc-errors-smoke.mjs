@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron } from 'playwright'
 import { openCodeWorkspace } from '../tests/helpers/opencode-fixture.ts'
+import { chooseOption, languageSelect } from './lib/select.mjs'
 
 // The marker is intentionally embedded in a filesystem path and forged dependency error.
 const marker = 'synthetic-ipc-private-value'
@@ -34,7 +35,7 @@ try {
   const workspacePath = join(root, 'workspace.json')
   const original = await readFile(workspacePath)
   for (const locale of ['en', 'zh-CN']) {
-    await page.locator('.language-select select').first().selectOption(locale)
+    await chooseOption(page, languageSelect(page), locale)
     await page.waitForFunction((expected) => document.documentElement.lang === expected, locale)
     let workspace = await page.evaluate(() => window.agentMatrix.loadWorkspace())
     const invoke = async (method, expected, input) => {
