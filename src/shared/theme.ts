@@ -14,4 +14,4 @@ export function resolveAppearance(preference: ThemePreference, systemDark: boole
 
 /** Keep the document class, the color scheme, and the native window background in one place. */
 export const darkClassName = 'dark'
-export const appearanceBackgrounds = { light: '#f7faf8', dark: '#171d1a' } as const
+export const appearanceBackgrounds = { light: '#ffffff', dark: '#0f0f0f' } as const

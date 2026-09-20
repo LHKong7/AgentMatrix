@@ -7,6 +7,7 @@ import {
 } from '../../../shared/engines/capabilities'
 import { isMessageKey } from '../../../shared/i18n'
 import { useI18n } from '../i18n'
+import { Table } from './ui/table'
 
 export function EngineSupport({
   configuration,
@@ -48,7 +49,7 @@ export function EngineSupport({
   const report = current?.report
   return (
     <section
-      className="engine-support"
+      className="grid gap-2 rounded-lg border border-border p-3"
       data-testid="engine-support"
       aria-label={t('support.title')}
     >
@@ -60,7 +61,7 @@ export function EngineSupport({
         {t(issues.length ? 'support.blocked' : 'support.eligible')}
       </p>
       {issues.length > 0 && (
-        <ul className="diagnostic-list">
+        <ul className="grid gap-1 text-xs text-warning">
           {issues.map((issue, index) => (
             <li key={`${issue.code}:${issue.resourceId ?? index}`} data-engine-issue={issue.code}>
               <strong>{t(`report.field.${issue.field}`)}</strong> ·{' '}
@@ -70,11 +71,14 @@ export function EngineSupport({
           ))}
         </ul>
       )}
-      <p className="hint">{t('support.limits')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('support.limits')}</p>
       <details onToggle={(event) => setExpanded(event.currentTarget.open)}>
         <summary>{t('support.details')}</summary>
         {current?.error != null ? (
-          <p className="form-error" role="alert">
+          <p
+            className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            role="alert"
+          >
             {t('support.unavailable')}
           </p>
         ) : !report ? (
@@ -84,50 +88,52 @@ export function EngineSupport({
             <p>
               {report.route.protocol ?? '—'} · {report.route.modelId}
             </p>
-            <p className="hint">{t('support.evidenceScope')}</p>
-            <div className="report-table">
-              <table aria-label={t('support.details')}>
-                <thead>
-                  <tr>
-                    <th>{t('report.field')}</th>
-                    <th>{t('support.mechanism')}</th>
-                    <th>{t('support.verification')}</th>
-                    <th>{t('support.availability')}</th>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {t('support.evidenceScope')}
+            </p>
+            <Table aria-label={t('support.details')}>
+              <thead>
+                <tr>
+                  <th>{t('report.field')}</th>
+                  <th>{t('support.mechanism')}</th>
+                  <th>{t('support.verification')}</th>
+                  <th>{t('support.availability')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.capabilities.map((capability) => (
+                  <tr key={capability.feature} data-capability={capability.feature}>
+                    <th scope="row">
+                      {t(`report.field.${capability.feature}`)}
+                      <small>
+                        {t(capability.requested ? 'support.requested' : 'support.unused')}
+                      </small>
+                    </th>
+                    <td>{t(`support.mechanism.${capability.mechanism}`)}</td>
+                    <td>{t(`support.verification.${capability.verification}`)}</td>
+                    <td>
+                      {t(`support.availability.${capability.availability}`)}
+                      <small>
+                        {isMessageKey(capability.reason)
+                          ? t(capability.reason)
+                          : t('support.reason.startup')}
+                      </small>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {report.capabilities.map((capability) => (
-                    <tr key={capability.feature} data-capability={capability.feature}>
-                      <th scope="row">
-                        {t(`report.field.${capability.feature}`)}
-                        <small>
-                          {t(capability.requested ? 'support.requested' : 'support.unused')}
-                        </small>
-                      </th>
-                      <td>{t(`support.mechanism.${capability.mechanism}`)}</td>
-                      <td>{t(`support.verification.${capability.verification}`)}</td>
-                      <td>
-                        {t(`support.availability.${capability.availability}`)}
-                        <small>
-                          {isMessageKey(capability.reason)
-                            ? t(capability.reason)
-                            : t('support.reason.startup')}
-                        </small>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="hint">
+                ))}
+              </tbody>
+            </Table>
+            <p className="text-xs leading-relaxed text-muted-foreground">
               {t('support.identity', {
                 engine: configuration.installation.kind,
                 version: configuration.installation.version ?? '—',
                 mode: report.capabilities[0]?.mode ?? '—',
               })}
             </p>
-            <code className="support-digest">{report.profileDigest}</code>
-            <p className="hint">
+            <code className="font-mono text-[11px] break-all text-muted-foreground">
+              {report.profileDigest}
+            </code>
+            <p className="text-xs leading-relaxed text-muted-foreground">
               {t('support.contractEvidence', {
                 time: new Date(report.assessedAt).toLocaleString(locale),
               })}

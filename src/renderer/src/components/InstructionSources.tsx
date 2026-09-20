@@ -6,13 +6,13 @@ export function InstructionSources({ sources }: { sources: Sources | null }) {
   return (
     <details data-testid="native-instruction-sources">
       <summary>{t('report.instructionSources')}</summary>
-      <p className="hint">{t('report.instructionHint')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('report.instructionHint')}</p>
       {sources === null ? (
         <p>{t('report.instructionsNotCaptured')}</p>
       ) : (
         <>
           {!sources.patterns.length && <p>{t('report.instructionsEmpty')}</p>}
-          <ul className="source-report-list">
+          <ul className="grid gap-2">
             {sources.patterns.map((entry) => (
               <li key={`${entry.source}:${entry.index}`}>
                 <details>

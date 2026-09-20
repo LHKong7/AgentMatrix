@@ -20,7 +20,7 @@ export function TextField({
   readOnly?: boolean
 }) {
   return (
-    <label className="field">
+    <label className="mb-5 grid gap-2 text-xs font-medium">
       {label}
       {rows ? (
         <Textarea
@@ -58,7 +58,7 @@ export function NumberField({
   step?: number | 'any'
 }) {
   return (
-    <label className="field">
+    <label className="mb-5 grid gap-2 text-xs font-medium">
       {label}
       <Input
         aria-label={label}
@@ -87,7 +87,7 @@ export function SelectField({
   children: ReactNode
 }) {
   return (
-    <label className="field">
+    <label className="mb-5 grid gap-2 text-xs font-medium">
       {label}
       <Select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
         {children}
@@ -120,12 +120,12 @@ export function JsonField<T>({
     }
   }, [serialized])
   return (
-    <label className="field">
+    <label className="mb-5 grid gap-2 text-xs font-medium">
       {label}
       <Textarea
         aria-label={label}
         ref={input}
-        className="code-input font-mono"
+        className="font-mono"
         rows={3}
         value={source}
         onChange={(event) => {
@@ -170,7 +170,7 @@ export function ArgumentField({
         value={value.join('\n')}
         onChange={(text) => onChange(text ? text.split('\n') : [])}
       />
-      <p className="hint">{t('config.argsHint')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('config.argsHint')}</p>
       <details>
         <summary>{t('config.advanced')}</summary>
         <JsonField label={t('config.argsJson')} value={value} onChange={onChange} array />
@@ -190,7 +190,7 @@ export function SecretField({
 }) {
   const { t } = useI18n()
   return (
-    <div className="secret-reference">
+    <div className="mb-5 grid gap-2 rounded-lg border border-border p-3">
       <SelectField
         label={t('config.secret')}
         value={value?.kind ?? ''}
@@ -233,7 +233,7 @@ export function SecretField({
           ))}
         </SelectField>
       )}
-      <p className="hint">{t('config.secret.hint')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('config.secret.hint')}</p>
     </div>
   )
 }

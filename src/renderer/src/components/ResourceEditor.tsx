@@ -25,6 +25,7 @@ import { Modal } from './Modal'
 import { ResourcePicker } from './ResourcePicker'
 import { AssetBindings } from './AssetBindings'
 import { buttonVariants } from './ui/button'
+import { Checkbox } from './ui/checkbox'
 import {
   ArgumentField,
   JsonField,
@@ -156,9 +157,13 @@ export function ResourceEditor({
       onClose={close}
       busy={busy || importing}
     >
-      <form onSubmit={submit} onChange={() => setDirty(true)}>
-        <fieldset disabled={busy || importing}>
-          <div className="modal-body">
+      <form
+        onSubmit={submit}
+        onChange={() => setDirty(true)}
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <fieldset disabled={busy || importing} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <TextField
               label={t('common.name')}
               value={draft.name}
@@ -213,7 +218,7 @@ export function ResourceEditor({
                   <option value="win32">Windows</option>
                   <option value="linux">Linux</option>
                 </SelectField>
-                <p className="hint">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   {draft.version ?? t('config.unprobed')} · {t('config.probeHint')}
                 </p>
               </>
@@ -244,7 +249,9 @@ export function ResourceEditor({
                   onChange={(baseUrl) => setDraft({ ...draft, baseUrl })}
                 />
                 {draft.protocol === 'anthropic-messages' && (
-                  <p className="hint">{t('config.anthropicEndpoint')}</p>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t('config.anthropicEndpoint')}
+                  </p>
                 )}
                 <SelectField
                   label={t('config.auth')}
@@ -365,7 +372,7 @@ export function ResourceEditor({
                   value={draft.modelId}
                   onChange={(modelId) => setDraft({ ...draft, modelId })}
                 />
-                <div className="field-grid">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <NumberField
                     label="Temperature"
                     value={draft.parameters.temperature}
@@ -395,7 +402,9 @@ export function ResourceEditor({
                     })
                   }
                 />
-                <p className="hint">{t('config.optionalParameters')}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('config.optionalParameters')}
+                </p>
               </>
             )}
             {'versions' in draft && (
@@ -437,7 +446,9 @@ export function ResourceEditor({
                     >
                       {t(importing ? 'config.importingSkill' : 'config.importSkill')}
                     </button>
-                    <p className="hint">{t('config.importSkillHint')}</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t('config.importSkillHint')}
+                    </p>
                   </>
                 )}
                 <SelectField
@@ -457,8 +468,10 @@ export function ResourceEditor({
                 </SelectField>
                 {directoryRevision && 'files' in directoryRevision ? (
                   <>
-                    <p className="hint">{t('config.directoryReadOnly')}</p>
-                    <p className="hint">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t('config.directoryReadOnly')}
+                    </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
                       {t('config.skillFiles', {
                         count: number(directoryRevision.files.length),
                         bytes: number(
@@ -466,10 +479,12 @@ export function ResourceEditor({
                         ),
                       })}
                     </p>
-                    <code className="asset-digest">SHA-256: {directoryRevision.digest}</code>
+                    <code className="font-mono text-[11px] break-all text-muted-foreground">
+                      SHA-256: {directoryRevision.digest}
+                    </code>
                     <details>
                       <summary>{t('config.skillFileList')}</summary>
-                      <ul className="asset-file-list">
+                      <ul className="grid gap-1">
                         {directoryRevision.files.map((file) => (
                           <li key={file.path}>
                             <code>{file.path}</code> · {number(file.bytes)} B{' '}
@@ -490,7 +505,9 @@ export function ResourceEditor({
                     onChange={setContent}
                   />
                 )}
-                <p className="hint">{t('config.historyHint')}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('config.historyHint')}
+                </p>
               </>
             )}
             {'transport' in draft && (
@@ -561,7 +578,9 @@ export function ResourceEditor({
                         value={draft.envRefs}
                         onChange={(envRefs) => setDraft({ ...draft, envRefs })}
                       />
-                      <p className="hint">{t('config.secret.hint')}</p>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t('config.secret.hint')}
+                      </p>
                     </details>
                   </>
                 ) : (
@@ -648,7 +667,9 @@ export function ResourceEditor({
                   value={draft.version}
                   onChange={(version) => setDraft({ ...draft, version })}
                 />
-                <p className="hint">{t('config.bundleHint')}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('config.bundleHint')}
+                </p>
                 <AssetBindings
                   title={t('config.prompts')}
                   assets={workspace.prompts}
@@ -689,7 +710,9 @@ export function ResourceEditor({
                   value={draft.nativeId}
                   onChange={(nativeId) => setDraft({ ...draft, nativeId })}
                 />
-                <p className="hint">{t('plugin.idHint')}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('plugin.idHint')}
+                </p>
                 <TextField
                   label={t('resourceEditor.version')}
                   value={draft.version}
@@ -705,7 +728,9 @@ export function ResourceEditor({
                   value={draft.path}
                   onChange={(path) => setDraft({ ...draft, path })}
                 />
-                <p className="hint">{t('config.nativeHint')}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('config.nativeHint')}
+                </p>
                 {pluginOptionsKind && (
                   <>
                     <JsonField
@@ -720,7 +745,7 @@ export function ResourceEditor({
                         setDraft({ ...draft, options: { kind: pluginOptionsKind, config } })
                       }
                     />
-                    <p className="hint">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
                       {t(
                         pluginOptionsKind === 'opencode'
                           ? 'plugin.opencodeOptionsHint'
@@ -728,7 +753,9 @@ export function ResourceEditor({
                       )}
                     </p>
                     {pluginEngine !== pluginOptionsKind && (
-                      <p className="hint">{t('plugin.optionsEngineMismatch')}</p>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t('plugin.optionsEngineMismatch')}
+                      </p>
                     )}
                     {draft.options && (
                       <button
@@ -757,9 +784,8 @@ export function ResourceEditor({
               </>
             )}
             {'enabled' in draft && (
-              <label className="check-field">
-                <input
-                  type="checkbox"
+              <label className="flex items-center gap-2 text-xs font-medium">
+                <Checkbox
                   checked={draft.enabled}
                   onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
                 />
@@ -769,11 +795,14 @@ export function ResourceEditor({
             <LibraryImpactPreview candidate={candidate} kind={kind} revision={workspace.revision} />
           </div>
           {error != null && (
-            <p className="form-error" role="alert">
+            <p
+              className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              role="alert"
+            >
               {formatError(error, locale)}
             </p>
           )}
-          <div className="modal-footer">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
             <button
               type="button"
               className={buttonVariants({ variant: 'outline', size: 'sm' })}

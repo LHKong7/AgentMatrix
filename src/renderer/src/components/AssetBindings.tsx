@@ -4,6 +4,7 @@ import { useI18n } from '../i18n'
 import { SelectField } from './ConfigurationFields'
 import { buttonVariants } from './ui/button'
 import { Badge } from './ui/badge'
+import { Checkbox } from './ui/checkbox'
 
 type Binding = AgentProfile['promptBindings'][number] | AgentProfile['skillBindings'][number]
 export function AssetBindings<T extends Binding>({
@@ -31,19 +32,25 @@ export function AssetBindings<T extends Binding>({
       bindings.map((binding) => (binding.assetId === id ? { ...binding, ...patch } : binding)),
     )
   return (
-    <section className="resource-picker">
-      <div className="section-heading">
+    <section className="mb-5 grid gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3>{title}</h3>
-        <span>{t('picker.selected', { count: number(bindings.length) })}</span>
+        <span className="text-[11px] text-muted-foreground">
+          {t('picker.selected', { count: number(bindings.length) })}
+        </span>
       </div>
-      {!assets.length && <p className="field-empty">{t('picker.empty', { resource: title })}</p>}
+      {!assets.length && (
+        <p className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
+          {t('picker.empty', { resource: title })}
+        </p>
+      )}
       {ordered.map((asset) => {
         const binding = bindings.find((item) => item.assetId === asset.id)
         return (
-          <div className="asset-binding" key={asset.id}>
-            <label className="selection-row">
-              <input
-                type="checkbox"
+          <div className="grid gap-2 border-b border-border pb-3" key={asset.id}>
+            <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2 transition-colors hover:bg-accent/50">
+              <Checkbox
+                className="mt-0.5"
                 checked={Boolean(binding)}
                 onChange={(event) => {
                   if (!event.target.checked)
@@ -59,14 +66,14 @@ export function AssetBindings<T extends Binding>({
                     ])
                 }}
               />
-              <span>
-                <strong>{asset.name}</strong>
+              <span className="grid min-w-0 flex-1 gap-0.5">
+                <strong className="text-xs">{asset.name}</strong>
                 <small>{asset.description || t('common.noDescription')}</small>
               </span>
               {!asset.enabled && <Badge variant="muted">{t('common.disabled')}</Badge>}
             </label>
             {binding && (
-              <div className="binding-fields">
+              <div className="grid gap-2 pl-6 sm:grid-cols-2">
                 <SelectField
                   label={`${t('config.follow')} · ${asset.name}`}
                   value={
@@ -108,7 +115,7 @@ export function AssetBindings<T extends Binding>({
                     ))}
                   </SelectField>
                 )}
-                <div className="binding-order">
+                <div className="flex gap-1 pl-6">
                   {([-1, 1] as const).map((direction) => (
                     <button
                       key={direction}

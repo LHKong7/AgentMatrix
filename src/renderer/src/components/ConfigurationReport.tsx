@@ -11,6 +11,7 @@ import { McpConnections } from './McpConnections'
 import { InstructionSources } from './InstructionSources'
 import { PluginDependencySources } from './PluginDependencySources'
 import { buttonVariants } from './ui/button'
+import { Table } from './ui/table'
 
 export function ConfigurationReport({
   session,
@@ -50,19 +51,25 @@ export function ConfigurationReport({
   ])
   return (
     <Modal title={t('report.title')} subtitle={t('report.description')} onClose={onClose}>
-      <div className="modal-body configuration-report">
+      <div className="grid gap-5 min-h-0 flex-1 overflow-y-auto px-6 py-5">
         {error ? (
-          <p role="alert" className="error-banner">
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive"
+          >
             {formatError(error, locale)}
           </p>
         ) : !report ? (
           <p>{t('common.loading')}</p>
         ) : (
           <>
-            <p className="report-summary" data-testid="configuration-saved-state">
+            <p
+              className="grid gap-2 rounded-lg border border-border bg-surface p-3 text-xs"
+              data-testid="configuration-saved-state"
+            >
               {t(`report.saved.${report.savedState}`)}
             </p>
-            <p className="hint">{t('report.limits')}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t('report.limits')}</p>
             <dl>
               <dt>{t('report.captured')}</dt>
               <dd>
@@ -98,7 +105,7 @@ export function ConfigurationReport({
               </dd>
             </dl>
             {report.failure && (
-              <div className="error-banner configuration-failure">
+              <div className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive block">
                 {t('report.failed')} {t(`sessions.failure.${report.failure}`)}
                 {report.failure === 'configuration' && (
                   <ConfigurationFailureDetails diagnostic={report.diagnostic} />
@@ -106,7 +113,9 @@ export function ConfigurationReport({
                 {report.overrideSources !== null && (
                   <div data-testid="configuration-override-sources">
                     <strong>{t('report.overrideSources')}</strong>
-                    <p className="hint">{t('report.overrideSourcesHint')}</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t('report.overrideSourcesHint')}
+                    </p>
                     {report.overrideSources.length ? (
                       <ul>
                         {report.overrideSources.map((source) => (
@@ -123,64 +132,67 @@ export function ConfigurationReport({
                 )}
               </div>
             )}
-            <div className="report-table">
-              <table aria-label={t('report.fields')}>
-                <thead>
-                  <tr>
-                    <th>{t('report.field')}</th>
-                    <th>{t('report.capturedValue')}</th>
-                    <th>{t('report.evidence')}</th>
-                    <th>{t('report.update')}</th>
+            <Table aria-label={t('report.fields')}>
+              <thead>
+                <tr>
+                  <th>{t('report.field')}</th>
+                  <th>{t('report.capturedValue')}</th>
+                  <th>{t('report.evidence')}</th>
+                  <th>{t('report.update')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.fields.map((field) => (
+                  <tr key={field.id} data-report-field={field.id} data-rejected={field.rejected}>
+                    <th scope="row">{t(`report.field.${field.id}`)}</th>
+                    <td>
+                      <code>{field.value === 'default' ? t('report.default') : field.value}</code>
+                    </td>
+                    <td>
+                      {field.rejected ? (
+                        <>
+                          <strong>{t('report.fieldRejected')}</strong>
+                          {report.observation && (
+                            <small>
+                              {t('report.priorEvidence', {
+                                evidence: t(`report.status.${field.status}`),
+                              })}
+                            </small>
+                          )}
+                        </>
+                      ) : (
+                        <strong>{t(`report.status.${field.status}`)}</strong>
+                      )}
+                      {field.checks.map((check) => (
+                        <small key={check}>{t(`report.check.${check}`)}</small>
+                      ))}
+                    </td>
+                    <td>
+                      {field.changed === null
+                        ? t('report.unknown')
+                        : t(field.changed ? 'report.pending' : 'report.unchanged')}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {report.fields.map((field) => (
-                    <tr key={field.id} data-report-field={field.id} data-rejected={field.rejected}>
-                      <th scope="row">{t(`report.field.${field.id}`)}</th>
-                      <td>
-                        <code>{field.value === 'default' ? t('report.default') : field.value}</code>
-                      </td>
-                      <td>
-                        {field.rejected ? (
-                          <>
-                            <strong>{t('report.fieldRejected')}</strong>
-                            {report.observation && (
-                              <small>
-                                {t('report.priorEvidence', {
-                                  evidence: t(`report.status.${field.status}`),
-                                })}
-                              </small>
-                            )}
-                          </>
-                        ) : (
-                          <strong>{t(`report.status.${field.status}`)}</strong>
-                        )}
-                        {field.checks.map((check) => (
-                          <small key={check}>{t(`report.check.${check}`)}</small>
-                        ))}
-                      </td>
-                      <td>
-                        {field.changed === null
-                          ? t('report.unknown')
-                          : t(field.changed ? 'report.pending' : 'report.unchanged')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </Table>
             <SessionCapabilities report={report.capabilities} />
             <McpConnections report={report.mcp} current={report.capabilities.current} />
             <h3>{t('report.credentialTitle')}</h3>
-            <p className="hint">{t('report.credentialHint')}</p>
-            <p className="hint" data-testid="credential-redaction-coverage">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {t('report.credentialHint')}
+            </p>
+            <p
+              className="text-xs leading-relaxed text-muted-foreground"
+              data-testid="credential-redaction-coverage"
+            >
               {t(
                 report.retainedCredentialRedaction
                   ? 'report.redactionRetained'
                   : 'report.redactionLegacy',
               )}
             </p>
-            <p className="hint">
+            <p className="text-xs leading-relaxed text-muted-foreground">
               {t('report.credentialChecked', {
                 time: new Date(report.credentials.checkedAt).toLocaleString(locale),
               })}
@@ -188,110 +200,108 @@ export function ConfigurationReport({
             {report.credentials.entries.length === 0 ? (
               <p>{t('report.credentialEmpty')}</p>
             ) : (
-              <div className="report-table">
-                <table aria-label={t('report.credentialTitle')}>
-                  <thead>
-                    <tr>
-                      <th>{t('report.credentialReference')}</th>
-                      <th>{t('report.credentialAttachment')}</th>
-                      <th>{t('report.credentialStored')}</th>
-                      <th>{t('report.credentialComparison')}</th>
+              <Table aria-label={t('report.credentialTitle')}>
+                <thead>
+                  <tr>
+                    <th>{t('report.credentialReference')}</th>
+                    <th>{t('report.credentialAttachment')}</th>
+                    <th>{t('report.credentialStored')}</th>
+                    <th>{t('report.credentialComparison')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.credentials.entries.map((entry) => (
+                    <tr
+                      key={entry.slot}
+                      data-credential-slot={entry.slot}
+                      data-credential-state={entry.state}
+                    >
+                      <th scope="row">
+                        {t('report.credentialSlot', { number: entry.slot })}
+                        <small>{t(`report.credentialSource.${entry.source}`)}</small>
+                        {entry.purposes.map((purpose) => (
+                          <small key={purpose}>{t(`report.credentialPurpose.${purpose}`)}</small>
+                        ))}
+                      </th>
+                      <td>
+                        {entry.attachment ? (
+                          <>
+                            <strong>v{entry.attachment.revision}</strong>
+                            <small>
+                              {new Date(entry.attachment.resolvedAt).toLocaleString(locale)}
+                            </small>
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>
+                        {entry.current ? (
+                          <>
+                            <strong>v{entry.current.revision}</strong>
+                            <small>
+                              {new Date(entry.current.updatedAt).toLocaleString(locale)}
+                            </small>
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                      <td>{t(`report.credentialState.${entry.state}`)}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {report.credentials.entries.map((entry) => (
-                      <tr
-                        key={entry.slot}
-                        data-credential-slot={entry.slot}
-                        data-credential-state={entry.state}
-                      >
-                        <th scope="row">
-                          {t('report.credentialSlot', { number: entry.slot })}
-                          <small>{t(`report.credentialSource.${entry.source}`)}</small>
-                          {entry.purposes.map((purpose) => (
-                            <small key={purpose}>{t(`report.credentialPurpose.${purpose}`)}</small>
-                          ))}
-                        </th>
-                        <td>
-                          {entry.attachment ? (
-                            <>
-                              <strong>v{entry.attachment.revision}</strong>
-                              <small>
-                                {new Date(entry.attachment.resolvedAt).toLocaleString(locale)}
-                              </small>
-                            </>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td>
-                          {entry.current ? (
-                            <>
-                              <strong>v{entry.current.revision}</strong>
-                              <small>
-                                {new Date(entry.current.updatedAt).toLocaleString(locale)}
-                              </small>
-                            </>
-                          ) : (
-                            '—'
-                          )}
-                        </td>
-                        <td>{t(`report.credentialState.${entry.state}`)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </Table>
             )}
             <h3>{t('report.assets')}</h3>
             {report.assets.length === 0 ? (
               <p>{t('report.noAssets')}</p>
             ) : (
-              <div className="report-table">
-                <table aria-label={t('report.assets')}>
-                  <thead>
-                    <tr>
-                      <th>{t('report.asset')}</th>
-                      <th>{t('report.capturedVersion')}</th>
-                      <th>{t('report.nextVersion')}</th>
-                      <th>{t('report.libraryVersion')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.assets.map((asset) => (
-                      <tr key={`${asset.kind}:${asset.id}`} data-report-asset={asset.id}>
-                        <th scope="row">
-                          {asset.id}
+              <Table aria-label={t('report.assets')}>
+                <thead>
+                  <tr>
+                    <th>{t('report.asset')}</th>
+                    <th>{t('report.capturedVersion')}</th>
+                    <th>{t('report.nextVersion')}</th>
+                    <th>{t('report.libraryVersion')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.assets.map((asset) => (
+                    <tr key={`${asset.kind}:${asset.id}`} data-report-asset={asset.id}>
+                      <th scope="row">
+                        {asset.id}
+                        <small>
+                          {t(`report.asset.${asset.kind}`)} · {asset.source}
+                          {asset.mode ? ` · ${asset.mode}` : ''}
+                        </small>
+                        <small>{asset.path}</small>
+                        <small>{asset.digest ?? '—'}</small>
+                        {asset.nativeEntry && (
                           <small>
-                            {t(`report.asset.${asset.kind}`)} · {asset.source}
-                            {asset.mode ? ` · ${asset.mode}` : ''}
+                            {t('report.nativeSkillEntry')}: {asset.nativeEntry}
                           </small>
-                          <small>{asset.path}</small>
-                          <small>{asset.digest ?? '—'}</small>
-                          {asset.nativeEntry && (
-                            <small>
-                              {t('report.nativeSkillEntry')}: {asset.nativeEntry}
-                            </small>
-                          )}
-                          {asset.nativeSourceVerification !== null && (
-                            <small data-skill-source={asset.nativeSourceVerification}>
-                              {t(`report.skillSource.${asset.nativeSourceVerification}`)}
-                            </small>
-                          )}
-                        </th>
-                        <td>v{asset.version}</td>
-                        <td>{asset.nextVersion === null ? '—' : `v${asset.nextVersion}`}</td>
-                        <td>{asset.libraryVersion === null ? '—' : `v${asset.libraryVersion}`}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                        )}
+                        {asset.nativeSourceVerification !== null && (
+                          <small data-skill-source={asset.nativeSourceVerification}>
+                            {t(`report.skillSource.${asset.nativeSourceVerification}`)}
+                          </small>
+                        )}
+                      </th>
+                      <td>v{asset.version}</td>
+                      <td>{asset.nextVersion === null ? '—' : `v${asset.nextVersion}`}</td>
+                      <td>{asset.libraryVersion === null ? '—' : `v${asset.libraryVersion}`}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
             )}
-            <p className="hint">{t('report.assetHint')}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t('report.assetHint')}</p>
             <details>
               <summary>{t('report.sources', { count: report.sources.length })}</summary>
-              <p className="hint">{t(`report.coverage.${report.sourceCoverage}`)}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {t(`report.coverage.${report.sourceCoverage}`)}
+              </p>
               <ul>
                 {report.sources.map((source) => (
                   <li key={source.path}>
@@ -305,7 +315,9 @@ export function ConfigurationReport({
             <PluginDependencySources bindings={report.pluginDependencies} />
             <details className="native-resource-sources">
               <summary>{t('report.resourceDirectories')}</summary>
-              <p className="hint">{t('report.resourceHint')}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {t('report.resourceHint')}
+              </p>
               {report.resourceDirectories === null ? (
                 <p>{t('report.resourcesNotCaptured')}</p>
               ) : report.resourceDirectories.length === 0 ? (
@@ -361,11 +373,13 @@ export function ConfigurationReport({
                 ))}
               </ul>
             </details>
-            <p className="hint">{t('report.credentials')}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {t('report.credentials')}
+            </p>
           </>
         )}
       </div>
-      <div className="modal-footer">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
         <button
           className={buttonVariants({ variant: 'outline', size: 'sm' })}
           onClick={() => setRefresh((value) => value + 1)}

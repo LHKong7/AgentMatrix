@@ -17,6 +17,7 @@ import { AssetBindings } from './AssetBindings'
 import { ResourcePicker } from './ResourcePicker'
 import { NumberField, SelectField, TextField } from './ConfigurationFields'
 import { buttonVariants } from './ui/button'
+import { Checkbox } from './ui/checkbox'
 
 function defaultOptions(kind: EngineKind | undefined): AgentProfile['engineOptions'] {
   if (kind === 'opencode') return { kind, agent: 'build' }
@@ -70,8 +71,8 @@ export function AgentEditor({
       onClose={close}
       busy={busy}
     >
-      <form onSubmit={submit}>
-        <fieldset disabled={busy}>
+      <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+        <fieldset disabled={busy} className="flex min-h-0 flex-1 flex-col">
           <div className="border-b border-border px-7 py-3">
             <TabList aria-label={t('agentEditor.tabs')}>
               {(
@@ -95,7 +96,7 @@ export function AgentEditor({
             </TabList>
           </div>
           <div
-            className="modal-body"
+            className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
             role="tabpanel"
             id={`panel-${tab}`}
             aria-labelledby={`tab-${tab}`}
@@ -172,7 +173,9 @@ export function AgentEditor({
                     </option>
                   ))}
                 </SelectField>
-                <p className="hint">{t('config.policyHint')}</p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('config.policyHint')}
+                </p>
                 <NumberField
                   label={t('config.timeout')}
                   value={draft.execution.timeoutMs}
@@ -181,9 +184,8 @@ export function AgentEditor({
                   step={1}
                   onChange={(timeoutMs) => patch({ execution: { ...draft.execution, timeoutMs } })}
                 />
-                <label className="check-field">
-                  <input
-                    type="checkbox"
+                <label className="flex items-center gap-2 text-xs font-medium">
+                  <Checkbox
                     checked={draft.enabled}
                     onChange={(event) => patch({ enabled: event.target.checked })}
                   />
@@ -232,7 +234,11 @@ export function AgentEditor({
             )}
             {tab === 'engine' && (
               <>
-                {!draft.engineOptions && <p className="hint">{t('resolution.engine-required')}</p>}
+                {!draft.engineOptions && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t('resolution.engine-required')}
+                  </p>
+                )}
                 {draft.engineOptions?.kind === 'opencode' && (
                   <TextField
                     label={t('config.opencodeAgent')}
@@ -287,7 +293,9 @@ export function AgentEditor({
                       <option value="inherit">{t('config.piContext.inherit')}</option>
                       <option value="ignore">{t('config.piContext.ignore')}</option>
                     </SelectField>
-                    <p className="hint">{t('config.piTrustHint')}</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t('config.piTrustHint')}
+                    </p>
                   </>
                 )}
                 {draft.engineOptions?.kind === 'deepseek-harness' && (
@@ -312,7 +320,9 @@ export function AgentEditor({
                       <option value="sdk">SDK</option>
                       <option value="sdk-minimal">SDK minimal</option>
                     </SelectField>
-                    <p className="hint">{t('config.dshHint')}</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t('config.dshHint')}
+                    </p>
                     <SelectField
                       label={t('config.dshAppendPosition')}
                       value={draft.engineOptions.appendPosition ?? 'suffix'}
@@ -329,7 +339,9 @@ export function AgentEditor({
                       <option value="suffix">{t('config.dshAppendSuffix')}</option>
                       <option value="prefix">{t('config.dshAppendPrefix')}</option>
                     </SelectField>
-                    <p className="hint">{t('config.dshAppendHint')}</p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t('config.dshAppendHint')}
+                    </p>
                   </>
                 )}
               </>
@@ -337,14 +349,19 @@ export function AgentEditor({
             {tab === 'preview' && (
               <ProfilePreview workspace={workspace} profile={draft} platform={platform} />
             )}
-            <p className="hint">{t('config.savedForNewSessions')}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {t('config.savedForNewSessions')}
+            </p>
           </div>
           {error != null && (
-            <p className="form-error" role="alert">
+            <p
+              className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              role="alert"
+            >
               {formatError(error, locale)}
             </p>
           )}
-          <div className="modal-footer">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
             <button
               type="button"
               className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -379,10 +396,12 @@ function ProfilePreview({
       profile.id,
     )
     return (
-      <div className="configuration-preview">
-        <p className="hint">{t('config.notRuntimeVerified')}</p>
+      <div className="grid gap-3">
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {t('config.notRuntimeVerified')}
+        </p>
         {result.status === 'invalid' ? (
-          <ul className="diagnostic-list">
+          <ul className="grid gap-1 text-xs text-warning">
             {result.issues.map((issue, index) => (
               <li key={`${issue.code}:${index}`}>
                 <strong>{t(`resolution.${issue.code}`)}</strong>
@@ -436,7 +455,10 @@ function ProfilePreview({
     )
   } catch (error) {
     return (
-      <p role="alert" className="form-error">
+      <p
+        role="alert"
+        className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+      >
         {formatError(error, locale)}
       </p>
     )

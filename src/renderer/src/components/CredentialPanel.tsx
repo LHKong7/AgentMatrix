@@ -6,6 +6,7 @@ import { useI18n } from '../i18n'
 import { api } from '../lib/api'
 import { buttonVariants } from './ui/button'
 import { Badge } from './ui/badge'
+import { Input, Select } from './ui/input'
 
 export function CredentialPanel() {
   const { t, locale } = useI18n()
@@ -89,15 +90,21 @@ export function CredentialPanel() {
     }
   }
   return (
-    <section className="settings-panel credential-panel" aria-labelledby="credentials-heading">
-      <h2 id="credentials-heading">
-        <KeyRound size={20} />
+    <section
+      className="credential-panel mb-5 grid gap-3 rounded-xl border border-border bg-card p-5 shadow-xs"
+      aria-labelledby="credentials-heading"
+    >
+      <h2 id="credentials-heading" className="flex items-center gap-2">
+        <KeyRound size={16} aria-hidden="true" />
         {t('credentials.title')}
       </h2>
-      <p className="hint">{t('credentials.hint')}</p>
-      <p className="hint">{t('credentials.retention')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('credentials.hint')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('credentials.retention')}</p>
       {error !== null && (
-        <p className="error-banner" role="alert">
+        <p
+          className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive"
+          role="alert"
+        >
           {formatError(error, locale)}
         </p>
       )}
@@ -106,15 +113,18 @@ export function CredentialPanel() {
       {status && !status.available && <p role="status">{t('credentials.unavailable')}</p>}
       {status && (
         <>
-          <ul className="credential-list">
+          <ul className="grid list-none gap-2 pl-0">
             {status.credentials.map((item) => (
-              <li key={item.id}>
-                <div>
-                  <strong>{item.name}</strong>
-                  <code>{item.id}</code>
+              <li
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+              >
+                <div className="grid min-w-0 gap-1">
+                  <strong className="text-xs">{item.name}</strong>
+                  <code className="text-muted-foreground">{item.id}</code>
                   <Badge variant="muted">{item.kind === 'api-key' ? 'API Key' : 'Bearer'}</Badge>
                 </div>
-                <div className="credential-actions">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -142,33 +152,37 @@ export function CredentialPanel() {
               </li>
             ))}
           </ul>
-          {status.credentials.length === 0 && <p className="hint">{t('credentials.empty')}</p>}
+          {status.credentials.length === 0 && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {t('credentials.empty')}
+            </p>
+          )}
           <form onSubmit={save}>
             <fieldset disabled={busy || !status.available}>
-              <div className="field-grid">
-                <label className="field">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="mb-5 grid gap-2 text-xs font-medium">
                   {t('credentials.name')}
-                  <input
+                  <Input
                     required
                     maxLength={80}
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                   />
                 </label>
-                <label className="field">
+                <label className="mb-5 grid gap-2 text-xs font-medium">
                   {t('credentials.kind')}
-                  <select
+                  <Select
                     value={kind}
                     onChange={(event) => setKind(event.target.value as 'api-key' | 'bearer')}
                   >
                     <option value="api-key">API Key</option>
                     <option value="bearer">Bearer</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
-              <label className="field">
+              <label className="mb-5 grid gap-2 text-xs font-medium">
                 {t('credentials.value')}
-                <input
+                <Input
                   required
                   type="password"
                   autoComplete="new-password"
@@ -178,7 +192,7 @@ export function CredentialPanel() {
                   onChange={(event) => setValue(event.target.value)}
                 />
               </label>
-              <div className="credential-actions">
+              <div className="flex flex-wrap gap-2">
                 <button className={buttonVariants()} type="submit">
                   {t(selected ? 'credentials.replace' : 'credentials.create')}
                 </button>

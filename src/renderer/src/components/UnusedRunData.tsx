@@ -62,10 +62,13 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       busy={working}
     >
-      <div className="modal-body unused-run-data" aria-busy={busy}>
-        <p className="hint">{t('runData.boundary')}</p>
+      <div className="grid gap-3 min-h-0 flex-1 overflow-y-auto px-6 py-5" aria-busy={busy}>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('runData.boundary')}</p>
         {error != null && (
-          <div className="error-banner" role="alert">
+          <div
+            className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive"
+            role="alert"
+          >
             {formatError(error, locale)}
           </div>
         )}
@@ -73,8 +76,12 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
         {page && (
           <>
             {!page.items.length && <p role="status">{t('runData.empty')}</p>}
-            {page.skipped > 0 && <p className="hint">{t('runData.skipped')}</p>}
-            <ul className="unused-run-list">
+            {page.skipped > 0 && (
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {t('runData.skipped')}
+              </p>
+            )}
+            <ul className="grid gap-2">
               {page.items.map((item) => (
                 <li key={`${item.target.kind}:${item.target.id}`} data-unused-run={item.target.id}>
                   <div>
@@ -86,14 +93,16 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
                         <p>
                           {item.capture.agent} · {item.capture.engine}
                         </p>
-                        <code className="unused-run-directory">{item.capture.cwd}</code>
+                        <code className="grid gap-1 rounded-lg border border-border p-3">
+                          {item.capture.cwd}
+                        </code>
                       </>
                     )}
                     <details>
                       <summary>{t('runData.identifier')}</summary>
                       <code>{item.target.id}</code>
                     </details>
-                    <p className="hint">
+                    <p className="text-xs leading-relaxed text-muted-foreground">
                       {item.pending
                         ? t('runData.pending')
                         : t('runData.modified', {
@@ -118,7 +127,7 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
           </>
         )}
       </div>
-      <div className="modal-footer">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
         <button
           className={buttonVariants({ variant: 'outline', size: 'sm' })}
           disabled={busy}

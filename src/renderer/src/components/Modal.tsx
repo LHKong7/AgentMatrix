@@ -1,7 +1,8 @@
-import { useI18n } from '../i18n'
-import { useEffect, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
-import { buttonVariants } from './ui/button'
+import type { ReactNode } from 'react'
+import { useI18n } from '../i18n'
+import { Button } from './ui/button'
+import { Dialog, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog'
 
 export function Modal({
   title,
@@ -17,38 +18,24 @@ export function Modal({
   busy?: boolean
 }) {
   const { t } = useI18n()
-  const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const dialog = ref.current
-    dialog?.showModal()
-    return () => dialog?.close()
-  }, [])
-
   return (
-    <dialog
-      ref={ref}
-      className="modal"
-      aria-labelledby="modal-title"
-      onCancel={(event) => {
-        event.preventDefault()
-        if (!busy) onClose()
-      }}
-    >
-      <div className="modal-heading">
-        <div>
-          <h2 id="modal-title">{title}</h2>
-          <p>{subtitle}</p>
+    <Dialog aria-labelledby="modal-title" dismissible={!busy} onDismiss={onClose}>
+      <DialogHeader>
+        <div className="min-w-0">
+          <DialogTitle id="modal-title">{title}</DialogTitle>
+          <DialogDescription>{subtitle}</DialogDescription>
         </div>
-        <button
-          className={buttonVariants({ variant: 'ghost', size: 'icon' })}
+        <Button
+          variant="ghost"
+          size="icon"
           aria-label={t('common.close')}
           onClick={onClose}
           disabled={busy}
         >
-          <X size={20} />
-        </button>
-      </div>
+          <X aria-hidden="true" />
+        </Button>
+      </DialogHeader>
       {children}
-    </dialog>
+    </Dialog>
   )
 }

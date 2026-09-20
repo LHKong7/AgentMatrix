@@ -22,6 +22,7 @@ import type {
 import { formatError } from '../../../shared/errors'
 import { api } from '../lib/api'
 import { SessionFeed, emptySessionView } from '../lib/session-feed'
+import { Input, Select, Textarea } from './ui/input'
 import { useI18n } from '../i18n'
 import { ConfigurationReport } from './ConfigurationReport'
 import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
@@ -248,10 +249,10 @@ export function SessionsPanel({
           onClose={() => setShowConfiguration(false)}
         />
       )}
-      <div className="page-heading session-page-heading">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="eyebrow">
-            <span />
+          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+            <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
             AgentMatrix
           </div>
           <h1>{t('nav.sessions')}</h1>
@@ -268,10 +269,10 @@ export function SessionsPanel({
           {t('sessions.refresh')}
         </button>
       </div>
-      <section className="session-create settings-panel">
-        <label>
+      <section className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+        <label className="grid min-w-60 gap-2 text-xs font-medium">
           {t('sessions.agent')}
-          <select
+          <Select
             value={agentId}
             aria-label={t('sessions.agent')}
             disabled={busy}
@@ -287,12 +288,12 @@ export function SessionsPanel({
                 {agent.name}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-        <div className="session-directory">
-          <label>
+        <div className="flex min-w-0 flex-1 basis-full flex-wrap items-end gap-3">
+          <label className="grid min-w-60 gap-2 text-xs font-medium min-w-0 flex-1">
             {t('sessions.directory')}
-            <input
+            <Input
               value={cwd}
               onChange={(event) => {
                 setDirectoryOverride({ agentId, path: event.target.value })
@@ -307,7 +308,7 @@ export function SessionsPanel({
               aria-describedby="session-directory-hint"
             />
           </label>
-          <div className="session-directory-actions">
+          <div className="flex items-center gap-2">
             <button
               className={buttonVariants({ variant: 'outline', size: 'sm' })}
               disabled={!desktop || busy || !profile}
@@ -368,20 +369,22 @@ export function SessionsPanel({
           <Plus size={16} />
           {t('sessions.new')}
         </button>
-        <p className="hint" id="session-directory-hint">
+        <p className="text-xs leading-relaxed text-muted-foreground" id="session-directory-hint">
           {t('sessions.directoryHint')}
         </p>
         {profile && !validDirectory && (
-          <p className="session-diagnostics" role="status">
+          <p className="grid basis-full gap-1 text-xs text-warning" role="status">
             {t('error.runtimeCwd')}
           </p>
         )}
-        <p className="hint">{desktop ? t('sessions.support') : t('error.runtimeDesktopOnly')}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {desktop ? t('sessions.support') : t('error.runtimeDesktopOnly')}
+        </p>
         {resolution?.status === 'resolved' && (
           <EngineSupport configuration={resolution.configuration} platform={platform} />
         )}
         {resolution?.status === 'invalid' && (
-          <div className="session-diagnostics">
+          <div className="grid basis-full gap-1 text-xs text-warning">
             {resolution.issues.map((issue, index) => (
               <span key={index}>{t(`resolution.${issue.code}`)}</span>
             ))}
@@ -390,12 +393,15 @@ export function SessionsPanel({
         )}
       </section>
       {(error != null || view.error != null) && (
-        <div className="error-banner" role="alert">
+        <div
+          className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive"
+          role="alert"
+        >
           {formatError(error ?? view.error, locale)}
         </div>
       )}
       {pendingRemovals.length > 0 && (
-        <div className="session-diagnostics" role="status">
+        <div className="grid basis-full gap-1 text-xs text-warning" role="status">
           <p>{t('sessions.removalPending', { count: pendingRemovals.length })}</p>
           <button
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -415,8 +421,11 @@ export function SessionsPanel({
           </button>
         </div>
       )}
-      <div className="sessions-layout">
-        <aside className="session-list" aria-label={t('nav.sessions')}>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(11rem,15rem)_minmax(0,1fr)]">
+        <aside
+          className="grid max-h-[70vh] gap-1.5 overflow-y-auto pr-1"
+          aria-label={t('nav.sessions')}
+        >
           <button
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={!desktop || busy}
@@ -451,20 +460,22 @@ export function SessionsPanel({
           ))}
         </aside>
         <section
-          className="conversation"
+          className="conversation flex min-h-[28rem] flex-col gap-3 rounded-xl border border-border bg-card p-4"
           aria-label={t('sessions.message')}
           data-session-id={state?.id}
         >
           {!selected ? (
-            <p className="empty-state">{t('sessions.select')}</p>
+            <p className="grid justify-items-center gap-2 rounded-xl border border-dashed border-border px-6 py-16 text-center">
+              {t('sessions.select')}
+            </p>
           ) : !state ? (
-            <div className="loading">
-              {view.loading && <LoaderCircle className="spin" size={22} />}
+            <div className="grid justify-items-center gap-3 py-16 text-sm text-muted-foreground">
+              {view.loading && <LoaderCircle className="animate-spin" size={22} />}
               {t(view.loading ? 'common.loading' : 'common.loadFailed')}
             </div>
           ) : (
             <>
-              <div className="conversation-header">
+              <div className="conversation-header flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
                 <div>
                   <strong data-testid="session-status">
                     {t(`sessions.status.${state.status}`)}
@@ -473,7 +484,7 @@ export function SessionsPanel({
                     {state.engineVersion} · {state.mode} · {state.cwd}
                   </small>
                 </div>
-                <div className="session-actions">
+                <div className="flex flex-wrap gap-2">
                   <button
                     className={buttonVariants({ variant: 'outline', size: 'sm' })}
                     disabled={blocked}
@@ -572,9 +583,14 @@ export function SessionsPanel({
                   )}
                 </div>
               </div>
-              <p className="hint captured-hint">{t('sessions.captured')}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground px-4 py-3">
+                {t('sessions.captured')}
+              </p>
               {state.failure && (
-                <div className="error-banner configuration-failure" role="status">
+                <div
+                  className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive block"
+                  role="status"
+                >
                   {t(`sessions.failure.${state.failure.code}`)}
                   {state.failure.code === 'configuration' && (
                     <ConfigurationFailureDetails diagnostic={state.failure.configuration} />
@@ -582,7 +598,7 @@ export function SessionsPanel({
                 </div>
               )}
               <div
-                className="transcript"
+                className="transcript grid max-h-[46vh] content-start gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3"
                 aria-label={t('nav.sessions')}
                 ref={transcript}
                 onScroll={(event) => {
@@ -591,7 +607,7 @@ export function SessionsPanel({
                 }}
               >
                 {view.truncated && (
-                  <p className="hint">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
                     {t('sessions.historyLimit', { count: view.events.length })}{' '}
                     <button
                       className={buttonVariants({ variant: 'ghost', size: 'sm' })}
@@ -605,7 +621,10 @@ export function SessionsPanel({
                 <Transcript events={view.events} />
               </div>
               {state.pendingRequests.map((request) => (
-                <section className="permission-card" key={request.id}>
+                <section
+                  className="permission-card grid gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs"
+                  key={request.id}
+                >
                   <strong>
                     {t('sessions.permission')}: {request.title}
                   </strong>
@@ -617,7 +636,9 @@ export function SessionsPanel({
                     </small>
                   )}
                   {toolContext(request) && (
-                    <pre className="permission-context">{toolContext(request)}</pre>
+                    <pre className="max-h-40 overflow-auto rounded-md bg-muted p-2 text-[11px]">
+                      {toolContext(request)}
+                    </pre>
                   )}
                   <fieldset
                     disabled={
@@ -664,7 +685,7 @@ export function SessionsPanel({
                     {request.kind === 'input' && (
                       <>
                         <p>{request.message}</p>
-                        <textarea
+                        <Textarea
                           aria-label={request.title}
                           placeholder={request.placeholder}
                           rows={request.multiline ? 3 : 1}
@@ -700,7 +721,7 @@ export function SessionsPanel({
               ))}
               {state.status === 'ready' && (
                 <form
-                  className="composer"
+                  className="grid gap-2 border-t border-border pt-3"
                   onSubmit={(event) => {
                     event.preventDefault()
                     if (!state.runId || state.status !== 'ready' || blocked || !message.trim())
@@ -718,9 +739,9 @@ export function SessionsPanel({
                     })
                   }}
                 >
-                  <label>
+                  <label className="grid min-w-60 gap-2 text-xs font-medium">
                     {t('sessions.message')}
-                    <textarea
+                    <Textarea
                       value={message}
                       onChange={(event) => setMessage(event.target.value)}
                       placeholder={t('sessions.placeholder')}

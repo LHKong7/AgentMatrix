@@ -79,9 +79,12 @@ export function SessionHistory({
       onClose={onClose}
       busy={working}
     >
-      <div className="modal-body session-history" aria-busy={busy}>
-        <p className="hint">{t('history.boundary')}</p>
-        <div className="history-navigation">
+      <div
+        className="session-history grid gap-3 min-h-0 flex-1 overflow-y-auto px-6 py-5"
+        aria-busy={busy}
+      >
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('history.boundary')}</p>
+        <div className="flex flex-wrap gap-2">
           <button
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={busy || !page?.hasEarlier}
@@ -112,7 +115,7 @@ export function SessionHistory({
           </button>
         </div>
         <p
-          className="history-range"
+          className="history-range text-xs text-muted-foreground"
           role="status"
           data-history-first={first}
           data-history-last={last}
@@ -123,15 +126,21 @@ export function SessionHistory({
             : t('history.range', { first, last, total: query.throughCursor })}
         </p>
         {Math.max(session.cursor, page?.latestCursor ?? 0) > query.throughCursor && (
-          <p className="hint">{t('history.newEvents')}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('history.newEvents')}</p>
         )}
         {error != null && (
-          <p className="error-banner" role="alert">
+          <p
+            className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive"
+            role="alert"
+          >
             {formatError(error, locale)}
           </p>
         )}
         {!loading && page && (
-          <div className="history-events" key={`${first}:${last}`}>
+          <div
+            className="grid max-h-[50vh] gap-4 overflow-y-auto rounded-lg border border-border p-3"
+            key={`${first}:${last}`}
+          >
             {page.events.length ? (
               <Transcript events={page.events} history />
             ) : (
@@ -140,13 +149,13 @@ export function SessionHistory({
           </div>
         )}
         {exported && (
-          <p className="history-exported" role="status">
+          <p className="history-exported text-xs break-all text-muted-foreground" role="status">
             {t('history.exported', { count: exported.eventCount, path: exported.path })}
           </p>
         )}
-        <p className="hint">{t('history.exportHint')}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('history.exportHint')}</p>
       </div>
-      <div className="modal-footer">
+      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border px-6 py-4">
         <button
           className={buttonVariants({ variant: 'outline', size: 'sm' })}
           disabled={busy}

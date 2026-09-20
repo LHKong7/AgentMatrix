@@ -10,11 +10,13 @@ export function PluginDependencySources({
   return (
     <details data-testid="plugin-dependency-sources">
       <summary>{t('report.pluginDependencies')}</summary>
-      <p className="hint">{t('report.pluginDependencyScope')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {t('report.pluginDependencyScope')}
+      </p>
       {bindings === null ? (
         <p>{t('report.pluginDependenciesLegacy')}</p>
       ) : (
-        <ul className="source-report-list">
+        <ul className="grid gap-2">
           {bindings.map((binding) => (
             <li key={binding.pluginId}>
               <details data-plugin-dependency-binding={binding.pluginId}>

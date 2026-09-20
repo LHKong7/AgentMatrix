@@ -94,13 +94,16 @@ export function LibraryImpactPreview({
       ['changed', 'blocked', 'resolved'].includes(profile.effect),
     ).length ?? 0
   return (
-    <section className="library-impact" data-testid="library-impact" aria-label={t('impact.title')}>
+    <section className="grid gap-3" data-testid="library-impact" aria-label={t('impact.title')}>
       <h3>{t('impact.title')}</h3>
-      <p className="hint">{t('impact.description')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('impact.description')}</p>
       {!query && <p role="status">{t('impact.incomplete')}</p>}
       {loading && <p role="status">{t('impact.loading')}</p>}
       {current?.error != null && (
-        <p role="alert" className="form-error">
+        <p
+          role="alert"
+          className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+        >
           {formatError(current.error, locale)}
         </p>
       )}
@@ -109,8 +112,12 @@ export function LibraryImpactPreview({
           <p data-testid="impact-profile-summary">
             {t('impact.profiles', { count: report.profiles.length, changed })}
           </p>
-          {report.profiles.length === 0 && <p className="hint">{t('impact.noProfiles')}</p>}
-          <ul className="impact-profiles">
+          {report.profiles.length === 0 && (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {t('impact.noProfiles')}
+            </p>
+          )}
+          <ul className="grid gap-2">
             {report.profiles.map((profile) => (
               <li key={profile.id} data-impact-profile={profile.id} data-effect={profile.effect}>
                 <strong>{profile.name}</strong>
@@ -127,12 +134,16 @@ export function LibraryImpactPreview({
             ))}
           </ul>
           {report.sessionScope === 'browser' ? (
-            <p className="hint">{t('impact.browser')}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">{t('impact.browser')}</p>
           ) : (
             <>
               <h4>{t('impact.sessions')}</h4>
-              <p className="hint">{t('impact.retained')}</p>
-              <p className="hint">{t('impact.scanned', { count: report.scannedSessions })}</p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {t('impact.retained')}
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {t('impact.scanned', { count: report.scannedSessions })}
+              </p>
               {report.sessions.length === 0 && (
                 <p>{t(report.nextSessionId ? 'impact.noSessionsYet' : 'impact.noSessions')}</p>
               )}
@@ -147,13 +158,17 @@ export function LibraryImpactPreview({
                       session.agentId}{' '}
                     · {t(`impact.session.${session.effect}`)}
                   </summary>
-                  <p className="hint">
+                  <p className="text-xs leading-relaxed text-muted-foreground">
                     {session.id}
                     <br />
                     {new Date(session.createdAt).toLocaleString(locale)} ·{' '}
                     {t(`sessions.status.${session.status}`)}
                   </p>
-                  {session.alreadyPending && <p className="hint">{t('impact.alreadyPending')}</p>}
+                  {session.alreadyPending && (
+                    <p className="text-xs leading-relaxed text-muted-foreground">
+                      {t('impact.alreadyPending')}
+                    </p>
+                  )}
                   {session.fields.length > 0 && (
                     <p>{session.fields.map((field) => t(`report.field.${field}`)).join(' · ')}</p>
                   )}
@@ -176,7 +191,7 @@ export function LibraryImpactPreview({
         </>
       )}
       {query && (
-        <div className="impact-actions">
+        <div className="flex flex-wrap gap-2">
           {report?.nextSessionId && (
             <button
               type="button"
@@ -197,7 +212,7 @@ export function LibraryImpactPreview({
           </button>
         </div>
       )}
-      <p className="hint">{t('impact.limits')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('impact.limits')}</p>
     </section>
   )
 }

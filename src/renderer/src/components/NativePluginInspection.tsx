@@ -63,7 +63,11 @@ export function NativePluginInspection({
     }
   }
   return (
-    <section className="plugin-inspection" aria-label={t('plugin.result')} aria-busy={busy}>
+    <section
+      className="plugin-inspection grid gap-2 rounded-lg border border-border p-3"
+      aria-label={t('plugin.result')}
+      aria-busy={busy}
+    >
       <button
         type="button"
         className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -72,18 +76,23 @@ export function NativePluginInspection({
       >
         {t(busy ? 'plugin.inspecting' : 'plugin.inspect')}
       </button>
-      {!supported && <p className="hint">{t('plugin.engineHint')}</p>}
+      {!supported && (
+        <p className="text-xs leading-relaxed text-muted-foreground">{t('plugin.engineHint')}</p>
+      )}
       {error !== null && (
-        <p className="form-error" role="alert">
+        <p
+          className="rounded-lg border border-destructive/35 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          role="alert"
+        >
           {formatError(error, locale)}
         </p>
       )}
       {result && (
         <>
           <p role="status">{t('plugin.filesOnly')}</p>
-          <p className="hint">{t('plugin.scope')}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('plugin.scope')}</p>
           {result.engineVersion !== result.resolverVersion && (
-            <p className="hint">
+            <p className="text-xs leading-relaxed text-muted-foreground">
               {t('plugin.versionHint', {
                 engine: engineNames[result.engine],
                 version: result.resolverVersion,
@@ -116,7 +125,7 @@ export function NativePluginInspection({
           </dl>
           {requirements.map((requirement) => (
             <div key={requirement.name} data-plugin-dependency={requirement.name}>
-              <p className="hint">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 {t('plugin.range', { engine: requirement.name })}:{' '}
                 {requirement.range ?? t('plugin.unknown')}
               </p>
@@ -131,10 +140,14 @@ export function NativePluginInspection({
               </p>
             </div>
           ))}
-          <p className="hint">{t('plugin.rangeHint')}</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('plugin.rangeHint')}</p>
           {result.package?.version && result.package.version !== version && (
             <>
-              {version && <p className="hint">{t('plugin.versionMismatch')}</p>}
+              {version && (
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('plugin.versionMismatch')}
+                </p>
+              )}
               <button
                 type="button"
                 className={buttonVariants({ variant: 'outline', size: 'sm' })}

@@ -149,8 +149,8 @@ export function SessionListPanel({
       )}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <div className="eyebrow">
-            <span />
+          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+            <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
             {t('sessionList.eyebrow')}
           </div>
           <h1>{t('nav.sessionList')}</h1>
@@ -339,7 +339,7 @@ export function SessionListPanel({
               )}
               <div className="grid gap-2">
                 <h3 className="text-xs font-semibold">{t('sessionList.recent')}</h3>
-                <div className="transcript max-h-[38vh] overflow-y-auto rounded-lg border border-border bg-surface p-3">
+                <div className="transcript grid max-h-[46vh] content-start gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3 max-h-[38vh]">
                   {loadingRecord ? (
                     <p className="flex items-center gap-2 text-xs text-muted-foreground">
                       <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />

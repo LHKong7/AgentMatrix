@@ -23,7 +23,7 @@ export function ConfigurationFailureDetails({
       ) : (
         <p>{t('report.diagnosticUnattributed')}</p>
       )}
-      <p className="hint">{t('report.diagnosticHint')}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{t('report.diagnosticHint')}</p>
     </div>
   )
 }
