@@ -16,6 +16,8 @@ import { ModelRequirements } from './ModelRequirements'
 import { TabList, TabTrigger } from './ui/tabs'
 import { isSupportedEngine } from '../../../shared/engines/contracts'
 import { protocolRequirement } from '../../../shared/engines/model-requirements'
+import { sharedSetupFor } from '../../../shared/engines/resolution'
+import { Badge } from './ui/badge'
 import { AssetBindings } from './AssetBindings'
 import { ResourcePicker } from './ResourcePicker'
 import { NumberField, SelectField, TextField } from './ConfigurationFields'
@@ -221,6 +223,8 @@ export function AgentEditor({
             )}
             {tab === 'bindings' && (
               <>
+                <InheritedSetup workspace={workspace} agentId={draft.id} />
+                <h3 className="mb-3">{t('sharedSetup.own')}</h3>
                 <AssetBindings
                   title={t('config.prompts')}
                   assets={workspace.prompts}
@@ -489,4 +493,62 @@ function ProfilePreview({
       </p>
     )
   }
+}
+
+/** What this agent already receives from the workspace-wide setup, before its own bindings. */
+function InheritedSetup({ workspace, agentId }: { workspace: EngineWorkspace; agentId: string }) {
+  const { t, number } = useI18n()
+  const setup = sharedSetupFor(workspace, agentId)
+  const named = (ids: string[], items: { id: string; name: string }[]) =>
+    ids.map((id) => items.find((item) => item.id === id)?.name).filter(Boolean) as string[]
+  if (!setup)
+    return (
+      <p className="mb-5 rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground">
+        {t('sharedSetup.excluded')}
+      </p>
+    )
+  const entries = [
+    ...named(
+      setup.promptBindings.map((binding) => binding.assetId),
+      workspace.prompts,
+    ),
+    ...named(
+      setup.skillBindings.map((binding) => binding.assetId),
+      workspace.skills,
+    ),
+    ...named(setup.mcpServerIds, workspace.mcpServers),
+    ...named(setup.bundleIds, workspace.bundles),
+  ]
+  return (
+    <section
+      className="mb-5 grid gap-2 rounded-lg border border-border p-3"
+      data-testid="inherited-setup"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3>{t('sharedSetup.inherited')}</h3>
+        <Badge variant="muted">
+          {t('sharedSetup.count', {
+            prompts: number(setup.promptBindings.length),
+            skills: number(setup.skillBindings.length),
+            tools: number(setup.mcpServerIds.length),
+            bundles: number(setup.bundleIds.length),
+          })}
+        </Badge>
+      </div>
+      {entries.length ? (
+        <div className="flex flex-wrap gap-1.5">
+          {entries.map((name) => (
+            <Badge key={name} variant="outline">
+              {name}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">{t('sharedSetup.inheritedEmpty')}</p>
+      )}
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {t('sharedSetup.inheritedHint')}
+      </p>
+    </section>
+  )
 }

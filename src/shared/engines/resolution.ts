@@ -3,8 +3,18 @@ import {
   engineWorkspaceSchema,
   type EngineWorkspace,
   type McpDefinition,
+  type SharedSetup,
   type SkillVersion,
 } from './workspace'
+
+/** Marks a prompt, Skill or tool that came from the workspace-wide setup. */
+export const sharedSource = 'shared'
+
+/** The shared setup an agent inherits, or null when that agent opted out. */
+export function sharedSetupFor(workspace: EngineWorkspace, agentId: string): SharedSetup | null {
+  const setup = workspace.sharedSetup
+  return setup.excludedAgentIds.includes(agentId) ? null : setup
+}
 
 export type ResolutionIssueCode =
   | 'agent-missing'
@@ -128,14 +138,22 @@ function resolveParsedProfile(workspace: EngineWorkspace, agentId: string): Prof
       issue('secret-required', 'connection.auth.secret')
   }
   if (!agent.execution.cwd) issue('cwd-required', 'execution.cwd')
-  const bundles = agent.bundleIds
+  // Instructions, Skills and tools come from the shared setup unless this agent opted out;
+  // the engine, model route and endpoint stay the agent's own.
+  const shared = sharedSetupFor(workspace, agent.id)
+  const bundles = [...new Set([...(shared?.bundleIds ?? []), ...agent.bundleIds])]
     .map((id) => workspace.bundles.find((item) => item.id === id)!)
     .filter((item) => item.enabled)
+  const inherited = <T>(bindings: T[]) =>
+    bindings.map((binding) => ({ binding, source: sharedSource }))
   const promptBindings = mergeBindings(
     agent.promptBindings,
-    bundles.flatMap((bundle) =>
-      bundle.promptBindings.map((binding) => ({ binding, source: `bundle:${bundle.id}` })),
-    ),
+    [
+      ...inherited(shared?.promptBindings ?? []),
+      ...bundles.flatMap((bundle) =>
+        bundle.promptBindings.map((binding) => ({ binding, source: `bundle:${bundle.id}` })),
+      ),
+    ],
     'promptBindings',
     issues,
   )
@@ -162,9 +180,12 @@ function resolveParsedProfile(workspace: EngineWorkspace, agentId: string): Prof
     issue('replacement-conflict', 'promptBindings')
   const skillBindings = mergeBindings(
     agent.skillBindings,
-    bundles.flatMap((bundle) =>
-      bundle.skillBindings.map((binding) => ({ binding, source: `bundle:${bundle.id}` })),
-    ),
+    [
+      ...inherited(shared?.skillBindings ?? []),
+      ...bundles.flatMap((bundle) =>
+        bundle.skillBindings.map((binding) => ({ binding, source: `bundle:${bundle.id}` })),
+      ),
+    ],
     'skillBindings',
     issues,
   )
@@ -183,6 +204,7 @@ function resolveParsedProfile(workspace: EngineWorkspace, agentId: string): Prof
   }
   const mcpIds = new Set([
     ...agent.mcpServerIds,
+    ...(shared?.mcpServerIds ?? []),
     ...bundles.flatMap((bundle) => bundle.mcpServerIds),
   ])
   const mcpServers = [...mcpIds]

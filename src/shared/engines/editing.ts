@@ -6,6 +6,7 @@ import {
   createEngineWorkspace,
   type EngineWorkspace,
   type PromptAsset,
+  type SharedSetup,
   type SkillAsset,
 } from './workspace'
 
@@ -225,6 +226,27 @@ export function removeConfiguration(
         item.mcpServerIds = item.mcpServerIds.filter((value) => value !== id)
     }
   }
+  const setup = result.sharedSetup
+  result.sharedSetup = {
+    promptBindings:
+      kind === 'prompts'
+        ? setup.promptBindings.filter((binding) => binding.assetId !== id)
+        : setup.promptBindings,
+    skillBindings:
+      kind === 'skills'
+        ? setup.skillBindings.filter((binding) => binding.assetId !== id)
+        : setup.skillBindings,
+    mcpServerIds:
+      kind === 'mcpServers'
+        ? setup.mcpServerIds.filter((value) => value !== id)
+        : setup.mcpServerIds,
+    bundleIds:
+      kind === 'bundles' ? setup.bundleIds.filter((value) => value !== id) : setup.bundleIds,
+    excludedAgentIds:
+      kind === 'agents'
+        ? setup.excludedAgentIds.filter((value) => value !== id)
+        : setup.excludedAgentIds,
+  }
   return engineWorkspaceSchema.parse(result)
 }
 
@@ -272,4 +294,29 @@ export function validateAssetHistory(current: EngineWorkspace, next: EngineWorks
       }
     }
   }
+}
+
+/** Replaces the setup every agent inherits. Individual model and engine choices are untouched. */
+export function updateSharedSetup(
+  input: EngineWorkspace,
+  patch: Partial<SharedSetup>,
+): EngineWorkspace {
+  const workspace = engineWorkspaceSchema.parse(input)
+  return engineWorkspaceSchema.parse({
+    ...workspace,
+    sharedSetup: { ...workspace.sharedSetup, ...patch },
+  })
+}
+
+/** Opts one agent in or out of the shared setup without touching its own bindings. */
+export function setSharedSetupParticipation(
+  input: EngineWorkspace,
+  agentId: string,
+  participates: boolean,
+): EngineWorkspace {
+  const workspace = engineWorkspaceSchema.parse(input)
+  const excluded = workspace.sharedSetup.excludedAgentIds.filter((value) => value !== agentId)
+  return updateSharedSetup(workspace, {
+    excludedAgentIds: participates ? excluded : [...excluded, agentId],
+  })
 }

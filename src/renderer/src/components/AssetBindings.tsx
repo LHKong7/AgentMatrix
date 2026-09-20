@@ -13,12 +13,15 @@ export function AssetBindings<T extends Binding>({
   bindings,
   onChange,
   prompts = false,
+  hideTitle = false,
 }: {
   title: string
   assets: (PromptAsset | SkillAsset)[]
   bindings: T[]
   onChange: (bindings: T[]) => void
   prompts?: boolean
+  /** The surrounding panel already names this group. */
+  hideTitle?: boolean
 }) {
   const { t, number } = useI18n()
   const ordered = [
@@ -34,7 +37,7 @@ export function AssetBindings<T extends Binding>({
   return (
     <section className="mb-5 grid gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3>{title}</h3>
+        <h3 className={hideTitle ? 'sr-only' : undefined}>{title}</h3>
         <span className="text-[11px] text-muted-foreground">
           {t('picker.selected', { count: number(bindings.length) })}
         </span>

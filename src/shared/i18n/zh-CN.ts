@@ -10,6 +10,7 @@ import { reportZhCN } from './report-zh-CN'
 import { discoveryZhCN } from './discovery-zh-CN'
 import { sessionListZhCN } from './session-list-zh-CN'
 import { requirementsZhCN } from './requirements-zh-CN'
+import { sharedSetupZhCN } from './shared-setup-zh-CN'
 
 export const zhCN = {
   'runData.title': '未使用的运行数据',
@@ -43,6 +44,7 @@ export const zhCN = {
   ...sessionListZhCN,
   ...discoveryZhCN,
   ...requirementsZhCN,
+  ...sharedSetupZhCN,
   ...reportZhCN,
   ...impactZhCN,
   ...supportZhCN,

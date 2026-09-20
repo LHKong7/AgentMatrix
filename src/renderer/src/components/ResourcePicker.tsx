@@ -7,17 +7,20 @@ export function ResourcePicker({
   items,
   selected,
   onChange,
+  hideTitle = false,
 }: {
   title: string
   items: { id: string; name: string; description: string; enabled: boolean }[]
   selected: string[]
   onChange: (ids: string[]) => void
+  /** The surrounding panel already names this group. */
+  hideTitle?: boolean
 }) {
   const { t, number } = useI18n()
   return (
     <section className="mb-5 grid gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3>{title}</h3>
+        <h3 className={hideTitle ? 'sr-only' : undefined}>{title}</h3>
         <span className="text-[11px] text-muted-foreground">
           {t('picker.selected', { count: number(selected.length) })}
         </span>

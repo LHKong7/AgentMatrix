@@ -1,9 +1,10 @@
-import type { EngineWorkspace } from '../../src/shared/engines/workspace'
+import { emptySharedSetup, type EngineWorkspace } from '../../src/shared/engines/workspace'
 
 export function openCodeWorkspace(executable: string, cwd: string): EngineWorkspace {
   return {
     schemaVersion: 2,
     revision: 1,
+    sharedSetup: emptySharedSetup(),
     installations: [
       {
         id: 'oc',

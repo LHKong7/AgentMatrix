@@ -10,6 +10,7 @@ import {
   FileText,
   FolderOpen,
   Layers3,
+  Layers,
   ListTree,
   LoaderCircle,
   MessageSquare,
@@ -52,6 +53,7 @@ import { NativeImportPanel } from './components/NativeImportPanel'
 import { EngineDiscoveryPanel } from './components/EngineDiscoveryPanel'
 import { SessionsPanel } from './components/SessionsPanel'
 import { SessionListPanel } from './components/SessionListPanel'
+import { SharedSetupPanel } from './components/SharedSetupPanel'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Alert, AlertDescription } from './components/ui/alert'
@@ -62,7 +64,7 @@ import { cn } from './lib/utils'
 type Editor =
   | { kind: 'agents'; value: AgentProfile; isNew: boolean }
   | { kind: LibraryCollection; value: LibraryEntry }
-type Page = Collection | 'settings' | 'sessions' | 'sessionList'
+type Page = Collection | 'settings' | 'sessions' | 'sessionList' | 'sharedSetup'
 const icons: Record<Collection, LucideIcon> = {
   agents: Bot,
   installations: Command,
@@ -195,9 +197,11 @@ export function App() {
       ? t('nav.sessions')
       : page === 'sessionList'
         ? t('nav.sessionList')
-        : page === 'settings'
-          ? t('nav.settings')
-          : t(collectionLabels[page])
+        : page === 'sharedSetup'
+          ? t('nav.sharedSetup')
+          : page === 'settings'
+            ? t('nav.settings')
+            : t(collectionLabels[page])
   async function probe(installationId: string) {
     if (saveLock.current) return
     saveLock.current = true
@@ -269,6 +273,12 @@ export function App() {
             active={page === 'sessionList'}
             onClick={() => navigate('sessionList')}
           />
+          <NavItem
+            icon={Layers}
+            label={t('nav.sharedSetup')}
+            active={page === 'sharedSetup'}
+            onClick={() => navigate('sharedSetup')}
+          />
           {collections.map((kind) => (
             <NavItem
               key={kind}
@@ -337,6 +347,8 @@ export function App() {
               initialSession={sessionSelection}
               platform={info?.platform}
             />
+          ) : page === 'sharedSetup' ? (
+            <SharedSetupPanel workspace={workspace} busy={saving} onSave={save} />
           ) : page === 'sessionList' ? (
             <SessionListPanel
               workspace={workspace}

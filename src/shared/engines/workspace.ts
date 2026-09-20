@@ -177,6 +177,29 @@ export const nativePluginSchema = z
   })
   .strict()
 
+/**
+ * The instructions, Skills and tools every CLI agent shares. Model routes, endpoints and the
+ * engine itself stay on the individual agent, because those differ per CLI and per project.
+ */
+export const sharedSetupSchema = z
+  .object({
+    promptBindings: z.array(promptBindingSchema).max(200),
+    skillBindings: z.array(skillBindingSchema).max(200),
+    mcpServerIds: referenceIds,
+    bundleIds: referenceIds,
+    /** Agents that opted out; every other agent inherits this setup. */
+    excludedAgentIds: referenceIds,
+  })
+  .strict()
+export type SharedSetup = z.infer<typeof sharedSetupSchema>
+export const emptySharedSetup = (): SharedSetup => ({
+  promptBindings: [],
+  skillBindings: [],
+  mcpServerIds: [],
+  bundleIds: [],
+  excludedAgentIds: [],
+})
+
 export const engineWorkspaceSchema = z
   .object({
     schemaVersion: z.literal(2),
@@ -191,6 +214,7 @@ export const engineWorkspaceSchema = z
     bundles: z.array(capabilityBundleSchema).max(200),
     nativePlugins: z.array(nativePluginSchema).max(200),
     nativeImports: z.array(nativeImportRecordSchema).max(500).optional(),
+    sharedSetup: sharedSetupSchema.default(emptySharedSetup),
   })
   .strict()
   .superRefine((workspace, context) => {
@@ -284,6 +308,20 @@ export const engineWorkspaceSchema = z
         )
       })
     }
+    const setup = workspace.sharedSetup
+    setup.mcpServerIds.forEach((id, j) =>
+      has(workspace.mcpServers, id, ['sharedSetup', 'mcpServerIds', j]),
+    )
+    setup.bundleIds.forEach((id, j) => has(workspace.bundles, id, ['sharedSetup', 'bundleIds', j]))
+    setup.excludedAgentIds.forEach((id, j) =>
+      has(workspace.agents, id, ['sharedSetup', 'excludedAgentIds', j]),
+    )
+    setup.promptBindings.forEach((binding, j) =>
+      checkBinding(binding, 'prompts', ['sharedSetup', 'promptBindings', j]),
+    )
+    setup.skillBindings.forEach((binding, j) =>
+      checkBinding(binding, 'skills', ['sharedSetup', 'skillBindings', j]),
+    )
     workspace.agents.forEach((agent, i) => {
       has(workspace.installations, agent.engineInstallationId, [
         'agents',
@@ -317,5 +355,6 @@ export function createEngineWorkspace(): EngineWorkspace {
     skills: [],
     bundles: [],
     nativePlugins: [],
+    sharedSetup: emptySharedSetup(),
   }
 }
