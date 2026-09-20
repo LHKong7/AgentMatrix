@@ -19,11 +19,18 @@ import {
 } from '../../../shared/engines/schema'
 import type { EngineWorkspace, McpDefinition, PromptAsset } from '../../../shared/engines/workspace'
 import { importSkillRevision } from '../../../shared/engines/skill-import'
+import type { SupportedEngine } from '../../../shared/engines/contracts'
+import {
+  defaultTargetEngine,
+  enginesForProtocol,
+  protocolRequirement,
+} from '../../../shared/engines/model-requirements'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
 import { Modal } from './Modal'
 import { ResourcePicker } from './ResourcePicker'
 import { AssetBindings } from './AssetBindings'
+import { EngineTargetSelect, ModelRequirements, engineNames } from './ModelRequirements'
 import { buttonVariants } from './ui/button'
 import { Checkbox } from './ui/checkbox'
 import {
@@ -58,6 +65,13 @@ export function ResourceEditor({
 }) {
   const { t, locale, number } = useI18n()
   const [draft, setDraft] = useState(resource)
+  // Which CLI the model fields are described for. It guides the editor, it is not saved.
+  const [targetEngine, setTargetEngine] = useState<SupportedEngine | null>(() =>
+    defaultTargetEngine(workspace, {
+      modelId: 'modelId' in resource ? resource.id : undefined,
+      connectionId: 'protocol' in resource ? resource.id : undefined,
+    }),
+  )
   const [content, setContent] = useState(contentOf(resource))
   const [dirty, setDirty] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -140,6 +154,17 @@ export function ResourceEditor({
       setImporting(false)
     }
   }
+  // The route the target engine maps for the draft's protocol, for both editors below.
+  const connectionRoute =
+    targetEngine && 'protocol' in draft ? protocolRequirement(targetEngine, draft.protocol) : null
+  const modelConnection =
+    'modelId' in draft
+      ? (workspace.connections.find((item) => item.id === draft.connectionId) ?? null)
+      : null
+  const modelRoute =
+    targetEngine && modelConnection
+      ? protocolRequirement(targetEngine, modelConnection.protocol)
+      : null
   const directoryRevision =
     'versions' in draft
       ? draft.versions.find(
@@ -163,7 +188,7 @@ export function ResourceEditor({
         className="flex min-h-0 flex-1 flex-col"
       >
         <fieldset disabled={busy || importing} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 [&>p]:-mt-3 [&>p]:mb-5">
             <TextField
               label={t('common.name')}
               value={draft.name}
@@ -225,22 +250,50 @@ export function ResourceEditor({
             )}
             {'protocol' in draft && (
               <>
+                <EngineTargetSelect value={targetEngine} onChange={setTargetEngine} />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('requirements.hint')}
+                </p>
                 <SelectField
                   label={t('config.protocol')}
                   value={draft.protocol ?? ''}
-                  onChange={(protocol) =>
+                  onChange={(value) => {
+                    const protocol = value ? modelProtocolSchema.parse(value) : null
+                    // The route decides the API-key header, so switching it rewrites the header.
+                    const header =
+                      targetEngine && protocol
+                        ? protocolRequirement(targetEngine, protocol)?.apiKeyHeader
+                        : null
                     setDraft({
                       ...draft,
-                      protocol: protocol ? modelProtocolSchema.parse(protocol) : null,
+                      protocol,
+                      auth:
+                        draft.auth.kind === 'api-key' && header
+                          ? { ...draft.auth, header }
+                          : draft.auth,
                     })
-                  }
+                  }}
                 >
                   <option value="">{t('config.choose')}</option>
-                  {modelProtocolSchema.options.map((protocol) => (
-                    <option key={protocol} value={protocol}>
-                      {protocol}
-                    </option>
-                  ))}
+                  {modelProtocolSchema.options.map((protocol) => {
+                    const engines = enginesForProtocol(protocol)
+                    const unsupported = targetEngine
+                      ? !protocolRequirement(targetEngine, protocol)
+                      : engines.length === 0
+                    return (
+                      <option key={protocol} value={protocol}>
+                        {unsupported
+                          ? t('requirements.protocolUnsupported', { protocol })
+                          : `${protocol} · ${
+                              engines.length
+                                ? t('requirements.engineSupport', {
+                                    engines: engines.map((kind) => engineNames[kind]).join(', '),
+                                  })
+                                : t('requirements.noEngines')
+                            }`}
+                      </option>
+                    )
+                  })}
                 </SelectField>
                 <TextField
                   label="API Base URL"
@@ -257,9 +310,13 @@ export function ResourceEditor({
                   label={t('config.auth')}
                   value={draft.auth.kind}
                   onChange={(kind) => {
+                    const header =
+                      (targetEngine && draft.protocol
+                        ? protocolRequirement(targetEngine, draft.protocol)?.apiKeyHeader
+                        : null) ?? 'x-api-key'
                     const auth: ModelConnection['auth'] =
                       kind === 'api-key'
-                        ? { kind, header: 'x-api-key', secret: null }
+                        ? { kind, header, secret: null }
                         : kind === 'bearer'
                           ? { kind, secret: null }
                           : kind === 'cloud-identity'
@@ -278,11 +335,22 @@ export function ResourceEditor({
                       'cloud-identity',
                     ] as const
                   ).map((kind) => (
+                    // Every strategy stays selectable: one connection can serve several engines.
                     <option key={kind} value={kind}>
                       {t(`config.auth.${kind}`)}
+                      {connectionRoute &&
+                      kind !== 'unconfigured' &&
+                      !connectionRoute.auth.includes(kind)
+                        ? ` · ${t('requirements.authUnsupported')}`
+                        : ''}
                     </option>
                   ))}
                 </SelectField>
+                {draft.auth.kind === 'api-key' && connectionRoute?.apiKeyHeader && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t('requirements.headerFixed', { header: connectionRoute.apiKeyHeader })}
+                  </p>
+                )}
                 {draft.auth.kind === 'api-key' && (
                   <TextField
                     label={t('config.header')}
@@ -348,11 +416,26 @@ export function ResourceEditor({
                     value={draft.secretHeaders}
                     onChange={(secretHeaders) => setDraft({ ...draft, secretHeaders })}
                   />
+                  {connectionRoute?.headers === 'none' && (
+                    <p className="text-xs leading-relaxed text-warning">
+                      {t('requirements.headersNone')}
+                    </p>
+                  )}
+                  {connectionRoute?.headers === 'reserved-user-agent' && (
+                    <p className="text-xs leading-relaxed text-warning">
+                      {t('requirements.headersReserved')}
+                    </p>
+                  )}
                 </details>
+                <ModelRequirements kind={targetEngine} connection={draft} />
               </>
             )}
             {'modelId' in draft && (
               <>
+                <EngineTargetSelect value={targetEngine} onChange={setTargetEngine} />
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  {t('requirements.hint')}
+                </p>
                 <SelectField
                   label={t('config.connection')}
                   value={draft.connectionId ?? ''}
@@ -362,16 +445,40 @@ export function ResourceEditor({
                 >
                   <option value="">{t('config.choose')}</option>
                   {workspace.connections.map((connection) => (
+                    // The option text stays the saved name; the route is described below.
                     <option key={connection.id} value={connection.id}>
                       {connection.name}
                     </option>
                   ))}
                 </SelectField>
+                {modelConnection?.protocol && (
+                  <p
+                    className={`text-xs leading-relaxed ${
+                      targetEngine && !modelRoute ? 'text-warning' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {targetEngine && !modelRoute
+                      ? t('requirements.protocolUnsupported', {
+                          protocol: modelConnection.protocol,
+                        })
+                      : t('requirements.engineSupport', {
+                          engines: enginesForProtocol(modelConnection.protocol)
+                            .map((kind) => engineNames[kind])
+                            .join(', '),
+                        })}
+                  </p>
+                )}
                 <TextField
                   label={t('agentEditor.model')}
                   value={draft.modelId}
+                  placeholder={modelRoute?.modelIdExample ?? ''}
                   onChange={(modelId) => setDraft({ ...draft, modelId })}
                 />
+                {modelRoute && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t('requirements.modelIdHint', { example: modelRoute.modelIdExample })}
+                  </p>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <NumberField
                     label="Temperature"
@@ -392,19 +499,56 @@ export function ResourceEditor({
                     }
                   />
                 </div>
-                <TextField
-                  label={t('config.reasoning')}
-                  value={draft.parameters.reasoning ?? ''}
-                  onChange={(reasoning) =>
-                    setDraft({
-                      ...draft,
-                      parameters: { ...draft.parameters, reasoning: reasoning || undefined },
-                    })
-                  }
-                />
+                {modelRoute && !modelRoute.sampling && (
+                  <p className="text-xs leading-relaxed text-warning">
+                    {t('requirements.samplingUnsupported')}
+                  </p>
+                )}
+                {modelRoute?.reasoning ? (
+                  <SelectField
+                    label={t('config.reasoning')}
+                    value={draft.parameters.reasoning ?? ''}
+                    onChange={(reasoning) =>
+                      setDraft({
+                        ...draft,
+                        parameters: { ...draft.parameters, reasoning: reasoning || undefined },
+                      })
+                    }
+                  >
+                    <option value="">{t('requirements.reasoningEmpty')}</option>
+                    {draft.parameters.reasoning &&
+                      !modelRoute.reasoning.includes(draft.parameters.reasoning) && (
+                        <option value={draft.parameters.reasoning}>
+                          {t('requirements.reasoningCustom', { value: draft.parameters.reasoning })}
+                        </option>
+                      )}
+                    {modelRoute.reasoning.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </SelectField>
+                ) : (
+                  <TextField
+                    label={t('config.reasoning')}
+                    value={draft.parameters.reasoning ?? ''}
+                    onChange={(reasoning) =>
+                      setDraft({
+                        ...draft,
+                        parameters: { ...draft.parameters, reasoning: reasoning || undefined },
+                      })
+                    }
+                  />
+                )}
+                {modelRoute && modelRoute.reasoning === null && (
+                  <p className="text-xs leading-relaxed text-warning">
+                    {t('requirements.reasoningUnsupported')}
+                  </p>
+                )}
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {t('config.optionalParameters')}
                 </p>
+                <ModelRequirements kind={targetEngine} connection={modelConnection} model={draft} />
               </>
             )}
             {'versions' in draft && (
@@ -784,7 +928,7 @@ export function ResourceEditor({
               </>
             )}
             {'enabled' in draft && (
-              <label className="flex items-center gap-2 text-xs font-medium">
+              <label className="mb-5 flex items-center gap-2 text-xs font-medium">
                 <Checkbox
                   checked={draft.enabled}
                   onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}

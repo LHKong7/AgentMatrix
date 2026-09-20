@@ -9,6 +9,7 @@ import { reportEn } from './report-en'
 import { nativeImportEn } from './native-import-en'
 import { discoveryEn } from './discovery-en'
 import { sessionListEn } from './session-list-en'
+import { requirementsEn } from './requirements-en'
 
 export const en = {
   'runData.title': 'Unused run data',
@@ -46,6 +47,7 @@ export const en = {
   ...sessionEn,
   ...sessionListEn,
   ...discoveryEn,
+  ...requirementsEn,
   ...reportEn,
   ...impactEn,
   ...supportEn,

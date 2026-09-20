@@ -12,7 +12,10 @@ import { resolveAgentProfile } from '../../../shared/engines/resolution'
 import type { EngineWorkspace } from '../../../shared/engines/workspace'
 import { useI18n } from '../i18n'
 import { Modal } from './Modal'
+import { ModelRequirements } from './ModelRequirements'
 import { TabList, TabTrigger } from './ui/tabs'
+import { isSupportedEngine } from '../../../shared/engines/contracts'
+import { protocolRequirement } from '../../../shared/engines/model-requirements'
 import { AssetBindings } from './AssetBindings'
 import { ResourcePicker } from './ResourcePicker'
 import { NumberField, SelectField, TextField } from './ConfigurationFields'
@@ -50,6 +53,16 @@ export function AgentEditor({
   const options = useRef<Partial<Record<EngineKind, AgentProfile['engineOptions']>>>({})
   const patch = (changes: Partial<AgentProfile>) =>
     setDraft((current) => ({ ...current, ...changes }))
+  // The selected CLI decides which model values can be filled in at all.
+  const engineKind = (() => {
+    const kind = workspace.installations.find(
+      (item) => item.id === draft.engineInstallationId,
+    )?.kind
+    return kind && isSupportedEngine(kind) ? kind : null
+  })()
+  const selectedModel = workspace.models.find((item) => item.id === draft.modelProfileId) ?? null
+  const selectedConnection =
+    workspace.connections.find((item) => item.id === selectedModel?.connectionId) ?? null
   const close = () => {
     if (JSON.stringify(draft) === JSON.stringify(agent) || window.confirm(t('common.unsaved')))
       onClose()
@@ -96,7 +109,7 @@ export function AgentEditor({
             </TabList>
           </div>
           <div
-            className="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+            className="min-h-0 flex-1 overflow-y-auto px-6 py-5 [&>p]:-mt-3 [&>p]:mb-5"
             role="tabpanel"
             id={`panel-${tab}`}
             aria-labelledby={`tab-${tab}`}
@@ -144,12 +157,25 @@ export function AgentEditor({
                   onChange={(modelProfileId) => patch({ modelProfileId: modelProfileId || null })}
                 >
                   <option value="">{t('config.choose')}</option>
-                  {workspace.models.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} · {model.modelId || t('agents.modelEmpty')}
-                    </option>
-                  ))}
+                  {workspace.models.map((model) => {
+                    const protocol =
+                      workspace.connections.find((item) => item.id === model.connectionId)
+                        ?.protocol ?? null
+                    const usable =
+                      !engineKind || !protocol || Boolean(protocolRequirement(engineKind, protocol))
+                    return (
+                      <option key={model.id} value={model.id}>
+                        {model.name} · {model.modelId || t('agents.modelEmpty')}
+                        {usable ? '' : ` · ${t('requirements.protocolUnsupported', { protocol })}`}
+                      </option>
+                    )
+                  })}
                 </SelectField>
+                <ModelRequirements
+                  kind={engineKind}
+                  connection={selectedConnection}
+                  model={selectedModel}
+                />
                 <TextField
                   label={t('config.cwd')}
                   value={draft.execution.cwd}
@@ -184,7 +210,7 @@ export function AgentEditor({
                   step={1}
                   onChange={(timeoutMs) => patch({ execution: { ...draft.execution, timeoutMs } })}
                 />
-                <label className="flex items-center gap-2 text-xs font-medium">
+                <label className="mb-5 flex items-center gap-2 text-xs font-medium">
                   <Checkbox
                     checked={draft.enabled}
                     onChange={(event) => patch({ enabled: event.target.checked })}

@@ -8,20 +8,20 @@ uses the tokens is correct in either theme without a second stylesheet.
 
 `src/renderer/src/tokens.css` holds everything theme-related:
 
-- `@layer theme, base, components, utilities` establishes the cascade order, then Tailwind's theme
-  and utility layers are imported. Tailwind's preflight is deliberately **not** imported, because
-  `styles.css` already carries this application's element reset; the `base` layer adds only the
-  border and button normalization that the component primitives rely on.
-- `:root` defines the light palette and `.dark` the dark one, in oklch: `background`, `foreground`,
-  `card`, `popover`, `primary`, `secondary`, `muted`, `accent`, `destructive`, `success`, `warning`,
-  `border`, `input`, `ring`, `surface`, `overlay`, the `sidebar-*` group, and five chart colors.
+- Tailwind is imported whole, preflight included, followed by a short element baseline.
+- `:root` defines the light palette and `.dark` the dark one, in oklch. Both are neutral: white or
+  near-black surfaces, grey borders and a near-black (light) or near-white (dark) primary. The
+  tokens are `background`, `foreground`, `card`, `popover`, `primary`, `secondary`, `muted`,
+  `accent`, `destructive`, `success`, `warning`, `border`, `input`, `ring`, `surface`, `overlay`,
+  the `sidebar-*` group, five chart colors, and `brand` — the product green, used for the mark and
+  the eyebrow dot only, so the interface itself stays neutral.
 - `@theme inline` maps each token to a Tailwind color so `bg-card`, `text-muted-foreground`,
   `border-border` and friends resolve to the active theme.
 
-`src/renderer/src/styles.css` holds the hand-written rules that have not been rebuilt as components.
-It no longer contains a single hard-coded color — every declaration reads a token — and the whole
-file lives in `@layer components`, below Tailwind's `utilities` layer, so a utility class on an
-element always wins over a legacy rule for the same property.
+There is no second stylesheet: every screen is built from the primitives in `components/ui` and
+Tailwind utilities that read these tokens. `tokens.css` imports Tailwind with its preflight and adds
+a short element baseline (headings, paragraphs, `code`, `small`, lists and definition lists) so
+plain content stays readable without a class on every tag.
 
 ## Choosing a theme
 
@@ -42,19 +42,22 @@ opened while the operating system is light and the preference is dark flashes li
 
 `src/renderer/src/components/ui/` contains the shadcn primitives: `button` (with `buttonVariants`
 for elements that must stay plain tags), `card`, `badge`, `input` (with `Textarea` and a native
-`Select`), `label`, `separator`, `alert`, `skeleton`, `tabs`, and `dropdown-menu`. `cn()` in
-`src/renderer/src/lib/utils.ts` merges classes.
+`Select`), `checkbox`, `label`, `separator`, `alert`, `skeleton`, `tabs`, `table`, `disclosure`,
+`dialog` and `dropdown-menu`. `cn()` in `src/renderer/src/lib/utils.ts` merges classes.
 
 Shared form fields (`ConfigurationFields.tsx`) render these primitives, so every editor that uses
 `TextField`, `NumberField`, `SelectField` or `JsonField` picks up the same styling. Selects stay
 native `<select>` elements on purpose: the desktop acceptance tests drive them with real
 `selectOption` calls, and a native listbox keeps platform keyboard behavior.
 
-Dialogs keep the native `<dialog>` element and its `::backdrop`, styled from the tokens, rather than
-moving to a portal-based dialog; the existing focus and close behavior is unchanged.
+The `dialog` primitive keeps the native `<dialog>` element and its `::backdrop` rather than moving
+to a portal, so the platform focus trap, top-layer stacking and Escape handling stay as they were;
+`checkbox` and `Select` stay real form controls for the same reason — the desktop tests drive them
+with `check()` and `selectOption()`. `disclosure` styles `<details>`/`<summary>`, which keeps the
+open state and the `summary` hooks those tests use.
 
 ## Adding a screen
 
 Use the primitives and Tailwind utilities with token colors (`bg-card`, `text-muted-foreground`,
-`border-border`). Avoid raw hex values: a literal color is correct in at most one theme. If a rule
-belongs in `styles.css`, keep it inside `@layer components` and read a token.
+`border-border`). Avoid raw hex values: a literal color is correct in at most one theme. Reach for
+`brand` only for the product mark.
