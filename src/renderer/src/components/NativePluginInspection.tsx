@@ -5,6 +5,7 @@ import { formatError } from '../../../shared/errors'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
 import { isSupportedEngine } from '../../../shared/engines/contracts'
+import { buttonVariants } from './ui/button'
 
 const engineNames = { opencode: 'OpenCode', pi: 'Pi', 'deepseek-harness': 'DeepSeek Harness' }
 
@@ -65,7 +66,7 @@ export function NativePluginInspection({
     <section className="plugin-inspection" aria-label={t('plugin.result')} aria-busy={busy}>
       <button
         type="button"
-        className="button secondary"
+        className={buttonVariants({ variant: 'outline', size: 'sm' })}
         disabled={busy || !path || !supported}
         onClick={() => void inspect()}
       >
@@ -136,7 +137,7 @@ export function NativePluginInspection({
               {version && <p className="hint">{t('plugin.versionMismatch')}</p>}
               <button
                 type="button"
-                className="button secondary"
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
                 onClick={() => onUseVersion(result.package!.version!)}
               >
                 {t('plugin.useVersion')}

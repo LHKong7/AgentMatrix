@@ -24,6 +24,7 @@ import { useI18n } from '../i18n'
 import { Modal } from './Modal'
 import { ResourcePicker } from './ResourcePicker'
 import { AssetBindings } from './AssetBindings'
+import { buttonVariants } from './ui/button'
 import {
   ArgumentField,
   JsonField,
@@ -430,7 +431,7 @@ export function ResourceEditor({
                       onChange={(sourcePath) => setDraft({ ...draft, sourcePath })}
                     />
                     <button
-                      className="button secondary"
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
                       type="button"
                       onClick={() => void importDirectory()}
                     >
@@ -732,7 +733,7 @@ export function ResourceEditor({
                     {draft.options && (
                       <button
                         type="button"
-                        className="button secondary"
+                        className={buttonVariants({ variant: 'outline', size: 'sm' })}
                         onClick={() => setDraft({ ...draft, options: undefined })}
                       >
                         {t('plugin.clearOptions')}
@@ -773,10 +774,14 @@ export function ResourceEditor({
             </p>
           )}
           <div className="modal-footer">
-            <button type="button" className="button secondary" onClick={close}>
+            <button
+              type="button"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              onClick={close}
+            >
               {t('common.cancel')}
             </button>
-            <button className="button primary" type="submit">
+            <button className={buttonVariants()} type="submit">
               <Save size={16} />
               {t(busy ? 'common.saving' : 'common.saveConfig')}
             </button>

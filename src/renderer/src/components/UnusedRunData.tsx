@@ -4,6 +4,7 @@ import { formatError } from '../../../shared/errors'
 import { api } from '../lib/api'
 import { useI18n } from '../i18n'
 import { Modal } from './Modal'
+import { buttonVariants } from './ui/button'
 
 export function UnusedRunData({ onClose }: { onClose: () => void }) {
   const { t, locale } = useI18n()
@@ -101,7 +102,11 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
                     </p>
                   </div>
                   <button
-                    className="button secondary danger"
+                    className={buttonVariants({
+                      variant: 'outline',
+                      size: 'sm',
+                      className: 'text-destructive hover:bg-destructive/10 hover:text-destructive',
+                    })}
                     disabled={busy}
                     onClick={() => void remove(item)}
                   >
@@ -115,7 +120,7 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
       </div>
       <div className="modal-footer">
         <button
-          className="button secondary"
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
           disabled={busy}
           onClick={() => {
             setError(null)
@@ -127,7 +132,7 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
         </button>
         {page?.next && (
           <button
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={busy}
             onClick={() => {
               setError(null)
@@ -137,7 +142,7 @@ export function UnusedRunData({ onClose }: { onClose: () => void }) {
             {t('runData.next')}
           </button>
         )}
-        <button className="button primary" disabled={working} onClick={onClose}>
+        <button className={buttonVariants()} disabled={working} onClick={onClose}>
           {t('common.close')}
         </button>
       </div>

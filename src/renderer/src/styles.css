@@ -131,7 +131,7 @@
     margin-top: 7px;
     font-size: 11px;
     line-height: 1.5;
-    color: var(--primary);
+    color: var(--muted-foreground);
   }
   .conversation {
     min-width: 0;
@@ -159,16 +159,12 @@
     margin-top: 6px;
     overflow-wrap: anywhere;
     font-size: 11px;
-    color: var(--primary);
+    color: var(--muted-foreground);
   }
   .session-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 7px;
-  }
-  .session-actions .button {
-    font-size: 12px;
-    padding: 7px 9px;
   }
   .conversation .captured-hint {
     padding: 12px 18px;
@@ -276,15 +272,6 @@
   .permission-card fieldset > p,
   .permission-card textarea {
     flex-basis: 100%;
-  }
-  .permission-card .button {
-    display: grid;
-    gap: 3px;
-    font-size: 12px;
-  }
-  .permission-card .button small {
-    font-size: 10px;
-    color: var(--muted-foreground);
   }
   .composer {
     display: grid;
@@ -487,7 +474,7 @@
     width: 100%;
     padding: 12px;
     border-radius: 7px;
-    color: var(--primary);
+    color: var(--foreground);
     text-align: left;
     font-size: 13px;
   }
@@ -573,7 +560,7 @@
     color: var(--muted-foreground);
   }
   .breadcrumb strong {
-    color: var(--primary);
+    color: var(--foreground);
     font-weight: 500;
   }
   .topbar-right {
@@ -639,37 +626,6 @@
     margin-top: 10px;
     line-height: 1.8;
   }
-  .button {
-    border: 1px solid transparent;
-    border-radius: 7px;
-    padding: 10px 15px;
-    display: inline-flex;
-    gap: 8px;
-    align-items: center;
-    justify-content: center;
-    white-space: nowrap;
-    font-size: 12px;
-    font-weight: 550;
-    transition:
-      background 0.15s,
-      box-shadow 0.15s;
-  }
-  .primary {
-    color: var(--primary-foreground);
-    background: var(--primary);
-    box-shadow: 0 2px 3px color-mix(in oklab, var(--foreground) 7%, transparent);
-  }
-  .primary:hover {
-    background: color-mix(in oklab, var(--primary) 88%, var(--foreground));
-  }
-  .secondary {
-    background: var(--card);
-    border-color: var(--border);
-    color: var(--primary);
-  }
-  .secondary:hover {
-    background: var(--primary);
-  }
   .stats-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -729,29 +685,6 @@
     margin-top: 8px;
     font-size: 11px;
     color: var(--muted-foreground);
-  }
-  .search {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    color: var(--muted-foreground);
-    padding: 10px 12px;
-    width: 225px;
-  }
-  .search input {
-    width: 100%;
-    background: transparent;
-    border: 0;
-    outline: 0;
-    color: var(--foreground);
-    font-size: 11px;
-  }
-  .search:focus-within {
-    border-color: var(--ring);
-    box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 35%, transparent);
   }
   input::placeholder,
   textarea::placeholder {
@@ -877,42 +810,6 @@
     padding: 12px 0;
     gap: 10px;
   }
-  .text-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    background: transparent;
-    border: 0;
-    padding: 4px 0;
-    color: var(--muted-foreground);
-    font-size: 11px;
-  }
-  .text-button:hover {
-    color: var(--primary);
-  }
-  .card-footer .text-button {
-    flex: 1;
-  }
-  .card-footer .text-button > svg:last-child {
-    margin-left: auto;
-  }
-  .icon-button {
-    display: grid;
-    place-items: center;
-    background: transparent;
-    border: 0;
-    color: var(--muted-foreground);
-    padding: 7px;
-    border-radius: 5px;
-  }
-  .icon-button:hover {
-    background: var(--surface);
-    color: var(--primary);
-  }
-  .danger-hover:hover {
-    color: var(--destructive);
-    background: color-mix(in oklab, var(--destructive) 12%, var(--card));
-  }
   .create-card {
     min-height: 309px;
     display: flex;
@@ -925,7 +822,7 @@
     padding: 24px 12px;
   }
   .create-card:hover {
-    background: var(--primary);
+    background: var(--accent);
     border-color: var(--ring);
   }
   .create-plus {
@@ -934,7 +831,7 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: var(--primary);
+    background: var(--accent);
     color: var(--muted-foreground);
     margin-bottom: 22px;
   }
@@ -963,7 +860,7 @@
     align-items: center;
     gap: 16px;
     padding: 23px;
-    background: var(--primary);
+    background: var(--accent);
     border: 1px solid var(--border);
     border-radius: 9px;
     margin-top: 34px;
@@ -1008,7 +905,7 @@
   .empty-icon {
     display: grid;
     place-items: center;
-    background: var(--primary);
+    background: var(--accent);
     border-radius: 15px;
     color: var(--muted-foreground);
     width: 76px;
@@ -1036,7 +933,7 @@
   }
   .resource-icon {
     border-radius: 10px;
-    background: var(--primary);
+    background: var(--accent);
     color: var(--muted-foreground);
     padding: 13px;
     display: grid;
@@ -1063,20 +960,6 @@
     font-size: 10px;
     color: var(--muted-foreground);
     overflow-wrap: anywhere;
-  }
-  .tag {
-    display: inline-block;
-    font-size: 9px;
-    background: var(--surface);
-    color: var(--muted-foreground);
-    padding: 4px 6px;
-    border-radius: 4px;
-    white-space: nowrap;
-    font-weight: 500;
-  }
-  .tag.green {
-    background: var(--surface);
-    color: var(--muted-foreground);
   }
   .settings-panel {
     background: var(--card);
@@ -1231,25 +1114,6 @@
     border: 0;
     min-width: 0;
   }
-  .tabs {
-    display: flex;
-    gap: 26px;
-    padding: 0 28px;
-    border-bottom: 1px solid var(--border);
-  }
-  .tabs button {
-    padding: 17px 0;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    background: none;
-    font-size: 12px;
-    color: var(--muted-foreground);
-  }
-  .tabs button.active {
-    border-bottom-color: var(--primary);
-    color: var(--primary);
-    font-weight: 600;
-  }
   .modal-body {
     padding: 26px 28px;
     max-height: calc(100vh - 330px);
@@ -1348,7 +1212,7 @@
     border-radius: 6px;
     padding: 10px 12px;
     background: var(--surface);
-    color: var(--primary);
+    color: var(--foreground);
     font-size: 12px;
     line-height: 1.6;
     font-weight: 400;

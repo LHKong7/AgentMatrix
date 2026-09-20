@@ -4,6 +4,8 @@ import type { CredentialMetadata, CredentialStatus } from '../../../shared/crede
 import { formatError } from '../../../shared/errors'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
+import { buttonVariants } from './ui/button'
+import { Badge } from './ui/badge'
 
 export function CredentialPanel() {
   const { t, locale } = useI18n()
@@ -110,12 +112,12 @@ export function CredentialPanel() {
                 <div>
                   <strong>{item.name}</strong>
                   <code>{item.id}</code>
-                  <span className="tag">{item.kind === 'api-key' ? 'API Key' : 'Bearer'}</span>
+                  <Badge variant="muted">{item.kind === 'api-key' ? 'API Key' : 'Bearer'}</Badge>
                 </div>
                 <div className="credential-actions">
                   <button
                     type="button"
-                    className="button secondary"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
                     disabled={busy || !status.available}
                     onClick={() => {
                       setSelected(item)
@@ -130,7 +132,7 @@ export function CredentialPanel() {
                   </button>
                   <button
                     type="button"
-                    className="button secondary"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
                     disabled={busy}
                     onClick={() => void remove(item)}
                   >
@@ -177,11 +179,15 @@ export function CredentialPanel() {
                 />
               </label>
               <div className="credential-actions">
-                <button className="button primary" type="submit">
+                <button className={buttonVariants()} type="submit">
                   {t(selected ? 'credentials.replace' : 'credentials.create')}
                 </button>
                 {selected && (
-                  <button type="button" className="button secondary" onClick={reset}>
+                  <button
+                    type="button"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    onClick={reset}
+                  >
                     {t('credentials.cancel')}
                   </button>
                 )}

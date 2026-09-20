@@ -12,9 +12,11 @@ import { resolveAgentProfile } from '../../../shared/engines/resolution'
 import type { EngineWorkspace } from '../../../shared/engines/workspace'
 import { useI18n } from '../i18n'
 import { Modal } from './Modal'
+import { TabList, TabTrigger } from './ui/tabs'
 import { AssetBindings } from './AssetBindings'
 import { ResourcePicker } from './ResourcePicker'
 import { NumberField, SelectField, TextField } from './ConfigurationFields'
+import { buttonVariants } from './ui/button'
 
 function defaultOptions(kind: EngineKind | undefined): AgentProfile['engineOptions'] {
   if (kind === 'opencode') return { kind, agent: 'build' }
@@ -70,28 +72,27 @@ export function AgentEditor({
     >
       <form onSubmit={submit}>
         <fieldset disabled={busy}>
-          <div className="tabs" role="tablist" aria-label={t('agentEditor.tabs')}>
-            {(
-              [
-                ['general', 'agentEditor.general'],
-                ['bindings', 'config.bindings'],
-                ['engine', 'config.engineSettings'],
-                ['preview', 'config.preview'],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={tab === key}
-                aria-controls={`panel-${key}`}
-                id={`tab-${key}`}
-                className={tab === key ? 'active' : ''}
-                onClick={() => setTab(key)}
-              >
-                {t(label)}
-              </button>
-            ))}
+          <div className="border-b border-border px-7 py-3">
+            <TabList aria-label={t('agentEditor.tabs')}>
+              {(
+                [
+                  ['general', 'agentEditor.general'],
+                  ['bindings', 'config.bindings'],
+                  ['engine', 'config.engineSettings'],
+                  ['preview', 'config.preview'],
+                ] as const
+              ).map(([key, label]) => (
+                <TabTrigger
+                  key={key}
+                  active={tab === key}
+                  aria-controls={`panel-${key}`}
+                  id={`tab-${key}`}
+                  onClick={() => setTab(key)}
+                >
+                  {t(label)}
+                </TabTrigger>
+              ))}
+            </TabList>
           </div>
           <div
             className="modal-body"
@@ -344,10 +345,14 @@ export function AgentEditor({
             </p>
           )}
           <div className="modal-footer">
-            <button type="button" className="button secondary" onClick={close}>
+            <button
+              type="button"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              onClick={close}
+            >
               {t('common.cancel')}
             </button>
-            <button className="button primary" type="submit">
+            <button className={buttonVariants()} type="submit">
               <Save size={16} />
               {t(busy ? 'common.saving' : 'agentEditor.save')}
             </button>

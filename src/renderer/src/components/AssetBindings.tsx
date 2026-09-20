@@ -2,6 +2,8 @@ import type { AgentProfile } from '../../../shared/engines/schema'
 import type { PromptAsset, SkillAsset } from '../../../shared/engines/workspace'
 import { useI18n } from '../i18n'
 import { SelectField } from './ConfigurationFields'
+import { buttonVariants } from './ui/button'
+import { Badge } from './ui/badge'
 
 type Binding = AgentProfile['promptBindings'][number] | AgentProfile['skillBindings'][number]
 export function AssetBindings<T extends Binding>({
@@ -61,7 +63,7 @@ export function AssetBindings<T extends Binding>({
                 <strong>{asset.name}</strong>
                 <small>{asset.description || t('common.noDescription')}</small>
               </span>
-              {!asset.enabled && <span className="tag">{t('common.disabled')}</span>}
+              {!asset.enabled && <Badge variant="muted">{t('common.disabled')}</Badge>}
             </label>
             {binding && (
               <div className="binding-fields">
@@ -111,7 +113,7 @@ export function AssetBindings<T extends Binding>({
                     <button
                       key={direction}
                       type="button"
-                      className="icon-button"
+                      className={buttonVariants({ variant: 'ghost', size: 'icon' })}
                       aria-label={t(direction === -1 ? 'config.moveUp' : 'config.moveDown', {
                         name: asset.name,
                       })}

@@ -1,6 +1,7 @@
 import { useI18n } from '../i18n'
 import { useEffect, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { buttonVariants } from './ui/button'
 
 export function Modal({
   title,
@@ -39,7 +40,7 @@ export function Modal({
           <p>{subtitle}</p>
         </div>
         <button
-          className="icon-button"
+          className={buttonVariants({ variant: 'ghost', size: 'icon' })}
           aria-label={t('common.close')}
           onClick={onClose}
           disabled={busy}

@@ -7,6 +7,7 @@ import { collectionLabels } from '../../../shared/engines/editing'
 import { formatError } from '../../../shared/errors'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
+import { buttonVariants } from './ui/button'
 
 function SourceDetails({ record }: { record: NativeImportRecord }) {
   const { t, locale, number } = useI18n()
@@ -160,14 +161,18 @@ export function NativeImportPanel({
         </select>
       </label>
       <button
-        className="button secondary"
+        className={buttonVariants({ variant: 'outline', size: 'sm' })}
         disabled={!!busy || !desktop || !installationId}
         onClick={() => void run('reading')}
       >
         {t(busy === 'reading' ? 'nativeImport.reading' : 'nativeImport.choose')}
       </button>
       {preview?.record.engine === 'deepseek-harness' && (
-        <button className="button secondary" disabled={!!busy} onClick={() => void run('adding')}>
+        <button
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          disabled={!!busy}
+          onClick={() => void run('adding')}
+        >
           {t(busy === 'adding' ? 'nativeImport.reading' : 'nativeImport.addFiles')}
         </button>
       )}
@@ -211,7 +216,7 @@ export function NativeImportPanel({
                     </p>
                   )}
                   <button
-                    className="button secondary"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
                     disabled={!!busy}
                     onClick={() => void run('adding', reference.path)}
                   >
@@ -238,7 +243,7 @@ export function NativeImportPanel({
           </ul>
           <SourceDetails record={preview.record} />
           <button
-            className="button primary"
+            className={buttonVariants()}
             disabled={!!busy}
             onClick={() => void run('importing')}
           >

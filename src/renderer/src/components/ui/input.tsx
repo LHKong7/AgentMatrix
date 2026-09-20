@@ -20,13 +20,14 @@ export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
 
 /**
  * Native select with the shadcn field styling. The desktop acceptance tests drive these
- * controls with real `selectOption` calls, so the option list must stay a native listbox.
+ * controls with real `selectOption` calls, so the option list must stay a native listbox, and
+ * the platform indicator is kept because it follows the document's color scheme in both themes.
  */
 export function Select({ className, ...props }: ComponentProps<'select'>) {
   return (
     <select
       data-slot="select"
-      className={cn(fieldClassName, 'h-9 cursor-pointer appearance-none pr-8', className)}
+      className={cn(fieldClassName, 'h-9 cursor-pointer pr-2', className)}
       {...props}
     />
   )

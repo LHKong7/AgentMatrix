@@ -28,6 +28,7 @@ import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 import { Transcript } from './SessionTranscript'
 import { SessionHistory } from './SessionHistory'
 import { UnusedRunData } from './UnusedRunData'
+import { buttonVariants } from './ui/button'
 
 const selectedKey = 'agentmatrix.selected-session'
 type Response = Extract<SessionCommand, { kind: 'respond' }>['response']
@@ -257,7 +258,7 @@ export function SessionsPanel({
           <p>{t('sessions.description')}</p>
         </div>
         <button
-          className="button secondary"
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
           onClick={() => {
             setError(null)
             setRefresh((value) => value + 1)
@@ -308,7 +309,7 @@ export function SessionsPanel({
           </label>
           <div className="session-directory-actions">
             <button
-              className="button secondary"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
               disabled={!desktop || busy || !profile}
               onClick={() =>
                 void act(async () => {
@@ -324,7 +325,7 @@ export function SessionsPanel({
             </button>
             {hasDirectoryOverride && (
               <button
-                className="text-button"
+                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
                 disabled={busy}
                 onClick={() => {
                   setDirectoryOverride(null)
@@ -337,7 +338,7 @@ export function SessionsPanel({
           </div>
         </div>
         <button
-          className="button primary"
+          className={buttonVariants()}
           disabled={
             !desktop ||
             busy ||
@@ -397,7 +398,7 @@ export function SessionsPanel({
         <div className="session-diagnostics" role="status">
           <p>{t('sessions.removalPending', { count: pendingRemovals.length })}</p>
           <button
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={busy}
             onClick={() =>
               void act(async () => {
@@ -417,7 +418,7 @@ export function SessionsPanel({
       <div className="sessions-layout">
         <aside className="session-list" aria-label={t('nav.sessions')}>
           <button
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={!desktop || busy}
             onClick={() => setShowUnusedData(true)}
           >
@@ -474,14 +475,14 @@ export function SessionsPanel({
                 </div>
                 <div className="session-actions">
                   <button
-                    className="button secondary"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
                     disabled={blocked}
                     onClick={() => setShowHistory(true)}
                   >
                     {t('history.title')}
                   </button>
                   <button
-                    className="button secondary"
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
                     disabled={blocked}
                     onClick={() => setShowConfiguration(true)}
                   >
@@ -489,7 +490,7 @@ export function SessionsPanel({
                   </button>
                   {state.status === 'created' && (
                     <button
-                      className="button secondary"
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
                       disabled={blocked}
                       onClick={() =>
                         void command({
@@ -506,7 +507,7 @@ export function SessionsPanel({
                     state.nativeSessionId &&
                     state.runId && (
                       <button
-                        className="button primary"
+                        className={buttonVariants()}
                         disabled={blocked}
                         title={t('sessions.resumeHint')}
                         onClick={() =>
@@ -525,7 +526,7 @@ export function SessionsPanel({
                     state.runId &&
                     ['running', 'waiting'].includes(state.status) && (
                       <button
-                        className="button secondary"
+                        className={buttonVariants({ variant: 'outline', size: 'sm' })}
                         disabled={blocked}
                         onClick={() =>
                           void command({
@@ -543,7 +544,7 @@ export function SessionsPanel({
                     )}
                   {!['closed', 'closing'].includes(state.status) && (
                     <button
-                      className="button secondary"
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
                       disabled={blocked}
                       onClick={() =>
                         void command({
@@ -559,7 +560,7 @@ export function SessionsPanel({
                   )}
                   {state.status === 'closed' && (
                     <button
-                      className="button secondary"
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
                       disabled={blocked}
                       onClick={() => {
                         if (window.confirm(t('sessions.removeConfirm')))
@@ -593,7 +594,7 @@ export function SessionsPanel({
                   <p className="hint">
                     {t('sessions.historyLimit', { count: view.events.length })}{' '}
                     <button
-                      className="text-button"
+                      className={buttonVariants({ variant: 'ghost', size: 'sm' })}
                       disabled={blocked}
                       onClick={() => setShowHistory(true)}
                     >
@@ -628,26 +629,32 @@ export function SessionsPanel({
                       request.options.map((option) => (
                         <button
                           key={option.id}
-                          className="button secondary"
+                          className={buttonVariants({
+                            variant: 'outline',
+                            size: 'sm',
+                            className: 'h-auto flex-col items-start gap-0.5 py-2 text-left',
+                          })}
                           onClick={() => respond(request, { kind: 'choice', optionId: option.id })}
                         >
                           {request.kind === 'permission' && 'kind' in option
                             ? t(`sessions.permission.${option.kind}`)
                             : option.label}
-                          <small>{request.kind === 'permission' ? option.label : ''}</small>
+                          <small className="text-[10px] font-normal text-muted-foreground">
+                            {request.kind === 'permission' ? option.label : ''}
+                          </small>
                         </button>
                       ))}
                     {request.kind === 'confirm' && (
                       <>
                         <p>{request.message}</p>
                         <button
-                          className="button primary"
+                          className={buttonVariants()}
                           onClick={() => respond(request, { kind: 'confirm', accepted: true })}
                         >
                           {t('sessions.confirm')}
                         </button>
                         <button
-                          className="button secondary"
+                          className={buttonVariants({ variant: 'outline', size: 'sm' })}
                           onClick={() => respond(request, { kind: 'confirm', accepted: false })}
                         >
                           {t('sessions.reject')}
@@ -670,7 +677,7 @@ export function SessionsPanel({
                           }
                         />
                         <button
-                          className="button primary"
+                          className={buttonVariants()}
                           onClick={() =>
                             respond(request, {
                               kind: 'input',
@@ -683,7 +690,7 @@ export function SessionsPanel({
                       </>
                     )}
                     <button
-                      className="text-button"
+                      className={buttonVariants({ variant: 'ghost', size: 'sm' })}
                       onClick={() => respond(request, { kind: 'cancelled' })}
                     >
                       {t('sessions.dismiss')}
@@ -723,7 +730,7 @@ export function SessionsPanel({
                     />
                   </label>
                   <button
-                    className="button primary"
+                    className={buttonVariants()}
                     type="submit"
                     disabled={blocked || state.status !== 'ready' || !message.trim()}
                   >

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { CredentialMetadata } from '../../../shared/credentials'
 import type { SecretReference } from '../../../shared/engines/schema'
 import { useI18n } from '../i18n'
+import { Input, Select, Textarea } from './ui/input'
 
 export function TextField({
   label,
@@ -22,7 +23,7 @@ export function TextField({
     <label className="field">
       {label}
       {rows ? (
-        <textarea
+        <Textarea
           {...props}
           aria-label={label}
           rows={rows}
@@ -30,7 +31,7 @@ export function TextField({
           onChange={(event) => onChange(event.target.value)}
         />
       ) : (
-        <input
+        <Input
           {...props}
           aria-label={label}
           value={value}
@@ -59,7 +60,7 @@ export function NumberField({
   return (
     <label className="field">
       {label}
-      <input
+      <Input
         aria-label={label}
         type="number"
         value={value ?? ''}
@@ -88,9 +89,9 @@ export function SelectField({
   return (
     <label className="field">
       {label}
-      <select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+      <Select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
         {children}
-      </select>
+      </Select>
     </label>
   )
 }
@@ -121,10 +122,10 @@ export function JsonField<T>({
   return (
     <label className="field">
       {label}
-      <textarea
+      <Textarea
         aria-label={label}
         ref={input}
-        className="code-input"
+        className="code-input font-mono"
         rows={3}
         value={source}
         onChange={(event) => {

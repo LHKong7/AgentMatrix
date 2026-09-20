@@ -10,6 +10,7 @@ import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
 import { McpConnections } from './McpConnections'
 import { InstructionSources } from './InstructionSources'
 import { PluginDependencySources } from './PluginDependencySources'
+import { buttonVariants } from './ui/button'
 
 export function ConfigurationReport({
   session,
@@ -365,10 +366,13 @@ export function ConfigurationReport({
         )}
       </div>
       <div className="modal-footer">
-        <button className="button secondary" onClick={() => setRefresh((value) => value + 1)}>
+        <button
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          onClick={() => setRefresh((value) => value + 1)}
+        >
           {t('common.reload')}
         </button>
-        <button className="button primary" onClick={onClose}>
+        <button className={buttonVariants()} onClick={onClose}>
           {t('common.close')}
         </button>
       </div>

@@ -24,6 +24,8 @@ interface DiscoveryDependencies {
   environment: NodeJS.ProcessEnv
   dataDirectory: string
   workspace: { load(): Promise<EngineWorkspace> }
+  /** Non-PATH directories to search. Defaults to the usual per-user and system install roots. */
+  commonDirectories?: string[]
 }
 interface SearchLocation {
   directory: string
@@ -39,22 +41,10 @@ export function managedEngineRoot(dataDirectory: string, kind: SupportedEngine):
   return join(dataDirectory, 'engines', kind)
 }
 
-/** Ordered search locations. Managed downloads win over a shell PATH entry of the same binary. */
-export function searchLocations(
-  environment: NodeJS.ProcessEnv,
-  dataDirectory: string,
-  kind: SupportedEngine,
-): SearchLocation[] {
+/** Where a CLI usually lands when a shell PATH does not reach the desktop application. */
+export function defaultCommonDirectories(environment: NodeJS.ProcessEnv): string[] {
   const home = environment.HOME || homedir()
-  const locations: SearchLocation[] = [
-    {
-      directory: join(managedEngineRoot(dataDirectory, kind), 'node_modules', '.bin'),
-      origin: 'managed',
-    },
-  ]
-  for (const directory of (environment.PATH ?? '').split(delimiter))
-    if (directory) locations.push({ directory, origin: 'path' })
-  for (const directory of [
+  return [
     join(home, '.local', 'bin'),
     join(home, 'bin'),
     join(home, '.bun', 'bin'),
@@ -65,8 +55,25 @@ export function searchLocations(
     '/usr/local/bin',
     '/opt/homebrew/bin',
     '/usr/bin',
-  ])
-    locations.push({ directory, origin: 'common' })
+  ]
+}
+
+/** Ordered search locations. Managed downloads win over a shell PATH entry of the same binary. */
+export function searchLocations(
+  environment: NodeJS.ProcessEnv,
+  dataDirectory: string,
+  kind: SupportedEngine,
+  common: string[] = defaultCommonDirectories(environment),
+): SearchLocation[] {
+  const locations: SearchLocation[] = [
+    {
+      directory: join(managedEngineRoot(dataDirectory, kind), 'node_modules', '.bin'),
+      origin: 'managed',
+    },
+  ]
+  for (const directory of (environment.PATH ?? '').split(delimiter))
+    if (directory) locations.push({ directory, origin: 'path' })
+  for (const directory of common) locations.push({ directory, origin: 'common' })
   return locations
 }
 
@@ -131,7 +138,12 @@ async function candidatesFor(
   const { environment, dataDirectory } = dependencies
   const seen = new Set<string>()
   const found: { executable: string; origin: EngineCandidate['origin'] }[] = []
-  for (const location of searchLocations(environment, dataDirectory, kind)) {
+  for (const location of searchLocations(
+    environment,
+    dataDirectory,
+    kind,
+    dependencies.commonDirectories ?? defaultCommonDirectories(environment),
+  )) {
     if (found.length >= 4) break
     const executable = await executableAt(join(location.directory, engineDownloads[kind].binary))
     if (!executable || seen.has(executable)) continue
@@ -161,9 +173,9 @@ export async function discoverEngines(
   dependencies: DiscoveryDependencies,
   signal: AbortSignal,
 ): Promise<EngineDiscovery> {
-  const { environment, dataDirectory } = dependencies
+  const { dataDirectory } = dependencies
   const saved = discoverySupported ? (await dependencies.workspace.load()).installations : []
-  const npm = discoverySupported ? await locateNpm(environment) : null
+  const npm = discoverySupported ? await locateNpm(dependencies) : null
   const engines = []
   for (const kind of kinds) {
     const candidates = discoverySupported
@@ -188,15 +200,11 @@ export async function discoverEngines(
   })
 }
 
-async function locateNpm(environment: NodeJS.ProcessEnv): Promise<string | null> {
-  const home = environment.HOME || homedir()
+async function locateNpm(dependencies: DiscoveryDependencies): Promise<string | null> {
+  const { environment } = dependencies
   const directories = [
     ...(environment.PATH ?? '').split(delimiter).filter(Boolean),
-    join(home, '.volta', 'bin'),
-    join(home, '.local', 'bin'),
-    '/usr/local/bin',
-    '/opt/homebrew/bin',
-    '/usr/bin',
+    ...(dependencies.commonDirectories ?? defaultCommonDirectories(environment)),
   ]
   for (const directory of directories) {
     const executable = await executableAt(join(directory, 'npm'))
@@ -218,7 +226,7 @@ export async function downloadEngine(
   const { kind } = engineDownloadQuerySchema.parse(input)
   const { environment, dataDirectory } = dependencies
   if (!discoverySupported) throw appError('error.engineDownloadUnsupported')
-  const npm = await locateNpm(environment)
+  const npm = await locateNpm(dependencies)
   if (!npm) throw appError('error.engineDownloadUnavailable')
   const prefix = managedEngineRoot(dataDirectory, kind)
   await mkdir(prefix, { recursive: true, mode: 0o700 })

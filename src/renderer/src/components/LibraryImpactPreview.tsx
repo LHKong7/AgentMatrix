@@ -8,6 +8,7 @@ import type { LibraryCollection, LibraryEntry } from '../../../shared/engines/ed
 import { formatError } from '../../../shared/errors'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
+import { buttonVariants } from './ui/button'
 
 interface Result {
   query: LibraryImpactQuery
@@ -179,7 +180,7 @@ export function LibraryImpactPreview({
           {report?.nextSessionId && (
             <button
               type="button"
-              className="button secondary"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
               disabled={loading}
               onClick={() => setRequest({ query, cursor: report.nextSessionId!, refresh })}
             >
@@ -188,7 +189,7 @@ export function LibraryImpactPreview({
           )}
           <button
             type="button"
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={loading}
             onClick={() => setRequest({ query, refresh: refresh + 1 })}
           >

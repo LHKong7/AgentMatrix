@@ -430,6 +430,7 @@ export function App() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="flex-1"
                               disabled={saving || !agent.enabled}
                               onClick={() => {
                                 setSessionSelection(null)
@@ -443,6 +444,7 @@ export function App() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              className="flex-1 [&>svg:last-child]:ml-auto"
                               aria-label={t('common.editNamed', { name: agent.name })}
                               disabled={saving}
                               onClick={() =>
@@ -566,7 +568,9 @@ export function App() {
                         <Palette className="size-4 text-primary" aria-hidden="true" />
                         {t('settings.theme')}
                       </h2>
-                      <ThemeToggle compact={false} />
+                      <div className="flex">
+                        <ThemeToggle compact={false} />
+                      </div>
                       <p className="text-xs leading-relaxed text-muted-foreground">
                         {t('settings.themeHint')}
                       </p>

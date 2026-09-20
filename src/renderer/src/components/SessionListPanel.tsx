@@ -10,6 +10,13 @@ import {
 } from 'lucide-react'
 import type { EngineWorkspace } from '../../../shared/engines/workspace'
 import type { SessionHistoryPage, SessionSnapshot } from '../../../shared/sessions/schema'
+import {
+  sessionListCounts,
+  sessionListFilters,
+  sessionListView,
+  sessionStatusGroup,
+  type SessionListFilter,
+} from '../../../shared/sessions/list'
 import { formatError } from '../../../shared/errors'
 import { useI18n } from '../i18n'
 import { api } from '../lib/api'
@@ -25,27 +32,12 @@ import { Skeleton } from './ui/skeleton'
 import { TabList, TabTrigger } from './ui/tabs'
 import { cn } from '../lib/utils'
 
-type Filter = 'all' | 'active' | 'attention' | 'finished' | 'failed'
-const filters: Filter[] = ['all', 'active', 'attention', 'finished', 'failed']
-const groups = {
-  active: ['created', 'starting', 'resuming', 'ready', 'running', 'cancelling'],
-  attention: ['waiting'],
-  finished: ['closing', 'closed'],
-  failed: ['failed', 'interrupted'],
-} as const satisfies Record<Exclude<Filter, 'all'>, readonly SessionSnapshot['status'][]>
-
-const inGroup = (group: Exclude<Filter, 'all'>, status: string) =>
-  (groups[group] as readonly string[]).includes(status)
-
-function statusVariant(status: SessionSnapshot['status']) {
-  if (inGroup('attention', status)) return 'warning' as const
-  if (inGroup('failed', status)) return 'destructive' as const
-  if (inGroup('finished', status)) return 'muted' as const
-  return 'success' as const
-}
-function matchesFilter(session: SessionSnapshot, filter: Filter): boolean {
-  return filter === 'all' || inGroup(filter, session.status)
-}
+const badges = {
+  active: 'success',
+  attention: 'warning',
+  finished: 'muted',
+  failed: 'destructive',
+} as const
 
 export function SessionListPanel({
   workspace,
@@ -59,7 +51,7 @@ export function SessionListPanel({
   const { t, locale, number } = useI18n()
   const [sessions, setSessions] = useState<SessionSnapshot[] | null>(null)
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<SessionListFilter>('all')
   const [selected, setSelected] = useState<string | null>(null)
   const [record, setRecord] = useState<SessionHistoryPage | null>(null)
   const [loadingRecord, setLoadingRecord] = useState(false)
@@ -99,19 +91,10 @@ export function SessionListPanel({
       t('sessionList.missingAgent'),
     [workspace.agents, t],
   )
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase()
-    return (sessions ?? [])
-      .filter((session) => matchesFilter(session, filter))
-      .filter(
-        (session) =>
-          !needle ||
-          `${agentName(session)} ${session.cwd} ${session.id} ${session.engineVersion}`
-            .toLowerCase()
-            .includes(needle),
-      )
-      .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt))
-  }, [sessions, filter, query, agentName])
+  const visible = useMemo(
+    () => sessionListView(sessions ?? [], { filter, search: query, agentName }),
+    [sessions, filter, query, agentName],
+  )
   const state = visible.find((session) => session.id === selected) ?? null
   // The saved record is re-read whenever the selected conversation advances.
   const recordId = state?.id ?? null
@@ -149,13 +132,7 @@ export function SessionListPanel({
     }
   }, [recordId, recordCursor])
 
-  const counts = {
-    total: sessions?.length ?? 0,
-    active: (sessions ?? []).filter((session) => matchesFilter(session, 'active')).length,
-    waiting: (sessions ?? []).filter((session) => matchesFilter(session, 'attention')).length,
-    finished: (sessions ?? []).filter((session) => matchesFilter(session, 'finished')).length,
-    failed: (sessions ?? []).filter((session) => matchesFilter(session, 'failed')).length,
-  }
+  const counts = sessionListCounts(sessions ?? [])
 
   return (
     <>
@@ -191,7 +168,7 @@ export function SessionListPanel({
           [
             ['sessionList.total', counts.total],
             ['sessionList.active', counts.active],
-            ['sessionList.waiting', counts.waiting],
+            ['sessionList.waiting', counts.attention],
             ['sessionList.finished', counts.finished],
             ['sessionList.failed', counts.failed],
           ] as const
@@ -215,7 +192,7 @@ export function SessionListPanel({
       )}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <TabList aria-label={t('sessionList.filter')}>
-          {filters.map((value) => (
+          {sessionListFilters.map((value) => (
             <TabTrigger
               key={value}
               active={filter === value}
@@ -270,7 +247,7 @@ export function SessionListPanel({
             >
               <span className="flex items-center justify-between gap-2">
                 <strong className="truncate text-xs font-semibold">{agentName(session)}</strong>
-                <Badge variant={statusVariant(session.status)}>
+                <Badge variant={badges[sessionStatusGroup(session.status)]}>
                   {t(`sessions.status.${session.status}`)}
                 </Badge>
               </span>

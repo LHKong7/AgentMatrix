@@ -2,7 +2,7 @@
 
 A desktop workspace for managing agent configurations locally. Built with **Electron + React + TypeScript**, using electron-vite for development and builds.
 
-Documentation: [Architecture](docs/architecture.md) · [Research: nine CLI agents and configuration design](docs/cli-agent-research.md) · [Integration implementation plan](docs/cli-agent-plan.md) · [Three-engine acceptance checklist](docs/three-engine-acceptance.md).
+Documentation: [Architecture](docs/architecture.md) · [Installed CLI detection and download](docs/engine-discovery.md) · [Session list](docs/session-list.md) · [Themes and components](docs/theme-and-components.md) · [Research: nine CLI agents and configuration design](docs/cli-agent-research.md) · [Integration implementation plan](docs/cli-agent-plan.md) · [Three-engine acceptance checklist](docs/three-engine-acceptance.md).
 
 ## Getting started
 
@@ -26,6 +26,7 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 ## Current features
 
 - **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
+- **Installed CLI detection and one-click download:** the Engines page checks for OpenCode, Pi, and DeepSeek Harness when it opens, reading each candidate's version command in a temporary configuration directory. A detected path can be saved as an installation with one click, and a missing engine can be downloaded at its pinned version into the application's own data directory with install scripts disabled; the result is verified before it is reported. See [detection and download boundaries](docs/engine-discovery.md).
 - **OpenCode, Pi, and DSH desktop sessions:** explicitly check a saved installation, then start from a saved profile. View messages and tools, answer supported native permission requests, cancel turns, reload history, and resume interrupted sessions. Adapters are pinned to OpenCode 1.18.16, Pi 0.85.1, and experimental DSH 0.1.5-rc.2. DSH displays committed replies; OpenCode and Pi stream text. Native approvals apply to OpenCode and DSH; Pi requires an explicit compatible execution policy; see [setup and verification](docs/desktop-sessions.md).
 - **Shared connections and models:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents. Anthropic connections use a [shared root-or-`/v1` endpoint convention](docs/anthropic-provider-acceptance.md) across the three engines.
 - **Configuration diagnostics:** [failed native checks](docs/configuration-failures.md) identify affected field groups in the conversation, history, and bilingual report, preserve historical successes, and omit native values. OpenCode reports can show [captured declarations matching a conflict](docs/opencode-override-sources.md), with ambiguous and unknown source attribution kept explicit.
@@ -35,11 +36,13 @@ Browser preview uses separate localStorage and never reads or writes desktop wor
 - **Skill directory imports:** select a directory in the desktop editor to capture `SKILL.md`, scripts, and references with file digests. Reimport creates a new revision while retaining previous bytes; importing never executes scripts.
 - **MCP definitions:** configure stdio, Streamable HTTP, or SSE, with arguments, environment values, secret references, headers, and authentication metadata.
 - **Resource bundles:** reuse prompt, Skill, and MCP bindings. Native plugins have separate metadata tied to an engine installation. The desktop editor can [inspect selected installed OpenCode, Pi, and DSH plugin files](docs/native-plugin-inspection.md), including entry resolution, package versions, declared engine ranges, and digests; supported installed ESM plugins now have [instance-specific startup and resume checks](docs/opencode-plugin-activation.md). Selected [Pi extensions](docs/pi-plugin-activation.md) also support native startup/resume checks, custom tools, and extension command dialogs; they require unrestricted execution. Selected [DSH modules](docs/dsh-plugin-activation.md) support native boot/session checks, separate instances of the same module, and bilingual JSON options editing.
+- **Session list:** one tab gathering every conversation with counters, status filters, search, and the selected conversation's work record and saved chat history, with links into the live session, the full history, and the configuration report. See [session list](docs/session-list.md).
 - **Saved history:** browse older events in bounded pages and export the selected history to JSONL. Historical interaction requests are read-only, and exports preserve the journal's existing credential redaction; see [history and export behavior](docs/session-history.md).
 - **Session configuration reports:** inspect captured values, native readback evidence, asset versions and binding sources, and changes pending a new session. An expandable [native capability table](docs/session-capabilities.md) separates mechanism, verification and current availability, including declared versus successfully used restoration. Reports preserve historical checks after restart and leave unsupported readback unknown; see [evidence and limits](docs/configuration-report.md).
 - **Resolved previews:** inspect shared bindings and draft diagnostics before native adapter validation. Direct bindings override bundle bindings; disabled assets are excluded. Removing definitions cleans references while retaining dependent agents as drafts.
 - **Local persistence:** schema v2 JSON, Zod validation, atomic replacement, revision conflicts, immutable asset history, and automatic v1 migration with an exact-byte backup.
 - **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Session reports compare [attachment and stored revisions](docs/credential-rotation.md); active processes keep prior inputs, while new starts and native resumes resolve current credentials. Browser preview disables credential storage.
+- **Light and dark themes:** one token palette drives both themes, with a light/dark/system preference saved per device and shadcn component primitives shared by the editors. See [themes and components](docs/theme-and-components.md).
 - **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
 The [B0 shared foundation](docs/foundation-acceptance.md) passes on the macOS arm64 development host. All three engines are connected to the desktop UI and verified on macOS against local provider fixtures. DSH has separate [configuration](docs/dsh-configuration.md) and [runtime](docs/dsh-runtime.md) evidence, including both its generic and native DeepSeek provider components. External provider acceptance, complete native override provenance, complete native source ingestion, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
@@ -101,11 +104,13 @@ src/
   renderer/
     src/
       components/        Configuration editors, language controls, and sessions
+        ui/              shadcn component primitives (button, card, input, …)
       i18n/              React translation context and language preferences
+      theme/             Light/dark theme context and saved preference
       lib/               Desktop API / browser preview adapter
       App.tsx            Workspace pages and navigation
-      tokens.css         Color, typography, and design tokens
-      styles.css         UI styles
+      tokens.css         Light/dark design tokens and the Tailwind layers
+      styles.css         Remaining hand-written UI styles, all token-based
 tests/                   Configuration, composition, persistence, and i18n tests
 scripts/                 Development CSP and real Electron smoke tests
 docs/                    Architecture, CLI research, and implementation plan

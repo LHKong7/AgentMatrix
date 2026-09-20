@@ -9,6 +9,7 @@ import { api } from '../lib/api'
 import { useI18n } from '../i18n'
 import { Modal } from './Modal'
 import { Transcript } from './SessionTranscript'
+import { buttonVariants } from './ui/button'
 
 export function SessionHistory({
   session,
@@ -82,28 +83,28 @@ export function SessionHistory({
         <p className="hint">{t('history.boundary')}</p>
         <div className="history-navigation">
           <button
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={busy || !page?.hasEarlier}
             onClick={() => navigate(1, 'forward')}
           >
             {t('history.first')}
           </button>
           <button
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={busy || !page?.hasEarlier}
             onClick={() => navigate(first - 1, 'backward')}
           >
             {t('history.earlier')}
           </button>
           <button
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={busy || !page?.hasLater}
             onClick={() => navigate(last + 1, 'forward')}
           >
             {t('history.later')}
           </button>
           <button
-            className="button secondary"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
             disabled={busy || !page?.hasLater}
             onClick={() => navigate(query.throughCursor, 'backward')}
           >
@@ -147,7 +148,7 @@ export function SessionHistory({
       </div>
       <div className="modal-footer">
         <button
-          className="button secondary"
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
           disabled={busy}
           onClick={() =>
             void act(async () => {
@@ -166,7 +167,7 @@ export function SessionHistory({
           {t('history.refresh')}
         </button>
         <button
-          className="button secondary"
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
           disabled={busy || !page}
           onClick={() =>
             void act(async () => {
@@ -182,7 +183,7 @@ export function SessionHistory({
         >
           {t('history.export')}
         </button>
-        <button className="button primary" disabled={working} onClick={onClose}>
+        <button className={buttonVariants()} disabled={working} onClick={onClose}>
           {t('common.close')}
         </button>
       </div>

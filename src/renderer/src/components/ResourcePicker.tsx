@@ -1,4 +1,6 @@
 import { useI18n } from '../i18n'
+import { Badge } from './ui/badge'
+
 export function ResourcePicker({
   title,
   items,
@@ -37,7 +39,7 @@ export function ResourcePicker({
               <strong>{item.name}</strong>
               <small>{item.description || t('common.noDescription')}</small>
             </span>
-            {!item.enabled && <span className="tag">{t('common.disabled')}</span>}
+            {!item.enabled && <Badge variant="muted">{t('common.disabled')}</Badge>}
           </label>
         ))
       )}
