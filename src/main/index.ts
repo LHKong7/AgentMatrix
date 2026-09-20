@@ -1,9 +1,18 @@
 import { appError } from '../shared/errors'
 import { resolveLocale, translate } from '../shared/i18n'
-import { app, BrowserWindow, dialog, ipcMain, session, type IpcMainInvokeEvent } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  session,
+  type IpcMainInvokeEvent,
+} from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { channels, type AppInfo } from '../shared/api'
+import { appearanceBackgrounds } from '../shared/theme'
 import { EngineWorkspaceStore } from './engine-workspace-store'
 import { CredentialVault } from './credentials/vault'
 import { electronCipher } from './credentials/electron-cipher'
@@ -25,6 +34,7 @@ import { resolveWorkingDirectory } from './sessions/working-directory'
 import { exportSessionHistory } from './sessions/history-export'
 import { sessionChannels, sessionExportQuerySchema } from '../shared/sessions/schema'
 import { inspectNativePlugin } from './engines/plugin-inspection'
+import { discoverEngines, downloadEngine } from './engines/discovery'
 import { NativeImportArchive } from './native-import/archive'
 import { NativeImportService } from './native-import/service'
 import { nativeImportQuerySchema } from '../shared/engines/native-import'
@@ -35,6 +45,8 @@ if (!app.isPackaged && process.env.AGENT_MATRIX_DATA_DIR) {
 }
 
 let mainWindow: BrowserWindow | null = null
+// Installation discovery and downloads outlive a single IPC call; quitting cancels them.
+const engineTasks = new AbortController()
 let sessionBridge: ReturnType<typeof registerSessionIpc> | undefined
 const rendererFile = join(__dirname, '../renderer/index.html')
 const rendererUrl = new URL(
@@ -59,7 +71,8 @@ function createWindow(): void {
     minWidth: 1000,
     minHeight: 680,
     title: 'AgentMatrix',
-    backgroundColor: '#f8faf9',
+    // Pre-paint color only; the renderer applies the saved light/dark preference on load.
+    backgroundColor: appearanceBackgrounds[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'],
     show: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -160,6 +173,38 @@ if (!app.requestSingleInstanceLock()) {
         return factory.probe(input)
       }),
     )
+    const discovery = {
+      workspace: store,
+      dataDirectory: app.getPath('userData'),
+      environment: process.env,
+    }
+    let discovering = false
+    let downloading = false
+    handle(channels.engineDiscover, (event) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        if (discovering) throw appError('error.engineDiscoveryBusy')
+        discovering = true
+        try {
+          return await discoverEngines(discovery, engineTasks.signal)
+        } finally {
+          discovering = false
+        }
+      }),
+    )
+    // One download at a time. The renderer supplies an engine kind, never a command or package.
+    handle(channels.engineDownload, (event, input: unknown) =>
+      safeSessionOperation(async () => {
+        verifySender(event)
+        if (downloading) throw appError('error.engineDownloadBusy')
+        downloading = true
+        try {
+          return await downloadEngine(input, discovery, engineTasks.signal)
+        } finally {
+          downloading = false
+        }
+      }),
+    )
     let inspectingPlugin = false
     let choosingImport = false
     handle(channels.nativeImportPreview, (event, input: unknown) =>
@@ -226,6 +271,7 @@ if (!app.requestSingleInstanceLock()) {
       event.preventDefault()
       if (quitting) return
       quitting = true
+      engineTasks.abort()
       void (async () => {
         const stopped = await Promise.allSettled([coordinator.shutdown(), factory.shutdown()])
         stopped.push(...(await Promise.allSettled([stopOwnedProcesses()])))

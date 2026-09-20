@@ -3,6 +3,7 @@ import { appError } from '../../../shared/errors'
 import { getInitialLocale } from '../i18n/preferences'
 import type { AgentMatrixApi } from '../../../shared/api'
 import { BrowserWorkspaceStore } from '../../../shared/engines/browser-store'
+import { unsupportedDiscovery } from '../../../shared/engines/discovery'
 
 // Browser preview never reads desktop files or stores plaintext credentials.
 const browserApi: AgentMatrixApi = {
@@ -20,6 +21,12 @@ const browserApi: AgentMatrixApi = {
   },
   async probeEngine() {
     throw appError('error.runtimeDesktopOnly')
+  },
+  async discoverEngines() {
+    return unsupportedDiscovery('browser')
+  },
+  async downloadEngine() {
+    throw appError('error.engineDownloadUnsupported')
   },
   sessions: {
     async unusedRunData() {

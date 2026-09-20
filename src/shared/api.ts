@@ -3,6 +3,8 @@ import type { CapturedSkillDirectory } from './engines/skill-import'
 import type { PluginInspection, PluginInspectionQuery } from './engines/plugin-inspection'
 import type { SessionApi } from './sessions/schema'
 import type { NativeImportPreview } from './engines/native-import'
+import type { EngineDiscovery, EngineDownloadResult } from './engines/discovery'
+import type { SupportedEngine } from './engines/contracts'
 import type {
   CredentialInput,
   CredentialMetadata,
@@ -27,6 +29,8 @@ export interface AgentMatrixApi {
   importSkillDirectory(): Promise<CapturedSkillDirectory | null>
   chooseWorkingDirectory(input: { defaultPath?: string }): Promise<string | null>
   probeEngine(input: { installationId: string }): Promise<EngineWorkspace>
+  discoverEngines(): Promise<EngineDiscovery>
+  downloadEngine(input: { kind: SupportedEngine }): Promise<EngineDownloadResult>
   inspectNativePlugin(input: PluginInspectionQuery): Promise<PluginInspection>
   previewNativeImport(input: {
     installationId: string
@@ -47,6 +51,8 @@ export const channels = {
   skillImport: 'skills:import-directory',
   workingDirectory: 'sessions:choose-working-directory',
   engineProbe: 'engines:probe',
+  engineDiscover: 'engines:discover',
+  engineDownload: 'engines:download',
   pluginInspect: 'plugins:inspect-installed',
   nativeImportPreview: 'native-import:preview',
   nativeImportApply: 'native-import:apply',

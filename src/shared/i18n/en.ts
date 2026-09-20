@@ -7,6 +7,8 @@ import { configurationEn } from './configuration-en'
 import { sessionEn } from './session-en'
 import { reportEn } from './report-en'
 import { nativeImportEn } from './native-import-en'
+import { discoveryEn } from './discovery-en'
+import { sessionListEn } from './session-list-en'
 
 export const en = {
   'runData.title': 'Unused run data',
@@ -42,6 +44,8 @@ export const en = {
   ...historyEn,
   ...configurationEn,
   ...sessionEn,
+  ...sessionListEn,
+  ...discoveryEn,
   ...reportEn,
   ...impactEn,
   ...supportEn,
@@ -154,6 +158,13 @@ export const en = {
   'settings.pluginsTitle': 'Plugin ecosystem',
   'settings.pluginsBody': 'Plugin installation, SKILL.md discovery, and permissions.',
   'settings.language': 'Language',
+  'settings.theme': 'Appearance',
+  'settings.themeHint':
+    'Choose the light or dark theme, or follow the operating system. Your choice is saved on this device.',
+  'theme.label': 'Theme',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
+  'theme.system': 'Follow system',
   'credentials.title': 'API credentials',
   'credentials.hint':
     'Store keys in encrypted desktop storage. Agents will reference them by ID; saved values are never returned to this screen.',

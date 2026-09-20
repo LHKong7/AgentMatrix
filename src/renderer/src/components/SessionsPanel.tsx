@@ -37,11 +37,14 @@ export function SessionsPanel({
   desktop,
   platform,
   initialAgent,
+  initialSession = null,
 }: {
   workspace: EngineWorkspace
   desktop: boolean
   platform?: string
   initialAgent: string | null
+  /** A conversation chosen in the session list opens directly in this panel. */
+  initialSession?: string | null
 }) {
   const { t, locale } = useI18n()
   const [agentId, setAgentId] = useState(initialAgent ?? workspace.agents[0]?.id ?? '')
@@ -51,7 +54,7 @@ export function SessionsPanel({
   } | null>(null)
   const [sessions, setSessions] = useState<SessionSnapshot[]>([])
   const [pendingRemovals, setPendingRemovals] = useState<SessionRemoval[]>([])
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(initialSession)
   const [view, setView] = useState(emptySessionView)
   const [message, setMessage] = useState('')
   const [answers, setAnswers] = useState<Record<string, string>>({})

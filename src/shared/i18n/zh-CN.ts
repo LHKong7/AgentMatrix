@@ -7,6 +7,8 @@ import type { Messages } from './en'
 import { configurationZh } from './configuration-zh-CN'
 import { sessionZhCN } from './session-zh-CN'
 import { reportZhCN } from './report-zh-CN'
+import { discoveryZhCN } from './discovery-zh-CN'
+import { sessionListZhCN } from './session-list-zh-CN'
 
 export const zhCN = {
   'runData.title': '未使用的运行数据',
@@ -37,6 +39,8 @@ export const zhCN = {
   ...historyZhCN,
   ...configurationZh,
   ...sessionZhCN,
+  ...sessionListZhCN,
+  ...discoveryZhCN,
   ...reportZhCN,
   ...impactZhCN,
   ...supportZhCN,
@@ -145,6 +149,12 @@ export const zhCN = {
   'settings.pluginsTitle': '插件生态',
   'settings.pluginsBody': '插件安装、SKILL.md 文件发现与权限管理。',
   'settings.language': '语言',
+  'settings.theme': '外观',
+  'settings.themeHint': '选择浅色或深色主题，也可以跟随操作系统。你的选择会保存在本设备上。',
+  'theme.label': '主题',
+  'theme.light': '浅色',
+  'theme.dark': '深色',
+  'theme.system': '跟随系统',
   'credentials.title': 'API 凭据',
   'credentials.hint':
     '使用桌面安全存储加密保存密钥。Agent 将通过 ID 引用它们，已保存的密钥不会返回此界面。',

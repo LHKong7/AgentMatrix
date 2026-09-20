@@ -69,6 +69,7 @@ export const sessionZhCN: Record<keyof typeof sessionEn, string> = {
   'sessions.outcome.completed': '回合已完成',
   'sessions.outcome.cancelled': '回合已取消',
   'sessions.outcome.failed': '回合失败',
+  'sessions.outcome.interrupted': '回合被中断',
   'sessions.tool.pending': '待执行',
   'sessions.tool.running': '执行中',
   'sessions.tool.completed': '已完成',

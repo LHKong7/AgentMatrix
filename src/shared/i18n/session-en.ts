@@ -73,6 +73,7 @@ export const sessionEn = {
   'sessions.outcome.completed': 'Turn completed',
   'sessions.outcome.cancelled': 'Turn cancelled',
   'sessions.outcome.failed': 'Turn failed',
+  'sessions.outcome.interrupted': 'Turn interrupted',
   'sessions.tool.pending': 'Pending',
   'sessions.tool.running': 'Running',
   'sessions.tool.completed': 'Completed',

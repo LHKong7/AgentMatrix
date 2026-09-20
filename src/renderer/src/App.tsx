@@ -9,8 +9,10 @@ import {
   FileText,
   FolderOpen,
   Layers3,
+  ListTree,
   LoaderCircle,
   MessageSquare,
+  Palette,
   Plus,
   Puzzle,
   Search,
@@ -43,13 +45,21 @@ import { api } from './lib/api'
 import { AgentEditor } from './components/AgentEditor'
 import { ResourceEditor } from './components/ResourceEditor'
 import { LanguageSelect } from './components/LanguageSelect'
+import { ThemeToggle } from './components/ThemeToggle'
 import { CredentialPanel } from './components/CredentialPanel'
 import { NativeImportPanel } from './components/NativeImportPanel'
+import { EngineDiscoveryPanel } from './components/EngineDiscoveryPanel'
 import { SessionsPanel } from './components/SessionsPanel'
+import { SessionListPanel } from './components/SessionListPanel'
+import { Badge } from './components/ui/badge'
+import { Button } from './components/ui/button'
+import { Card, CardContent } from './components/ui/card'
+import { Input } from './components/ui/input'
 
 type Editor =
   | { kind: 'agents'; value: AgentProfile; isNew: boolean }
   | { kind: LibraryCollection; value: LibraryEntry }
+type Page = Collection | 'settings' | 'sessions' | 'sessionList'
 const icons: Record<Collection, LucideIcon> = {
   agents: Bot,
   installations: Command,
@@ -67,8 +77,9 @@ export function App() {
   const { t, locale, number } = useI18n()
   const [workspace, setWorkspace] = useState<EngineWorkspace | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
-  const [page, setPage] = useState<Collection | 'settings' | 'sessions'>('agents')
+  const [page, setPage] = useState<Page>('agents')
   const [sessionAgent, setSessionAgent] = useState<string | null>(null)
+  const [sessionSelection, setSessionSelection] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<Editor | null>(null)
   const [error, setError] = useState<unknown>(null)
@@ -114,7 +125,7 @@ export function App() {
       setError(failure)
     }
   }
-  function navigate(next: Collection | 'settings' | 'sessions') {
+  function navigate(next: Page) {
     setPage(next)
     setQuery('')
   }
@@ -145,9 +156,11 @@ export function App() {
   const label =
     page === 'sessions'
       ? t('nav.sessions')
-      : page === 'settings'
-        ? t('nav.settings')
-        : t(collectionLabels[page])
+      : page === 'sessionList'
+        ? t('nav.sessionList')
+        : page === 'settings'
+          ? t('nav.settings')
+          : t(collectionLabels[page])
   async function probe(installationId: string) {
     if (saveLock.current) return
     saveLock.current = true
@@ -199,11 +212,19 @@ export function App() {
             className={`nav-item ${page === 'sessions' ? 'active' : ''}`}
             onClick={() => {
               setSessionAgent(null)
+              setSessionSelection(null)
               navigate('sessions')
             }}
           >
             <MessageSquare size={19} />
             <span>{t('nav.sessions')}</span>
+          </button>
+          <button
+            className={`nav-item ${page === 'sessionList' ? 'active' : ''}`}
+            onClick={() => navigate('sessionList')}
+          >
+            <ListTree size={19} />
+            <span>{t('nav.sessionList')}</span>
           </button>
           {collections.map((kind) => {
             const Icon = icons[kind]
@@ -245,7 +266,10 @@ export function App() {
           </div>
           <div className="topbar-right">
             <LanguageSelect />
-            <span className="version">v{info?.version ?? '0.1.0'}</span>
+            <ThemeToggle />
+            <Badge variant="outline" className="version">
+              v{info?.version ?? '0.1.0'}
+            </Badge>
             <span className="avatar">ME</span>
           </div>
         </header>
@@ -253,7 +277,9 @@ export function App() {
           {error != null && (
             <div className="error-banner" role="alert">
               <span>{formatError(error, locale)}</span>
-              <button onClick={() => void load()}>{t('common.reload')}</button>
+              <Button variant="outline" size="sm" onClick={() => void load()}>
+                {t('common.reload')}
+              </Button>
             </div>
           )}
           {!workspace ? (
@@ -266,7 +292,18 @@ export function App() {
               workspace={workspace}
               desktop={info?.storage === 'desktop'}
               initialAgent={sessionAgent}
+              initialSession={sessionSelection}
               platform={info?.platform}
+            />
+          ) : page === 'sessionList' ? (
+            <SessionListPanel
+              workspace={workspace}
+              desktop={info?.storage === 'desktop'}
+              onOpenSession={(sessionId) => {
+                setSessionSelection(sessionId)
+                setSessionAgent(null)
+                navigate('sessions')
+              }}
             />
           ) : (
             <>
@@ -294,22 +331,36 @@ export function App() {
                   </p>
                 </div>
                 {page !== 'settings' && (
-                  <button className="button primary" onClick={() => add(page)} disabled={saving}>
-                    <Plus size={18} />
+                  <Button onClick={() => add(page)} disabled={saving}>
+                    <Plus aria-hidden="true" />
                     {page === 'agents'
                       ? t('agents.create')
                       : t('resources.add', { resource: t(libraryEntryLabels[page]) })}
-                  </button>
+                  </Button>
                 )}
               </div>
+              {page === 'installations' && (
+                <EngineDiscoveryPanel
+                  workspace={workspace}
+                  desktop={info?.storage === 'desktop'}
+                  platform={info?.platform}
+                  busy={saving}
+                  onSave={save}
+                  onWorkspace={setWorkspace}
+                />
+              )}
               {page !== 'settings' && (
                 <div className="list-toolbar">
                   <h2>
                     {label} <span>{number(workspace[page].length)}</span>
                   </h2>
-                  <label className="search">
-                    <Search size={16} />
-                    <input
+                  <label className="relative flex min-w-56 items-center">
+                    <Search
+                      className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      className="pl-9"
                       aria-label={t('resources.search')}
                       placeholder={t('resources.search')}
                       value={query}
@@ -376,37 +427,42 @@ export function App() {
                             </span>
                           </div>
                           <div className="card-footer">
-                            <button
-                              className="text-button"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               disabled={saving || !agent.enabled}
                               onClick={() => {
+                                setSessionSelection(null)
                                 setSessionAgent(agent.id)
                                 navigate('sessions')
                               }}
                             >
-                              <MessageSquare size={15} />
+                              <MessageSquare aria-hidden="true" />
                               {t('sessions.open')}
-                            </button>
-                            <button
-                              className="text-button"
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               aria-label={t('common.editNamed', { name: agent.name })}
                               disabled={saving}
                               onClick={() =>
                                 setEditor({ kind: 'agents', value: agent, isNew: false })
                               }
                             >
-                              <SlidersHorizontal size={15} />
+                              <SlidersHorizontal aria-hidden="true" />
                               {t('agents.configure')}
-                              <ArrowRight size={14} />
-                            </button>
-                            <button
-                              className="icon-button danger-hover"
+                              <ArrowRight aria-hidden="true" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                               aria-label={t('common.deleteNamed', { name: agent.name })}
                               disabled={saving}
                               onClick={() => remove('agents', agent)}
                             >
-                              <Trash2 size={15} />
-                            </button>
+                              <Trash2 aria-hidden="true" />
+                            </Button>
                           </div>
                         </article>
                       )
@@ -445,9 +501,9 @@ export function App() {
                           <h3>
                             {entry.name}
                             {'enabled' in entry && (
-                              <span className={`tag ${entry.enabled ? 'green' : ''}`}>
+                              <Badge variant={entry.enabled ? 'success' : 'muted'}>
                                 {t(entry.enabled ? 'common.enabled' : 'common.disabled')}
-                              </span>
+                              </Badge>
                             )}
                           </h3>
                           {'description' in entry && (
@@ -456,8 +512,9 @@ export function App() {
                           <code>{summary(entry)}</code>
                         </div>
                         {page === 'installations' && (
-                          <button
-                            className="button secondary"
+                          <Button
+                            variant="outline"
+                            size="sm"
                             disabled={
                               saving ||
                               info?.storage !== 'desktop' ||
@@ -467,24 +524,27 @@ export function App() {
                             onClick={() => void probe(entry.id)}
                           >
                             {t('sessions.probe')}
-                          </button>
+                          </Button>
                         )}
-                        <button
-                          className="button secondary"
+                        <Button
+                          variant="outline"
+                          size="sm"
                           aria-label={t('common.editNamed', { name: entry.name })}
                           disabled={saving}
                           onClick={() => setEditor({ kind: page, value: entry })}
                         >
                           {t('common.configure')}
-                        </button>
-                        <button
-                          className="icon-button danger-hover"
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                           aria-label={t('common.deleteNamed', { name: entry.name })}
                           disabled={saving}
                           onClick={() => remove(page, entry)}
                         >
-                          <Trash2 size={16} />
-                        </button>
+                          <Trash2 aria-hidden="true" />
+                        </Button>
                       </article>
                     )
                   })}
@@ -500,6 +560,18 @@ export function App() {
               )}
               {page === 'settings' && (
                 <>
+                  <Card className="mb-5">
+                    <CardContent className="grid gap-3">
+                      <h2 className="flex items-center gap-2 text-base font-semibold">
+                        <Palette className="size-4 text-primary" aria-hidden="true" />
+                        {t('settings.theme')}
+                      </h2>
+                      <ThemeToggle compact={false} />
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t('settings.themeHint')}
+                      </p>
+                    </CardContent>
+                  </Card>
                   <section className="settings-panel language-settings">
                     <h2>{t('settings.language')}</h2>
                     <LanguageSelect />
