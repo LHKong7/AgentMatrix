@@ -10,7 +10,9 @@ import {
   type NativeImportEngine,
   type ImportCollection,
 } from '../../shared/engines/native-import'
-import { engineWorkspaceSchema } from '../../shared/engines/workspace'
+import { engineWorkspaceSchema, type EngineWorkspace } from '../../shared/engines/workspace'
+import { fingerprintFor, mergeEvidence } from '../../shared/engines/evidence'
+import { adapterVersionFor } from '../../shared/engines/provider'
 import type { EngineInstallation } from '../../shared/engines/schema'
 import type { EngineWorkspaceStore } from '../engine-workspace-store'
 import type { CredentialVault } from '../credentials/vault'
@@ -24,6 +26,47 @@ import type { NativeImportPlan } from './plan'
 import type { JsonObject } from './jsonc'
 import { readImportFiles, importArchiveBytes, type ImportFile } from './source-files'
 import { verifyImportSecretBoundary } from './secret-boundary'
+
+/**
+ * Adds everything one adoption produced, and files what adopting actually observed.
+ *
+ * Reading a provider out of a CLI's own files establishes that the provider is configured there,
+ * which is what `discovered` means: the endpoint has not been called and no session has started.
+ * The interface reports it as found and unverified until something stronger is observed.
+ */
+function applyPlan(
+  workspace: EngineWorkspace,
+  plan: NativeImportPlan,
+  record: NativeImportRecord,
+): EngineWorkspace {
+  const next = structuredClone(workspace)
+  for (const collection of Object.keys(plan.additions) as ImportCollection[])
+    (next[collection] as { id: string }[]).push(...structuredClone(plan.additions[collection]))
+  next.engineBindings = [...next.engineBindings, ...structuredClone(plan.bindings)]
+  next.nativeImports = [...(workspace.nativeImports ?? []), record]
+  let serial = 0
+  for (const subject of [
+    ...plan.additions.connections.map((connection) => ({
+      kind: 'connection' as const,
+      id: connection.id,
+    })),
+    ...plan.bindings.map((binding) => ({ kind: 'binding' as const, id: binding.id })),
+  ]) {
+    const fingerprint = fingerprintFor(next, subject)
+    if (!fingerprint) continue
+    next.evidence = mergeEvidence(next.evidence, {
+      id: `import-${record.id}-found-${++serial}`,
+      subject,
+      kind: 'discovered',
+      result: 'pass',
+      observedAt: record.importedAt,
+      adapterVersion: adapterVersionFor(record.engine),
+      fingerprint,
+      detail: '',
+    })
+  }
+  return next
+}
 
 interface Pending {
   record: NativeImportRecord
@@ -201,11 +244,8 @@ export class NativeImportService {
         for (const credential of plan.credentials) credential.value = ''
         throw error
       }
-      const next = structuredClone(current)
-      for (const collection of Object.keys(plan.additions) as ImportCollection[])
-        (next[collection] as { id: string }[]).push(...plan.additions[collection])
-      next.nativeImports = [...(current.nativeImports ?? []), record]
-      if (!engineWorkspaceSchema.safeParse(next).success) throw appError('error.invalidData')
+      if (!engineWorkspaceSchema.safeParse(applyPlan(current, plan, record)).success)
+        throw appError('error.invalidData')
       const expires = Date.now() + 10 * 60_000
       this.pending = {
         record,
@@ -271,13 +311,7 @@ export class NativeImportService {
       )
       for (const file of latest) file.content.fill(0)
       if (changed) throw appError('error.nativeImportChanged')
-      const next = structuredClone(current)
-      for (const collection of Object.keys(pending.plan.additions) as ImportCollection[])
-        (next[collection] as { id: string }[]).push(
-          ...structuredClone(pending.plan.additions[collection]),
-        )
-      next.nativeImports = [...(current.nativeImports ?? []), pending.record]
-      const parsed = engineWorkspaceSchema.parse(next)
+      const parsed = engineWorkspaceSchema.parse(applyPlan(current, pending.plan, pending.record))
       const bytes = importArchiveBytes(pending.files)
       try {
         await this.archive.save(pending.record, bytes)

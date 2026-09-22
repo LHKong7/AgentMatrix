@@ -706,11 +706,14 @@ describe('OpenCode native import transaction', () => {
     delete modified.nativeImports
     await expect(store.save(modified)).rejects.toThrow('error.nativeImportHistory')
     // Historical provenance outlives user deletion of the imported resources/installations.
+    // Their grants and observations do not: those name the engine and connection that are gone.
     saved.agents = []
     saved.models = []
     saved.connections = []
     saved.prompts = []
     saved.installations = []
+    saved.engineBindings = []
+    saved.evidence = []
     expect((await store.save(saved)).nativeImports).toEqual([captured.record])
   })
   it('rejects forged import history and tampered encrypted archives without publishing a workspace', async () => {

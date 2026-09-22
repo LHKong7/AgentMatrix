@@ -53,6 +53,7 @@ export function verifyImportSecretBoundary(
   }
   inspect({
     additions: plan.additions,
+    bindings: plan.bindings,
     record,
     promptReferences,
     credentials: plan.credentials.map((credential) =>

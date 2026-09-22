@@ -27,6 +27,7 @@ import {
 } from './jsonc'
 
 import type { NativeImportPlan } from './plan'
+import { adoptNativeConnections, type NativeProviderSource } from './adoption'
 const text = (value: JsonValue | undefined, max = 100_000) =>
   typeof value === 'string' && value.length <= max ? value : undefined
 const reference = (value: string) => /\{(?:env|file):[^}]*\}/.test(value)
@@ -41,6 +42,7 @@ export function planOpenCodeImport(
 ): NativeImportPlan {
   const plan: NativeImportPlan = {
     additions: { connections: [], models: [], agents: [], prompts: [], mcpServers: [] },
+    bindings: [],
     credentials: [],
     mappings: [],
     diagnostics: [],
@@ -155,6 +157,7 @@ export function planOpenCodeImport(
     return { headers, secretHeaders }
   }
   const providers = new Map<string, ModelConnection>()
+  const nativeProviders = new Map<string, NativeProviderSource>()
   const routes = new Map<string, ModelProfile>()
   const ensureModel = (route: string, path: string): ModelProfile | null => {
     const existing = routes.get(route)
@@ -242,6 +245,7 @@ export function planOpenCodeImport(
       }
       plan.additions.connections.push(parsed.data)
       providers.set(nativeId, parsed.data)
+      nativeProviders.set(parsed.data.id, { nativeId, path })
       if (text(native.name, 4000) !== undefined)
         mapped(`${path}/name`, 'connections', connectionId, 'name')
       if (connection.baseUrl)
@@ -554,5 +558,11 @@ export function planOpenCodeImport(
   }
   visit(plan.additions)
   plan.credentials = plan.credentials.filter((credential) => usedCredentials.has(credential.id!))
+  adoptNativeConnections(plan, {
+    engine: 'opencode',
+    installationId,
+    importId,
+    sources: nativeProviders,
+  })
   return plan
 }

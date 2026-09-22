@@ -26,6 +26,7 @@ import {
 import { dshLeafPaths, dshObject, ImportExpression } from './dsh-yaml'
 import { parsePiSecretValue } from './pi-values'
 import type { NativeImportPlan } from './plan'
+import { adoptNativeConnections, type NativeProviderSource } from './adoption'
 
 function validateCredentials(files: DshImportDocuments) {
   const value = files['.credentials.yaml']
@@ -80,10 +81,12 @@ export function planDshImport(
 ): NativeImportPlan {
   const plan: NativeImportPlan = {
     additions: { connections: [], models: [], agents: [], prompts: [], mcpServers: [] },
+    bindings: [],
     credentials: [],
     mappings: [],
     diagnostics: [],
   }
+  const nativeProviders = new Map<string, NativeProviderSource>()
   let serial = 0
   const id = () => `import-${importId}-${++serial}`
   const handled = new Set<string>(),
@@ -254,6 +257,7 @@ export function planDshImport(
       return
     }
     plan.additions.connections.push(parsed.data)
+    nativeProviders.set(parsed.data.id, { nativeId: provider, path: origin(input) })
     routes.set(provider, { connection: parsed.data, input, native })
     if (!native && protocol) mapped(api, 'connections', targetId, 'protocol')
     if (baseUrl) mapped(endpoint, 'connections', targetId, 'baseUrl')
@@ -428,5 +432,11 @@ export function planDshImport(
     ])
       if (reference?.kind === 'credential') used.add(reference.id)
   plan.credentials = plan.credentials.filter((entry) => used.has(entry.id!))
+  adoptNativeConnections(plan, {
+    engine: 'deepseek-harness',
+    installationId,
+    importId,
+    sources: nativeProviders,
+  })
   return plan
 }

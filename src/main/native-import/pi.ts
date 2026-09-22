@@ -25,6 +25,7 @@ import {
   type JsonValue,
 } from './jsonc'
 import type { NativeImportPlan } from './plan'
+import { adoptNativeConnections, type NativeProviderSource } from './adoption'
 import { parsePiSecretValue } from './pi-values'
 
 export type PiImportDocuments = Partial<Record<PiImportKind, JsonObject | string>>
@@ -42,10 +43,12 @@ export function planPiImport(
 ): NativeImportPlan {
   const plan: NativeImportPlan = {
     additions: { connections: [], models: [], agents: [], prompts: [], mcpServers: [] },
+    bindings: [],
     credentials: [],
     mappings: [],
     diagnostics: [],
   }
+  const nativeProviders = new Map<string, NativeProviderSource>()
   const handled = new Set<string>(),
     trees = new Set<string>()
   let serial = 0
@@ -257,6 +260,7 @@ export function planPiImport(
       return null
     }
     plan.additions.connections.push(parsed.data)
+    nativeProviders.set(parsed.data.id, { nativeId: providerId, path: providerPath })
     if (protocol) mapped(apiPath, 'connections', targetId, 'protocol')
     if (baseUrl) mapped(endpointPath, 'connections', targetId, 'baseUrl')
     return parsed.data
@@ -435,5 +439,11 @@ export function planPiImport(
   }
   visit(plan.additions)
   plan.credentials = plan.credentials.filter((entry) => used.has(entry.id!))
+  adoptNativeConnections(plan, {
+    engine: 'pi',
+    installationId,
+    importId,
+    sources: nativeProviders,
+  })
   return plan
 }
