@@ -198,7 +198,9 @@ echo "added 1 package"
       join(managedEngineRoot(join(root, 'data'), 'opencode'), 'node_modules', '.bin', 'opencode'),
     )
     expect(result.discovery.downloadAvailable).toBe(true)
-    expect(result.discovery.engines.find((entry) => entry.kind === 'opencode')!.status).toBe('ready')
+    expect(result.discovery.engines.find((entry) => entry.kind === 'opencode')!.status).toBe(
+      'ready',
+    )
   })
   it('reports a download that produced no runnable CLI instead of reporting success', async () => {
     const root = await workspaceRoot()

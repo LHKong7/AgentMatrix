@@ -83,14 +83,14 @@ export class EngineWorkspaceStore {
       throw appError('error.unreadable', { path: this.filePath })
     }
     if (converted.migrated) {
-      await this.backup(contents)
+      await this.backup(contents, converted.from)
       await this.write(converted.workspace)
     }
     return converted.workspace
   }
-  private async backup(contents: Buffer) {
+  private async backup(contents: Buffer, schemaVersion: number) {
     const digest = createHash('sha256').update(contents).digest('hex')
-    const backup = `${this.filePath}.v1.${digest}.bak`
+    const backup = `${this.filePath}.v${schemaVersion}.${digest}.bak`
     const temporary = `${backup}.${randomUUID()}.tmp`
     try {
       const file = await open(temporary, 'wx', 0o600)

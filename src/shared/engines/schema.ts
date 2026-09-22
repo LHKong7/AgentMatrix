@@ -91,6 +91,42 @@ export const authenticationSchema = z.discriminatedUnion('kind', [
     .strict(),
 ])
 
+/**
+ * Who a connection reaches, independent of any CLI. Two vendors can speak the same protocol and
+ * two products of one vendor can need different keys, so the endpoint alone does not identify a
+ * provider — the identity is what the engine bindings and the evidence records are about.
+ */
+export const providerIdentitySchema = z
+  .object({
+    /** The service the credential belongs to, such as `minimax`. */
+    vendor: z.string().trim().min(1).max(80),
+    /** The offering within that vendor, such as `open-platform`; empty when it has only one. */
+    product: z.string().trim().max(80),
+    /** The deployment the endpoint serves, such as `cn`; empty when the vendor has one. */
+    region: z.string().trim().max(80),
+    /** The account the credential authenticates as; empty when unknown. */
+    organization: z.string().trim().max(120),
+    /** Whether the saved base URL is the vendor root or already a route base such as `/v1`. */
+    endpointScope: z.enum(['provider-root', 'route-base']),
+  })
+  .strict()
+export type ProviderIdentity = z.infer<typeof providerIdentitySchema>
+
+/** Where a connection came from. Adoption records the native file it was read out of. */
+export const connectionOriginSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('manual') }).strict(),
+  z
+    .object({
+      kind: z.literal('adopted'),
+      engine: engineKindSchema,
+      installationId: entityId,
+      importId: z.uuid(),
+      path: z.string().max(4000),
+    })
+    .strict(),
+])
+export type ConnectionOrigin = z.infer<typeof connectionOriginSchema>
+
 /** Draft connections deliberately preserve unresolved protocol/auth choices. */
 export const modelConnectionSchema = z
   .object({
@@ -105,6 +141,9 @@ export const modelConnectionSchema = z
       .object({ legacyProvider: z.enum(['openai-compatible', 'anthropic', 'ollama']) })
       .strict()
       .optional(),
+    /** Present once the provider behind the endpoint is known; absent on a bare draft. */
+    provider: providerIdentitySchema.optional(),
+    origin: connectionOriginSchema.optional(),
   })
   .strict()
   .superRefine((connection, context) => {

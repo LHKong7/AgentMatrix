@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { prepareLibraryImpact, type LibraryChange } from '../src/shared/engines/impact'
 import { revisePrompt, reviseMarkdownSkill } from '../src/shared/engines/editing'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
+import { grantAgentConnections } from './helpers/bindings'
 import { previewLibraryImpact } from '../src/main/engines/library-impact'
 import { RunInputStore } from '../src/main/engines/run-input-store'
 import { SkillDirectoryStore } from '../src/main/assets/skill-directory-store'
@@ -41,7 +42,7 @@ const bundleFor = (workspace: EngineWorkspace) => ({
 
 describe('library impact binding resolution', () => {
   it('finds shared Prompt changes across OpenCode, Pi and DSH without changing source data', () => {
-    const workspace = baseline()
+    let workspace = baseline()
     for (const kind of ['pi', 'deepseek-harness'] as const) {
       workspace.installations.push({
         ...workspace.installations[0]!,
@@ -57,6 +58,8 @@ describe('library impact binding resolution', () => {
           kind === 'pi' ? { kind } : { kind, profileTemplate: 'acp', patchReload: 'startup' },
       })
     }
+    // Each engine was granted this connection separately; sharing a prompt is not sharing a key.
+    workspace = grantAgentConnections(workspace)
     const previous = structuredClone(workspace)
     const impact = prepareLibraryImpact(workspace, queryFor(workspace))
     expect(impact.profiles.map((profile) => [profile.id, profile.effect, profile.fields])).toEqual([

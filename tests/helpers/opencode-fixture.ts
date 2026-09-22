@@ -49,6 +49,18 @@ export function openCodeWorkspace(executable: string, cwd: string): EngineWorksp
         secretHeaders: {},
       },
     ],
+    engineBindings: [
+      {
+        id: 'oc-local',
+        installationId: 'oc',
+        connectionId: 'local',
+        route: 'openai-chat-completions',
+        nativeProviderId: '',
+        adapterVersion: 'opencode-acp@1+1.18.16',
+        boundAt: '2026-09-18T00:00:00Z',
+      },
+    ],
+    evidence: [],
     models: [
       {
         id: 'model',

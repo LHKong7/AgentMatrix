@@ -8,7 +8,11 @@ import {
   type AuthKind,
 } from '../src/shared/engines/model-requirements'
 import { engineConfigurationIssues } from '../src/shared/engines/validation'
-import { modelProtocolSchema, type ModelConnection, type ModelProtocol } from '../src/shared/engines/schema'
+import {
+  modelProtocolSchema,
+  type ModelConnection,
+  type ModelProtocol,
+} from '../src/shared/engines/schema'
 import type { ResolvedAgentConfiguration } from '../src/shared/engines/resolution'
 import { engineContracts, type SupportedEngine } from '../src/shared/engines/contracts'
 import { createEngineWorkspace } from '../src/shared/engines/workspace'
@@ -30,7 +34,10 @@ function connection(values: Partial<ModelConnection> = {}): ModelConnection {
 }
 function configuration(
   kind: SupportedEngine,
-  values: { connection?: ModelConnection; parameters?: ResolvedAgentConfiguration['model']['parameters'] } = {},
+  values: {
+    connection?: ModelConnection
+    parameters?: ResolvedAgentConfiguration['model']['parameters']
+  } = {},
 ): ResolvedAgentConfiguration {
   return {
     agent: {
@@ -158,9 +165,10 @@ describe('per-engine model requirements', () => {
           const accepted = !issues.some(
             (issue) => issue.code === 'reasoning' || issue.code === 'thinking-level',
           )
-          expect(route.reasoning?.includes(value) ?? false, `${kind}/${route.protocol}/${value}`).toBe(
-            accepted,
-          )
+          expect(
+            route.reasoning?.includes(value) ?? false,
+            `${kind}/${route.protocol}/${value}`,
+          ).toBe(accepted)
         }
       }
   })
@@ -210,9 +218,11 @@ describe('field guidance', () => {
     const protocol = checks.find((check) => check.id === 'protocol')!
     expect(protocol.status).toBe('blocked')
     expect(protocol.detail).toContain('openai-chat-completions')
-    expect(statusOf('deepseek-harness', 'protocol', {
-      connection: connection({ protocol: 'deepseek-official' }),
-    })).toBe('ok')
+    expect(
+      statusOf('deepseek-harness', 'protocol', {
+        connection: connection({ protocol: 'deepseek-official' }),
+      }),
+    ).toBe('ok')
   })
 
   it('separates an unset field from one the engine rejects', () => {
@@ -224,7 +234,10 @@ describe('field guidance', () => {
       }),
     ).toBe('blocked')
     expect(
-      statusOf('pi', 'reasoning', { connection: connection(), model: model({ reasoning: 'high' }) }),
+      statusOf('pi', 'reasoning', {
+        connection: connection(),
+        model: model({ reasoning: 'high' }),
+      }),
     ).toBe('ok')
     expect(
       statusOf('deepseek-harness', 'sampling', {
@@ -233,15 +246,21 @@ describe('field guidance', () => {
       }),
     ).toBe('blocked')
     expect(statusOf('opencode', 'model-id', { model: { ...model(), modelId: '' } })).toBe('unset')
-    expect(statusOf('opencode', 'secret', {
-      connection: connection({ auth: { kind: 'bearer', secret: null } }),
-    })).toBe('unset')
+    expect(
+      statusOf('opencode', 'secret', {
+        connection: connection({ auth: { kind: 'bearer', secret: null } }),
+      }),
+    ).toBe('unset')
   })
 
   it('checks the Anthropic base URL shape for the selected engine', () => {
     const base = (baseUrl: string) =>
       statusOf('opencode', 'endpoint', {
-        connection: connection({ protocol: 'anthropic-messages', baseUrl, auth: { kind: 'api-key', header: 'x-api-key', secret: null } }),
+        connection: connection({
+          protocol: 'anthropic-messages',
+          baseUrl,
+          auth: { kind: 'api-key', header: 'x-api-key', secret: null },
+        }),
       })
     expect(base('https://api.anthropic.com')).toBe('ok')
     expect(base('https://api.anthropic.com/v1')).toBe('ok')

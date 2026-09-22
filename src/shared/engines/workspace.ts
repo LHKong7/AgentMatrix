@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { pluginConfigurationSchema } from './plugin-options'
 import { nativeImportRecordSchema } from './native-import'
+import { engineProviderBindingSchema } from './provider'
+import { verificationEvidenceSchema } from './evidence'
 import {
   absolutePath,
   agentProfileSchema,
@@ -215,6 +217,16 @@ export const engineWorkspaceSchema = z
     nativePlugins: z.array(nativePluginSchema).max(200),
     nativeImports: z.array(nativeImportRecordSchema).max(500).optional(),
     sharedSetup: sharedSetupSchema.default(emptySharedSetup),
+    /** Which connection each CLI has been granted. Without an entry it is handed nothing. */
+    engineBindings: z
+      .array(engineProviderBindingSchema)
+      .max(400)
+      .default(() => []),
+    /** What has been observed about an engine, connection, binding or agent, and when. */
+    evidence: z
+      .array(verificationEvidenceSchema)
+      .max(2000)
+      .default(() => []),
   })
   .strict()
   .superRefine((workspace, context) => {
@@ -235,6 +247,8 @@ export const engineWorkspaceSchema = z
       'skills',
       'bundles',
       'nativePlugins',
+      'engineBindings',
+      'evidence',
     ] as const
     for (const key of collections) {
       const ids = workspace[key].map((item) => item.id)
@@ -322,6 +336,29 @@ export const engineWorkspaceSchema = z
     setup.skillBindings.forEach((binding, j) =>
       checkBinding(binding, 'skills', ['sharedSetup', 'skillBindings', j]),
     )
+    const pairs = new Set<string>()
+    workspace.engineBindings.forEach((binding, i) => {
+      has(workspace.installations, binding.installationId, ['engineBindings', i, 'installationId'])
+      has(workspace.connections, binding.connectionId, ['engineBindings', i, 'connectionId'])
+      // One grant per engine and connection: a second one would hide which route is in force.
+      const pair = `${binding.installationId}\u0000${binding.connectionId}`
+      if (pairs.has(pair))
+        context.addIssue({
+          code: 'custom',
+          path: ['engineBindings', i],
+          message: 'validation.duplicateBinding',
+        })
+      pairs.add(pair)
+    })
+    const subjects = {
+      installation: workspace.installations,
+      connection: workspace.connections,
+      binding: workspace.engineBindings,
+      agent: workspace.agents,
+    } as const
+    workspace.evidence.forEach((record, i) => {
+      has(subjects[record.subject.kind], record.subject.id, ['evidence', i, 'subject', 'id'])
+    })
     workspace.agents.forEach((agent, i) => {
       has(workspace.installations, agent.engineInstallationId, [
         'agents',
@@ -356,5 +393,7 @@ export function createEngineWorkspace(): EngineWorkspace {
     bundles: [],
     nativePlugins: [],
     sharedSetup: emptySharedSetup(),
+    engineBindings: [],
+    evidence: [],
   }
 }

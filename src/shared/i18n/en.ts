@@ -252,6 +252,8 @@ export const en = {
   'error.invalidData': 'The workspace data is invalid. Check the configuration and try again.',
   'error.credentialsUnavailable': 'Secure credential storage is unavailable.',
   'error.credentialMissing': 'The required credential is missing.',
+  'error.engineBinding': 'This connection cannot be made available to that CLI ({reason}).',
+  'error.engineBindingRequired': 'This connection has not been made available to the selected CLI.',
   'error.credentialMetadataSecret':
     'The credential name or ID contains its secret value. Use a different name or ID; nothing was saved.',
   'error.credentialEncryption':
@@ -271,6 +273,7 @@ export const en = {
   'validation.version': 'Use a version such as 1.0.0.',
   'validation.duplicateIds': 'IDs must be unique.',
   'validation.missingRef': 'A referenced resource does not exist.',
+  'validation.duplicateBinding': 'A connection can be granted to one CLI only once.',
   'validation.invalid': 'Invalid value.',
   'validation.headerConflict': 'Header names must be unique, including authentication headers.',
   'validation.headerValue': 'Header values must not contain line breaks or null characters.',

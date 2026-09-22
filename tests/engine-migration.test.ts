@@ -105,6 +105,7 @@ describe('schema v2 asset migration', () => {
     expect(migrateWorkspaceDocument(first.workspace)).toEqual({
       workspace: first.workspace,
       migrated: false,
+      from: 2,
     })
   })
 

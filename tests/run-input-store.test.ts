@@ -11,6 +11,7 @@ import { migrateWorkspaceDocument } from '../src/shared/engines/migration'
 import type { ResolvedAgentConfiguration } from '../src/shared/engines/resolution'
 import type { GeneratedInputs, RunPaths } from '../src/shared/engines/run-inputs'
 import { createWorkspace } from '../src/shared/workspace'
+import { grantAgentConnections } from './helpers/bindings'
 
 vi.mock('node:fs/promises', async (original) => ({
   ...(await original<typeof import('node:fs/promises')>()),
@@ -80,6 +81,7 @@ beforeEach(async () => {
     kind: 'bearer',
     secret: { kind: 'environment', name: 'RUN_TEST_KEY' },
   }
+  workspace = grantAgentConnections(workspace)
 })
 afterEach(async () => {
   vi.restoreAllMocks()

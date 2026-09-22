@@ -17,5 +17,11 @@ export function dshWorkspace(executable: string, cwd: string) {
     patchReload: 'startup',
   }
   workspace.agents[0]!.execution.approval = 'unrestricted'
+  // The grant follows the engine: the OpenCode installation this fixture replaced is gone.
+  workspace.engineBindings[0] = {
+    ...workspace.engineBindings[0]!,
+    installationId: 'dsh',
+    adapterVersion: 'dsh-acp@1+0.1.5-rc.2',
+  }
   return workspace
 }

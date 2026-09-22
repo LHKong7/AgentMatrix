@@ -163,6 +163,8 @@ export const configurationEn = {
   'resolution.engine-unprobed': 'The engine installation must be verified before launch.',
   'resolution.model-required': 'Select a model profile with a model ID.',
   'resolution.connection-required': 'Select a model connection.',
+  'resolution.engine-binding-required':
+    'Make this connection available to the selected CLI before using it.',
   'resolution.protocol-required': 'Select an API protocol.',
   'resolution.endpoint-required': 'Enter an endpoint for the selected authentication route.',
   'resolution.authentication-required': 'Choose an authentication strategy.',

@@ -1,3 +1,4 @@
+import { credentialReachesEngine } from './provider'
 import type { AgentProfile, EngineInstallation, ModelConnection, ModelProfile } from './schema'
 import {
   engineWorkspaceSchema,
@@ -23,6 +24,7 @@ export type ResolutionIssueCode =
   | 'engine-unprobed'
   | 'model-required'
   | 'connection-required'
+  | 'engine-binding-required'
   | 'protocol-required'
   | 'endpoint-required'
   | 'authentication-required'
@@ -127,6 +129,10 @@ function resolveParsedProfile(workspace: EngineWorkspace, agentId: string): Prof
   const connection = workspace.connections.find((item) => item.id === model?.connectionId)
   if (!connection) issue('connection-required', 'modelProfileId.connectionId')
   else {
+    // The connection is managed once for the workspace, but reaching this CLI is a separate,
+    // explicit grant. Without it the engine is never handed this provider's credential.
+    if (installation && !credentialReachesEngine(workspace, installation.id, connection.id))
+      issue('engine-binding-required', 'modelProfileId.connectionId')
     if (!connection.protocol) issue('protocol-required', 'connection.protocol')
     if (!connection.baseUrl && !['engine-login', 'cloud-identity'].includes(connection.auth.kind))
       issue('endpoint-required', 'connection.baseUrl')

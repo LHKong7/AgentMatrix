@@ -88,6 +88,15 @@ function workspace(): EngineWorkspace {
       execution: { cwd: '/projects/app', approval: 'ask' },
     })
   }
+  state.engineBindings.push({
+    id: 'grant-1',
+    installationId: 'installation-1',
+    connectionId: 'connection-1',
+    route: 'openai-chat-completions',
+    nativeProviderId: '',
+    adapterVersion: 'opencode-acp@1+1.18.16',
+    boundAt: '2026-09-18T00:00:00.000Z',
+  })
   state.sharedSetup = {
     promptBindings: [
       { assetId: 'house-rules', selection: { follow: 'latest' }, mode: 'append' as const },
@@ -146,6 +155,16 @@ describe('one setup for every CLI agent', () => {
     reviewer.engineInstallationId = 'installation-2'
     reviewer.modelProfileId = 'model-2'
     reviewer.engineOptions = { kind: 'pi' }
+    // The shared setup never grants a connection: Pi is granted connection-2 on its own.
+    state.engineBindings.push({
+      id: 'grant-2',
+      installationId: 'installation-2',
+      connectionId: 'connection-2',
+      route: 'openai-chat-completions',
+      nativeProviderId: '',
+      adapterVersion: 'pi-rpc@1+0.85.1',
+      boundAt: '2026-09-18T00:00:00.000Z',
+    })
     const parsed = engineWorkspaceSchema.parse(state)
     expect(resolved(parsed, 'writer').connection.baseUrl).toBe('https://api.example.com/v1')
     expect(resolved(parsed, 'reviewer').installation.kind).toBe('pi')

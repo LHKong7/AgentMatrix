@@ -1,17 +1,70 @@
 import { appError } from '../errors'
 import { workspaceSchema as legacyWorkspaceSchema } from '../workspace'
+import { adapterVersionFor, type EngineProviderBinding } from './provider'
 import { createEngineWorkspace, engineWorkspaceSchema, type EngineWorkspace } from './workspace'
 
+/**
+ * Grants every engine the connections its own agents already point at.
+ *
+ * A workspace written before connections were granted per CLI has no record of the decision, but
+ * it does have the decision itself: an agent naming an engine and a model is a user who wired
+ * that engine to that connection. Those pairs, and only those, become bindings — a connection no
+ * agent uses on an engine stays unavailable to it.
+ */
+function bindingsFromAgents(workspace: EngineWorkspace, at: string): EngineProviderBinding[] {
+  const bindings: EngineProviderBinding[] = []
+  for (const agent of workspace.agents) {
+    const installation = workspace.installations.find(
+      (item) => item.id === agent.engineInstallationId,
+    )
+    const model = workspace.models.find((item) => item.id === agent.modelProfileId)
+    const connection = workspace.connections.find((item) => item.id === model?.connectionId)
+    if (!installation || !connection || !connection.protocol) continue
+    if (
+      bindings.some(
+        (binding) =>
+          binding.installationId === installation.id && binding.connectionId === connection.id,
+      )
+    )
+      continue
+    bindings.push({
+      id: `binding-${installation.id}-${connection.id}`.slice(0, 100),
+      installationId: installation.id,
+      connectionId: connection.id,
+      route: connection.protocol,
+      nativeProviderId: '',
+      adapterVersion: adapterVersionFor(installation.kind),
+      boundAt: at,
+    })
+  }
+  return bindings
+}
+
 /** Pure, deterministic conversion; the storage layer owns backup and atomic publication. */
-export function migrateWorkspaceDocument(input: unknown): {
+export function migrateWorkspaceDocument(
+  input: unknown,
+  now = new Date().toISOString(),
+): {
   workspace: EngineWorkspace
   migrated: boolean
+  from: 1 | 2
 } {
   if (typeof input !== 'object' || input === null || !('schemaVersion' in input)) {
     throw appError('error.schemaVersion')
   }
-  if (input.schemaVersion === 2)
-    return { workspace: engineWorkspaceSchema.parse(input), migrated: false }
+  if (input.schemaVersion === 2) {
+    const workspace = engineWorkspaceSchema.parse(input)
+    // A document written before this release never decided which CLI may use which connection.
+    if ('engineBindings' in input) return { workspace, migrated: false, from: 2 }
+    return {
+      workspace: engineWorkspaceSchema.parse({
+        ...workspace,
+        engineBindings: bindingsFromAgents(workspace, now),
+      }),
+      migrated: true,
+      from: 2,
+    }
+  }
   if (input.schemaVersion !== 1) throw appError('error.schemaVersion')
   const legacy = legacyWorkspaceSchema.parse(input)
   const workspace = createEngineWorkspace()
@@ -118,5 +171,6 @@ export function migrateWorkspaceDocument(input: unknown): {
     mcpServerIds: [...plugin.mcpServerIds],
     skillBindings: plugin.skillIds.map((assetId) => ({ assetId, selection: { follow: 'latest' } })),
   }))
-  return { workspace: engineWorkspaceSchema.parse(workspace), migrated: true }
+  // Legacy agents had no engine installation at all, so nothing is granted to any CLI yet.
+  return { workspace: engineWorkspaceSchema.parse(workspace), migrated: true, from: 1 }
 }

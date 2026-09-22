@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createWorkspace } from '../src/shared/workspace'
 import { migrateWorkspaceDocument } from '../src/shared/engines/migration'
 import { resolveAgentProfile } from '../src/shared/engines/resolution'
+import { grantAgentConnections } from './helpers/bindings'
 
 function fixture() {
   const workspace = migrateWorkspaceDocument(createWorkspace()).workspace
@@ -25,7 +26,7 @@ function fixture() {
   workspace.connections[0]!.auth = { kind: 'none' }
   workspace.prompts[0]!.versions.push({ version: 2, content: 'Updated role' })
   workspace.prompts[0]!.currentVersion = 2
-  return workspace
+  return grantAgentConnections(workspace)
 }
 function resolve(workspace: ReturnType<typeof fixture>) {
   return resolveAgentProfile(workspace, workspace.agents[0]!.id)

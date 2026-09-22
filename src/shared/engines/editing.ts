@@ -1,6 +1,20 @@
 import { appError } from '../errors'
 import { translate, type Locale, type MessageKey } from '../i18n'
-import type { AgentProfile } from './schema'
+import {
+  mergeEvidence,
+  pruneEvidence,
+  type EvidenceKind,
+  type EvidenceSubject,
+  type VerificationEvidence,
+} from './evidence'
+import {
+  adapterVersionFor,
+  bindingIssues,
+  defaultRoute,
+  type EngineProviderBinding,
+} from './provider'
+import { isSupportedEngine } from './contracts'
+import type { AgentProfile, ModelProtocol } from './schema'
 import {
   engineWorkspaceSchema,
   createEngineWorkspace,
@@ -247,7 +261,95 @@ export function removeConfiguration(
         ? setup.excludedAgentIds.filter((value) => value !== id)
         : setup.excludedAgentIds,
   }
+  // A removed engine or connection takes its grant with it: nothing stays authorized by accident.
+  result.engineBindings = result.engineBindings.filter(
+    (binding) =>
+      !(kind === 'installations' && binding.installationId === id) &&
+      !(kind === 'connections' && binding.connectionId === id),
+  )
+  result.evidence = pruneEvidence(result)
   return engineWorkspaceSchema.parse(result)
+}
+
+/**
+ * Grants one connection to one CLI, which is the only thing that lets its credential reach that
+ * CLI. Discovery, protocol compatibility and a complete requirements checklist do not.
+ */
+export function bindConnectionToEngine(
+  input: EngineWorkspace,
+  draft: {
+    id: string
+    installationId: string
+    connectionId: string
+    route?: ModelProtocol
+    nativeProviderId?: string
+    boundAt?: string
+  },
+): EngineWorkspace {
+  const workspace = engineWorkspaceSchema.parse(input)
+  const installation = workspace.installations.find((item) => item.id === draft.installationId)
+  const connection = workspace.connections.find((item) => item.id === draft.connectionId)
+  if (!installation || !connection) throw appError('error.engineBinding', { reason: 'missing' })
+  const kind = isSupportedEngine(installation.kind) ? installation.kind : null
+  const route =
+    draft.route ??
+    (kind ? defaultRoute(connection, kind) : (connection.protocol ?? 'openai-chat-completions'))
+  const binding: EngineProviderBinding = {
+    id: draft.id,
+    installationId: draft.installationId,
+    connectionId: draft.connectionId,
+    route,
+    nativeProviderId: draft.nativeProviderId ?? '',
+    adapterVersion: adapterVersionFor(installation.kind),
+    boundAt: draft.boundAt ?? new Date().toISOString(),
+  }
+  const issues = bindingIssues(workspace, binding)
+  if (issues.length) throw appError('error.engineBinding', { reason: issues.join(', ') })
+  return engineWorkspaceSchema.parse({
+    ...workspace,
+    engineBindings: [...workspace.engineBindings.filter((item) => item.id !== binding.id), binding],
+  })
+}
+
+/** Withdraws a grant. The connection stays; this CLI stops being handed its credential. */
+export function releaseEngineBinding(input: EngineWorkspace, bindingId: string): EngineWorkspace {
+  const workspace = engineWorkspaceSchema.parse(input)
+  const remaining = {
+    ...workspace,
+    engineBindings: workspace.engineBindings.filter((binding) => binding.id !== bindingId),
+  }
+  return engineWorkspaceSchema.parse({ ...remaining, evidence: pruneEvidence(remaining) })
+}
+
+/** Files one observation. Nothing here derives a stronger state than what was observed. */
+export function recordEvidence(
+  input: EngineWorkspace,
+  entry: {
+    id: string
+    subject: EvidenceSubject
+    kind: EvidenceKind
+    result: 'pass' | 'fail'
+    fingerprint: string
+    adapterVersion: string
+    observedAt?: string
+    detail?: string
+  },
+): EngineWorkspace {
+  const workspace = engineWorkspaceSchema.parse(input)
+  const record: VerificationEvidence = {
+    id: entry.id,
+    subject: entry.subject,
+    kind: entry.kind,
+    result: entry.result,
+    observedAt: entry.observedAt ?? new Date().toISOString(),
+    adapterVersion: entry.adapterVersion,
+    fingerprint: entry.fingerprint,
+    detail: entry.detail ?? '',
+  }
+  return engineWorkspaceSchema.parse({
+    ...workspace,
+    evidence: mergeEvidence(workspace.evidence, record),
+  })
 }
 
 export function revisePrompt(asset: PromptAsset, content: string): PromptAsset {

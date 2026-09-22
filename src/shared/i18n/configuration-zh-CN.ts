@@ -148,6 +148,7 @@ export const configurationZh = {
   'resolution.engine-unprobed': '启动前需要验证引擎安装。',
   'resolution.model-required': '请选择已填写模型 ID 的模型配置。',
   'resolution.connection-required': '请选择模型连接。',
+  'resolution.engine-binding-required': '请先把该连接授权给所选的 CLI，然后才能使用。',
   'resolution.protocol-required': '请选择 API 协议。',
   'resolution.endpoint-required': '请为所选身份验证方式填写服务地址。',
   'resolution.authentication-required': '请选择身份验证方式。',

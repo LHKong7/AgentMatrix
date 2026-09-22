@@ -13,5 +13,11 @@ export function piWorkspace(executable: string, cwd: string) {
   workspace.agents[0]!.engineInstallationId = 'pi'
   workspace.agents[0]!.engineOptions = { kind: 'pi', projectTrust: 'deny', contextFiles: 'inherit' }
   workspace.agents[0]!.execution.approval = 'unrestricted'
+  // The grant follows the engine: the OpenCode installation this fixture replaced is gone.
+  workspace.engineBindings[0] = {
+    ...workspace.engineBindings[0]!,
+    installationId: 'pi',
+    adapterVersion: 'pi-rpc@1+0.85.1',
+  }
   return workspace
 }
