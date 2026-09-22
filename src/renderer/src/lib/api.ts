@@ -1,29 +1,103 @@
+import { prepareLibraryImpact } from '../../../shared/engines/impact'
+import { appError } from '../../../shared/errors'
+import { getInitialLocale } from '../i18n/preferences'
 import type { AgentMatrixApi } from '../../../shared/api'
-import { createWorkspace, workspaceSchema } from '../../../shared/workspace'
+import { BrowserWorkspaceStore } from '../../../shared/engines/browser-store'
+import { unsupportedDiscovery } from '../../../shared/engines/discovery'
 
-const storageKey = 'agent-matrix:preview:v1'
-
-// Browser preview uses its own storage; it never reads desktop configuration files.
+// Browser preview never reads desktop files or stores plaintext credentials.
 const browserApi: AgentMatrixApi = {
+  async previewNativeImport() {
+    throw appError('error.nativeImportDesktopOnly')
+  },
+  async applyNativeImport() {
+    throw appError('error.nativeImportDesktopOnly')
+  },
+  async inspectNativePlugin() {
+    throw appError('error.pluginDesktopOnly')
+  },
+  async chooseWorkingDirectory() {
+    throw appError('error.runtimeDesktopOnly')
+  },
+  async probeEngine() {
+    throw appError('error.runtimeDesktopOnly')
+  },
+  async discoverEngines() {
+    return unsupportedDiscovery('browser')
+  },
+  async downloadEngine() {
+    throw appError('error.engineDownloadUnsupported')
+  },
+  sessions: {
+    async unusedRunData() {
+      return { items: [], next: null, skipped: 0 }
+    },
+    async removeUnusedRunData() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async remove() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async pendingRemovals() {
+      return []
+    },
+    async history() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async exportHistory() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async impact(input) {
+      const workspace = new BrowserWorkspaceStore(localStorage, getInitialLocale()).load()
+      const { profiles } = prepareLibraryImpact(workspace, input)
+      return {
+        revision: workspace.revision,
+        profiles,
+        sessions: [],
+        sessionScope: 'browser',
+        scannedSessions: 0,
+        nextSessionId: null,
+      }
+    },
+    async configuration() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async list() {
+      return []
+    },
+    async command() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async get() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async readEvents() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+    async subscribe() {
+      throw appError('error.runtimeDesktopOnly')
+    },
+  },
+  async importSkillDirectory() {
+    throw appError('error.skillDesktopOnly')
+  },
+  async getCredentialStatus() {
+    return { available: false, credentials: [] }
+  },
+  async setCredential() {
+    throw appError('error.credentialsUnavailable')
+  },
+  async deleteCredential() {
+    throw appError('error.credentialsUnavailable')
+  },
   async loadWorkspace() {
-    const saved = localStorage.getItem(storageKey)
-    return saved ? workspaceSchema.parse(JSON.parse(saved)) : createWorkspace()
+    return new BrowserWorkspaceStore(localStorage, getInitialLocale()).load()
   },
   async saveWorkspace(input) {
-    const workspace = workspaceSchema.parse(input)
-    const current = await this.loadWorkspace()
-    if (current.revision !== workspace.revision) throw new Error('配置已被更新，请刷新后重试。')
-    const next = { ...workspace, revision: current.revision + 1 }
-    localStorage.setItem(storageKey, JSON.stringify(next))
-    return next
+    return new BrowserWorkspaceStore(localStorage, getInitialLocale()).save(input)
   },
   async getAppInfo() {
-    return {
-      version: '0.1.0',
-      platform: 'browser',
-      configPath: '当前浏览器的 localStorage',
-      storage: 'browser',
-    }
+    return { version: '0.1.0', platform: 'browser', configPath: 'localStorage', storage: 'browser' }
   },
 }
 

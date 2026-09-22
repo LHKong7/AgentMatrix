@@ -1,0 +1,145 @@
+{
+  "checkedAt": "2026-09-19T12:32:30.932Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "pi",
+  "version": "0.85.1",
+  "route": "Local Chat Completions protocol fixture",
+  "externalProviderCalls": false,
+  "desktopVersionProbe": true,
+  "configurationPreflight": {
+    "blockedBeforeCapture": true,
+    "startDisabled": true,
+    "draftStillEditable": true,
+    "capabilityDimensions": true,
+    "englishAndChinese": true
+  },
+  "profileToSession": true,
+  "workingDirectory": {
+    "typedAndNativeChooser": true,
+    "invalidAndMissingPathsRejected": true,
+    "chooserCancellationPreservesSelection": true,
+    "profileSwitchResetsOverride": true,
+    "savedDefaultUnchanged": true,
+    "relativeFileReadInSelectedDirectory": true,
+    "unicodeAndSpaces": true,
+    "capturedDirectoryOnNativeResume": true,
+    "englishAndChinese": true
+  },
+  "permissionReply": "unsupported: no universal per-tool approval",
+  "toolResult": true,
+  "rendererReloadWithoutResubmit": true,
+  "selectedPluginActivation": {
+    "capturedBinding": true,
+    "nativeHookReachedProvider": true,
+    "newAndResumedInstanceVerified": true,
+    "englishAndChineseReport": true,
+    "extensionCommandsAndInputHandling": true,
+    "nativeOptionsEditor": "not part of this engine fixture"
+  },
+  "streamingCancellation": true,
+  "messageDelivery": "Streaming text",
+  "configurationReport": {
+    "nativeEvidence": true,
+    "currentInstanceConfiguration": "Not part of this engine fixture",
+    "persistedAfterRestart": true,
+    "pendingAssetVersions": true,
+    "englishAndChinese": true,
+    "sensitiveValuesOmitted": true
+  },
+  "mcpConnectionReport": {
+    "source": "unknown"
+  },
+  "instructionSourceReport": {
+    "captured": false
+  },
+  "skillSourceReport": {
+    "scope": "Native RPC Skill sources",
+    "englishAndChinese": true,
+    "historicalReceiptAfterRestart": true,
+    "freshReceiptAfterResume": true,
+    "noNativeBodiesOrUnmatchedPaths": true,
+    "mappedNativeEntriesVisible": true
+  },
+  "sessionCapabilities": {
+    "dimensions": 18,
+    "capturedIdentityAndNativeChecks": true,
+    "advertisedRestoreIsNotVerifiedUse": true,
+    "freshEvidenceAfterNativeRestore": true,
+    "historicalAvailabilityUnknown": true,
+    "serviceAndEnforcementRemainUnverified": true,
+    "englishAndChinese": true
+  },
+  "nativeResourceInventory": "No directory inventory declared by this adapter",
+  "configurationFailure": {
+    "check": "pi-controls",
+    "acpOnlyPromptMismatchAtStartup": "Not part of this engine fixture",
+    "nativePromptMismatchAtStartup": "Not part of this engine fixture",
+    "matchedLiteralSourceAndUnknownDynamicSource": "Not part of this engine fixture",
+    "matchedSourceRetainedAfterDeletionAndRestart": "Not part of this engine fixture",
+    "persistedAfterRestart": true,
+    "englishAndChinese": true,
+    "historicalSuccessPreserved": true,
+    "noNativeValuesOrSecretContent": true,
+    "clearedAfterSuccessfulNativeResume": true
+  },
+  "permissionCancellation": "unsupported: no universal per-tool approval",
+  "sharedPromptOldAndNewSnapshots": true,
+  "libraryImpact": {
+    "beforeSave": true,
+    "unchangedAfterRevert": true,
+    "retainedAndProposedVersions": true,
+    "alreadyPending": true,
+    "noWorkspaceOrSessionWrites": true,
+    "englishAndChinese": true
+  },
+  "appQuitAndRestart": true,
+  "applicationCrash": {
+    "signal": "SIGKILL",
+    "activeProviderTurn": true,
+    "ownedGroupsGone": 4,
+    "providerStreamClosed": true,
+    "interruptedAfterRestart": true,
+    "noAutomaticResubmission": true,
+    "sameNativeIdAndSnapshotOnExplicitResume": true
+  },
+  "nativeResume": true,
+  "confirmedClose": true,
+  "retention": {
+    "closedOnly": true,
+    "englishAndChineseConfirmation": true,
+    "confirmationCancellation": true,
+    "sharedCaptureRetained": true,
+    "unreferencedCaptureAndNativeStateRemoved": true,
+    "pendingCleanupVisible": true,
+    "explicitCleanupRetry": true,
+    "restartRecovery": true,
+    "deletedCreateReplayRejected": true,
+    "projectAndSharedLibraryAndExportPreserved": true,
+    "noAdditionalModelCalls": true
+  },
+  "unusedRunData": {
+    "orphanCaptureAndStaging": true,
+    "retainedConversationReferencesExcluded": true,
+    "confirmationCancellationInBothLanguages": true,
+    "pendingReceiptRecoveryAfterRestart": true,
+    "rootAndNestedSymlinkBoundaries": true,
+    "deletedCaptureCreateReplayRejected": true,
+    "unknownEntriesPreserved": true,
+    "sharedWorkspaceAndProjectPreserved": true,
+    "noAdditionalModelCalls": true
+  },
+  "sessionHistory": {
+    "nativeEventsReadOnly": true,
+    "syntheticLongHistoryPagination": true,
+    "completeJsonlExport": true,
+    "selectedBoundary": true,
+    "exportCancellation": true,
+    "existingRedactionPreserved": true,
+    "reloadWithoutExecution": true,
+    "englishAndChinese": true
+  },
+  "englishAndChinese": true,
+  "journalCredentialRedaction": true,
+  "untrustedTextEscaped": true
+}

@@ -1,0 +1,125 @@
+import { randomUUID } from 'node:crypto'
+import type { IpcMain, IpcMainInvokeEvent, WebContents } from 'electron'
+import { z } from 'zod'
+import { appError, copyAppError } from '../../shared/errors'
+import { sessionChannels } from '../../shared/sessions/channels'
+import { sessionSubscriptionSchema } from '../../shared/sessions/schema'
+import { entityId } from '../../shared/engines/schema'
+import type { SessionCoordinator } from './coordinator'
+
+export function verifyRenderer(
+  event: IpcMainInvokeEvent,
+  contents: WebContents | null,
+  rendererUrl: string,
+): void {
+  if (
+    !contents ||
+    event.sender !== contents ||
+    event.senderFrame !== contents.mainFrame ||
+    event.senderFrame.url !== rendererUrl
+  )
+    throw appError('error.untrusted')
+}
+
+export async function safeSessionOperation<T>(
+  operation: () => Promise<T>,
+  fallback: Parameters<typeof appError>[0] = 'error.runtimeOperation',
+): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    const applicationError = copyAppError(error)
+    if (applicationError) throw applicationError
+    throw appError(error instanceof z.ZodError ? 'error.invalidData' : fallback)
+  }
+}
+
+/** Apply sender verification and exception projection to every non-session invoke handler. */
+export function registerApplicationHandler(
+  ipc: Pick<IpcMain, 'handle'>,
+  channel: string,
+  verify: (event: IpcMainInvokeEvent) => void,
+  operation: (event: IpcMainInvokeEvent, input: unknown) => unknown,
+): void {
+  ipc.handle(channel, (event, input) =>
+    safeSessionOperation(async () => {
+      verify(event)
+      return operation(event, input)
+    }, 'error.failed'),
+  )
+}
+export function registerSessionIpc(
+  ipc: Pick<IpcMain, 'handle'>,
+  coordinator: SessionCoordinator,
+  verify: (event: IpcMainInvokeEvent) => void,
+) {
+  const owners = new Map<WebContents, string>()
+  const owner = (event: IpcMainInvokeEvent) => {
+    verify(event)
+    const value = owners.get(event.sender)
+    if (!value) throw appError('error.untrusted')
+    return value
+  }
+  const handle = (
+    channel: string,
+    operation: (event: IpcMainInvokeEvent, input: unknown) => Promise<unknown>,
+  ) => {
+    ipc.handle(channel, (event, input) =>
+      safeSessionOperation(async () => {
+        owner(event)
+        return operation(event, input)
+      }),
+    )
+  }
+  handle(sessionChannels.command, (_event, input) => coordinator.command(input))
+  handle(sessionChannels.unusedRunData, (_event, input) => coordinator.unusedRunData(input))
+  handle(sessionChannels.removeUnusedRunData, (_event, input) =>
+    coordinator.removeUnusedRunData(input),
+  )
+  handle(sessionChannels.remove, (_event, input) => coordinator.remove(input))
+  handle(sessionChannels.pendingRemovals, () => coordinator.pendingRemovals())
+  handle(sessionChannels.impact, (_event, input) => coordinator.impact(input))
+  handle(sessionChannels.configuration, (_event, input) => coordinator.configuration(input))
+  handle(sessionChannels.get, (_event, input) => coordinator.get(input))
+  handle(sessionChannels.list, () => coordinator.list())
+  handle(sessionChannels.events, (_event, input) => coordinator.readEvents(input))
+  handle(sessionChannels.history, (_event, input) => coordinator.history(input))
+  handle(sessionChannels.subscribe, async (event, input) => {
+    const query = sessionSubscriptionSchema.parse(input)
+    const identity = owner(event)
+    const subscription = await coordinator.subscribe(identity, query, (delivery) => {
+      if (owners.get(event.sender) !== identity) return
+      verify(event)
+      event.senderFrame!.send(sessionChannels.delivery, delivery)
+    })
+    try {
+      if (owner(event) !== identity) throw appError('error.untrusted')
+      return { snapshot: subscription.snapshot }
+    } catch (error) {
+      subscription.unsubscribe()
+      throw error
+    }
+  })
+  handle(sessionChannels.unsubscribe, async (event, input) => {
+    const query = z.object({ sessionId: entityId, subscriptionId: entityId }).strict().parse(input)
+    coordinator.unsubscribe(owner(event), query.sessionId, query.subscriptionId)
+  })
+  return {
+    attach(contents: WebContents): void {
+      const reset = () => {
+        const identity = owners.get(contents)
+        if (identity) coordinator.removeOwner(identity)
+        owners.set(contents, randomUUID())
+      }
+      reset()
+      contents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
+        if (mainFrame && !inPlace) reset()
+      })
+      contents.once('destroyed', () => {
+        const identity = owners.get(contents)
+        if (identity) coordinator.removeOwner(identity)
+        owners.delete(contents)
+      })
+    },
+  }
+}

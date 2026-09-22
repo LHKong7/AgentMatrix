@@ -1,0 +1,73 @@
+# DeepSeek Harness runtime and desktop sessions
+
+AgentMatrix now runs **DSH 0.1.5-rc.2 over ACP** from saved profiles. The production desktop factory, runtime, coordinator, and journal pass two installed-CLI fixtures on macOS arm64: the generic `dsh-llm-pi-ai` route and the separate `dsh-llm-deepseek` route. The full Electron lifecycle fixture also passes both routes in English and Chinese, with separate records. DSH remains labeled experimental.
+
+## Launch and native readback
+
+The explicit installation check records the CLI release and enables ACP only for the pinned version. Creating a session captures the [managed composition](dsh-configuration.md), shared assets, source observations, and secret references. Each session owns its DSH home and mutable native history. The runtime verifies the executable release and exact native composition dump before starting the ACP process.
+
+The ACP component identifies itself as `deepseek-harness-acp` version **0.0.1**. This is checked separately from the CLI release. Session creation or restoration must acknowledge a valid native UUID and report the selected model route. In this pinned artifact the opaque model selector encodes a JSON tuple containing the complete provider/model pair. The adapter validates that tuple and passes the native selector back unchanged. It checks native DeepSeek reasoning when advertised. Source/input integrity, private-home controls, and the selected model are checked before Ready and before each turn. Unexpected model-option updates close the attachment.
+
+ACP exposes no effective permission-policy readback in this release. The application verifies the captured policy components and their immutable controls; native ask/deny enforcement is supported by the separate configuration fixture and the runtime approval fixture. The model selector does not prove an OS sandbox, arbitrary plugin safety, or complete effective configuration. Component startup can execute code independently of model-tool dispatch. Native MCP/Skill component inspection and invocation evidence remain in the configuration adapter record.
+
+## Turns, permissions, and failure
+
+- ACP emits committed assistant/reasoning messages and tool lifecycle updates. Provider token deltas are not forwarded while an incomplete response is still streaming. The desktop hint makes this behavior explicit.
+- Tool calls and native permission requests use the shared journal and correlated interaction contract. A reply is durable before it reaches DSH; missing, expired, or cancelled controls never grant permission.
+- Cancelling during input checks prevents later prompt submission. Once submitted, cancellation waits for the native terminal response; the coordinator escalates an unresponsive cancellation to owned-process cleanup.
+- Provider rejection is a failed runtime operation. The coordinator records failure and closes the attachment. It is not converted into a successful turn or an idle Ready state.
+- DSH's `usage_update` describes context occupancy. It is not interpreted as billed input/output tokens or cost. This adapter leaves billing usage unknown; it does not currently render a separate context-occupancy meter.
+- Application output and journals redact known injected credentials, including credentials split across provider chunks. Native engine history remains outside this redaction guarantee.
+
+## Persistence and recovery
+
+The application journal supplies visible history after renderer reload or process restart. DSH resume restores the exact native ID in the same captured home and working directory; it does not replay historical messages over ACP. AgentMatrix neither resubmits journaled messages nor creates a replacement conversation when restoration fails. Native restoration retains the prior file-tool result, verified in both routes.
+
+Editing shared Prompt assets affects newly captured sessions. Existing sessions and resumed conversations retain their original inputs. App quit waits for process cleanup and marks sessions interrupted. The explicit Close action ends the application conversation after cleanup; durable native state is retained with its run inputs.
+
+DSH cards, terminal interaction, elicitation, forks, native transcript replay, SDK parity, and general bundle patch import are outside this adapter's accepted runtime surface. The UI exposes the supported ACP profile and diagnoses incompatible templates/settings at launch. Explicitly selected installed modules now have [native boot and plugin lifecycle checks](dsh-plugin-activation.md), including per-instance JSON configuration. The runtime waits for native boot before creating/restoring the ACP session and checks active fibers and current-session identity before Ready, around turns, and on resume. This addresses the startup race established by the [installed plugin contract](dsh-plugin-contract.md); it does not verify arbitrary plugin behavior.
+
+## Verification
+
+```sh
+AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh \
+AGENT_MATRIX_DSH_RUNTIME_REPORT=/absolute/path/to/runtime-report \
+npx vitest run --config vitest.dsh.config.ts tests/dsh-runtime-installed.probe.ts --maxWorkers=1
+
+AGENT_MATRIX_SESSION_ENGINE=dsh \
+AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh \
+AGENT_MATRIX_SESSION_REPORT=/absolute/path/to/desktop-report.json \
+npm run test:sessions
+```
+
+The desktop fixture defaults to `AGENT_MATRIX_DSH_ROUTE=pi-ai`. Set `AGENT_MATRIX_DSH_ROUTE=deepseek-native` to select `dsh-llm-deepseek` with the shared `deepseek-official` protocol. A route option for another engine, or an unknown DSH route, is rejected before creating fixture resources. Run the two routes sequentially; each report identifies its actual component and protocol.
+
+```sh
+AGENT_MATRIX_SESSION_ENGINE=dsh \
+AGENT_MATRIX_DSH_ROUTE=deepseek-native \
+AGENT_MATRIX_TEST_DSH=/absolute/path/to/dsh \
+AGENT_MATRIX_SESSION_REPORT=/absolute/path/to/native-desktop-report.json \
+npm run test:sessions
+```
+
+The optional runtime report prefix produces `.pi-ai.json` and `.deepseek-native.json`. The [generic runtime record](probes/2026-09-18-dsh-runtime-pi-ai.json) and [native DeepSeek runtime record](probes/2026-09-18-dsh-runtime-deepseek-native.json) cover desktop-factory capture and connection, version/model checks, committed messages/tools, permission replies, both cancellation paths, command deduplication, split-key redaction, restart/resume with tool context, no transcript duplication, provider rejection, and unknown billing usage. Deterministic tests cover version/route drift, malformed native IDs, failed restoration, changed controls/sources, cancellation during preflight, terminal-response ordering, timeouts, and owner shutdown.
+
+The [Electron record](probes/2026-09-18-dsh-desktop-sessions.json) covers installation probing, profile launch, native tools and approvals, literal rendering of HTML-like output, renderer reload without another request, cancellation, shared-Prompt edits with old/new inputs, app quit/restart, native resume, Close, bilingual controls, and journal redaction. All fixtures use synthetic credentials and isolated local HTTP providers. No external model service is called.
+
+The later [plugin desktop result](probes/2026-09-18-dsh-plugin-desktop.json) additionally verifies selected native modules, bilingual options editing, native system sections reaching the local provider, activation reports, and fresh checks on native resume. Separate [activation fixtures](dsh-plugin-activation.md) pass both provider routes.
+
+### Full desktop checks for both provider routes
+
+The **2026-09-19** [two-route verification record](probes/2026-09-19-dsh-desktop-routes.json) links fresh full lifecycle results for [native DeepSeek](probes/2026-09-19-dsh-desktop-deepseek-native.json) and [Pi-AI](probes/2026-09-19-dsh-desktop-pi-ai.json). Both use DSH 0.1.5-rc.2 on macOS arm64 with a local synthetic provider and `fixture-model`. The test selects a route before saving the workspace, verifies the resulting capture's protocol identity, and exercises the same complete desktop flow rather than substituting a shorter imported turn.
+
+The native route uses `deepseek-official`, no unsupported custom provider headers, and explicit `high` reasoning. Primary HTTP requests must target `/v1/chat/completions` with `thinking.type=enabled` and `reasoning_effort=high`; the fixture supplies a reasoning delta and confirms its marker enters application history. English/Chinese reports require the matching native reasoning receipt and value. Pi-AI keeps reasoning off and its native reasoning observation unknown. The runtime's existing native provider/model-selector and composition checks remain required before Ready. These assertions verify configuration and protocol behavior, not a real model's reasoning quality.
+
+Each route passes installation probing, draft rejection, directory selection including Unicode/spaces, tools and permissions, streaming/permission cancellation, renderer reload without resubmission, captured Prompt revisions, plugin options/activation, source-change rejection, Skill registry evidence and MCP initialization reports. Quit/restart and a main-process `SIGKILL` both preserve recoverable history; the crash fixture requires four owned groups to disappear and the provider stream to close. Explicit resume restores the original native ID and snapshot. Full history pagination, bounded JSONL export, confirmed close, reference-aware retention and unused-data cleanup also pass. MCP initialization remains separate from live connectivity and tool execution.
+
+The native-route English/Chinese configuration report screenshots were visually inspected. TypeScript, production build, script lint and formatting checks pass. Application runtime/UI code is unchanged in this increment, so the preceding 923-test unit run remains separate evidence; the two new Electron runs test the extended fixture. The [acceptance checklist](three-engine-acceptance.md) now marks local DSH desktop lifecycle coverage for both routes. Credential rotation on the native route, the full X3 audit and external-service acceptance remain separate work.
+
+This implements the local D2/D3 runtime and desktop path. It does not pass D4: intended external endpoint/model/auth acceptance, remaining effective-configuration evidence and the full X3 audit remain open. Local Streamable HTTP MCP has separate [both-route evidence](http-mcp-acceptance.md); external MCP services and platform coverage beyond macOS remain unverified. General native-plugin installation remains outside the initial milestone.
+
+The [combined shared-asset desktop fixture](shared-asset-acceptance.md) additionally verifies one Prompt and one directory Skill across all three engines, including edits during active turns, old/new versions, bilingual reports, and native restoration after source deletion. Its local-provider result does not establish external-service acceptance.
+
+New captures with bound Skills also install the [session-scoped source observer](dsh-skill-sources.md). Ready and turn boundaries require its fresh process/session receipt. The observer is independent of selected native plugins; legacy captures without it retain their previous behavior and cannot report verified Skill sources.

@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-19",
+  "platform": "darwin-arm64",
+  "passed": true,
+  "engine": "Pi 0.85.1",
+  "locales": ["en", "zh-CN"],
+  "readOnlyPreview": true,
+  "staleSourceRejected": true,
+  "exactEncryptedArchive": true,
+  "importedCredentials": 3,
+  "sourceFiles": 5,
+  "storedAuthPrecedence": true,
+  "replacementAndAppend": true,
+  "escapedAndEnvironmentHeaders": true,
+  "commandsNotExecuted": true,
+  "restartAndIdempotentRetry": true,
+  "importedNativeTurn": true,
+  "primaryRequests": 1,
+  "externalProvider": false
+}

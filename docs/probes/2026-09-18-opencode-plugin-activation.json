@@ -1,0 +1,49 @@
+{
+  "checkedAt": "2026-09-17T22:50:55.755Z",
+  "engine": "opencode",
+  "engineVersion": "1.18.16",
+  "platform": "darwin",
+  "arch": "arm64",
+  "selectedBindings": ["legacy", "v1"],
+  "observed": [
+    {
+      "stage": "new",
+      "checks": [
+        "inputs.integrity",
+        "sources.unchanged",
+        "cli.version",
+        "opencode.config",
+        "opencode.session-model",
+        "opencode.session-agent",
+        "opencode.plugins"
+      ]
+    },
+    {
+      "stage": "resume",
+      "checks": [
+        "inputs.integrity",
+        "sources.unchanged",
+        "cli.version",
+        "opencode.config",
+        "opencode.session-model",
+        "opencode.session-agent",
+        "opencode.plugins"
+      ]
+    }
+  ],
+  "hookOrderByAttachment": [
+    ["alpha", "beta", "v1", "alpha", "beta", "v1"],
+    ["alpha", "beta", "v1"]
+  ],
+  "rejected": [
+    "pure",
+    "import",
+    "init",
+    "config",
+    "missing-dependency",
+    "wrong-id",
+    "changed-entry-on-resume"
+  ],
+  "provider": "local synthetic HTTP fixture",
+  "sourceCoverage": "entry and adjacent package only; transitive dependencies not captured"
+}

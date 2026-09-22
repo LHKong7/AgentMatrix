@@ -1,0 +1,87 @@
+{
+  "checkedAt": "2026-09-19T13:39:14.841216Z",
+  "sourceRevision": "88ab67415f917b7e0ba6e68dc818d446afea6c50",
+  "productionSourceChanges": false,
+  "testHarnessChange": "Desktop reports additionally record executable, service, protocol, model and provider component.",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "commands": [
+    {
+      "command": "npm run lint",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "npx vitest run --maxWorkers=2 --reporter=default --reporter=json --outputFile=/private/tmp/agentmatrix-x2-unit.json",
+      "exitCode": 0
+    },
+    {
+      "command": "node --experimental-strip-types scripts/session-smoke.mjs",
+      "execution": "Sequential OpenCode, Pi and DSH runs; each selects AGENT_MATRIX_SESSION_ENGINE, its explicit AGENT_MATRIX_TEST_<ENGINE> and AGENT_MATRIX_SESSION_REPORT.",
+      "exitCodes": [0, 0, 0]
+    }
+  ],
+  "unitTests": {
+    "passed": 923,
+    "failed": 0,
+    "skipped": 0,
+    "files": 61,
+    "maxWorkers": 2,
+    "startedAt": "2026-09-19T13:34:01.844000Z"
+  },
+  "desktopRuns": [
+    {
+      "engine": "opencode",
+      "report": "2026-09-19-acceptance-opencode-desktop.json",
+      "checkedAt": "2026-09-19T13:35:53.344Z",
+      "executable": "~/.opencode/bin/opencode",
+      "version": "1.18.16",
+      "protocol": "openai-chat-completions",
+      "providerComponent": "Engine-native provider",
+      "model": "fixture-model",
+      "sha256": "d0a99a0a409dbc30b3a54cc513e4a9cb2ab3c7992853c195a669875a74377670",
+      "exitCode": 0
+    },
+    {
+      "engine": "pi",
+      "report": "2026-09-19-acceptance-pi-desktop.json",
+      "checkedAt": "2026-09-19T13:36:47.938Z",
+      "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi",
+      "version": "0.85.1",
+      "protocol": "openai-chat-completions",
+      "providerComponent": "Engine-native provider",
+      "model": "fixture-model",
+      "sha256": "613853c208ce03e580906c7d7f3ad9880cb78af59e47321b9fa3a3d83f634aff",
+      "exitCode": 0
+    },
+    {
+      "engine": "dsh",
+      "report": "2026-09-19-acceptance-dsh-desktop.json",
+      "checkedAt": "2026-09-19T13:38:35.889Z",
+      "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+      "version": "0.1.5-rc.2",
+      "protocol": "openai-chat-completions",
+      "providerComponent": "dsh-llm-pi-ai",
+      "model": "fixture-model",
+      "sha256": "300955d161db88857c3e25c97000ce44c62a58e7118407e817db2f9117bee35f",
+      "exitCode": 0
+    }
+  ],
+  "nativeSuitesOverlapped": false,
+  "externalProviderCalls": false,
+  "newVisualScreenshotReview": false,
+  "auxiliaryNativeFixturesRerun": false,
+  "checklist": "../three-engine-acceptance.md",
+  "deliveryGatesPromoted": [],
+  "remaining": [
+    "Intended external provider acceptance",
+    "DSH native DeepSeek full desktop lifecycle parity",
+    "Full X3 data-boundary audit",
+    "Remaining native precedence and Skill behavior evidence",
+    "OpenCode OAuth acceptance if claimed",
+    "Separate foundation gate decision"
+  ]
+}

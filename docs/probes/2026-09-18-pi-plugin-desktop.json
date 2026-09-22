@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-09-17T23:09:00.807Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "pi",
+  "version": "0.85.1",
+  "route": "Local Chat Completions protocol fixture",
+  "externalProviderCalls": false,
+  "desktopVersionProbe": true,
+  "configurationPreflight": {
+    "blockedBeforeCapture": true,
+    "startDisabled": true,
+    "draftStillEditable": true,
+    "capabilityDimensions": true,
+    "englishAndChinese": true
+  },
+  "profileToSession": true,
+  "workingDirectory": {
+    "typedAndNativeChooser": true,
+    "invalidAndMissingPathsRejected": true,
+    "chooserCancellationPreservesSelection": true,
+    "profileSwitchResetsOverride": true,
+    "savedDefaultUnchanged": true,
+    "relativeFileReadInSelectedDirectory": true,
+    "unicodeAndSpaces": true,
+    "capturedDirectoryOnNativeResume": true,
+    "englishAndChinese": true
+  },
+  "permissionReply": "unsupported: no universal per-tool approval",
+  "toolResult": true,
+  "rendererReloadWithoutResubmit": true,
+  "selectedPluginActivation": {
+    "capturedBinding": true,
+    "nativeHookReachedProvider": true,
+    "newAndResumedInstanceVerified": true,
+    "englishAndChineseReport": true,
+    "extensionCommandsAndInputHandling": true
+  },
+  "streamingCancellation": true,
+  "messageDelivery": "Streaming text",
+  "configurationReport": {
+    "nativeEvidence": true,
+    "persistedAfterRestart": true,
+    "pendingAssetVersions": true,
+    "englishAndChinese": true,
+    "sensitiveValuesOmitted": true
+  },
+  "permissionCancellation": "unsupported: no universal per-tool approval",
+  "sharedPromptOldAndNewSnapshots": true,
+  "libraryImpact": {
+    "beforeSave": true,
+    "unchangedAfterRevert": true,
+    "retainedAndProposedVersions": true,
+    "alreadyPending": true,
+    "noWorkspaceOrSessionWrites": true,
+    "englishAndChinese": true
+  },
+  "appQuitAndRestart": true,
+  "nativeResume": true,
+  "confirmedClose": true,
+  "sessionHistory": {
+    "nativeEventsReadOnly": true,
+    "syntheticLongHistoryPagination": true,
+    "completeJsonlExport": true,
+    "selectedBoundary": true,
+    "exportCancellation": true,
+    "existingRedactionPreserved": true,
+    "reloadWithoutExecution": true,
+    "englishAndChinese": true
+  },
+  "englishAndChinese": true,
+  "journalCredentialRedaction": true,
+  "untrustedTextEscaped": true
+}

@@ -1,0 +1,123 @@
+{
+  "checkedAt": "2026-09-19T14:38:06.353Z",
+  "sourceRevision": "9bdf4b7af3745b7dbb9adbd8646d187119e38e83",
+  "productionSourceChanges": false,
+  "sourceSha256": {
+    "tests/run-isolation-installed.probe.ts": "f84e03f46149da331e5d57f0a884b790014aa8bbb55a3ff9f29f6ecf86880298",
+    "vitest.isolation.config.ts": "e1c5bc9d9b0e3d33f48b6ad657fcf0ef741f292268af78bb14f8dba917103765",
+    "package.json": "34447b2ee7d4b3ee0068095b2e6e0c64fdb9abbb8e6f3c3475b286eae09daa48"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "validation": {
+    "native": {
+      "command": "AGENT_MATRIX_TEST_OPENCODE=/Users/linghankong/.opencode/bin/opencode AGENT_MATRIX_TEST_PI=/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi AGENT_MATRIX_TEST_DSH=/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh AGENT_MATRIX_ISOLATION_REPORT=/private/tmp/agentmatrix-run-isolation npx vitest run --config vitest.isolation.config.ts --maxWorkers=1",
+      "exitCode": 0,
+      "cases": 4,
+      "skippedCases": 0,
+      "workers": 1,
+      "sequentialCases": true,
+      "simultaneousAttachmentsPerCase": 2,
+      "overlappingNativeSuites": false,
+      "rebuildDuringRun": false,
+      "totalTurns": 24,
+      "primaryRequests": 72,
+      "reports": [
+        {
+          "path": "docs/probes/2026-09-19-run-isolation-opencode.json",
+          "sha256": "b2916e038a19b3bbfb11ee7b387ec60d91f6e296e9fb4e15043e877cc285674e",
+          "route": "opencode",
+          "version": "1.18.16",
+          "executable": "~/.opencode/bin/opencode",
+          "checkedAt": "2026-09-19T14:33:53.820Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "openai-chat-completions",
+          "models": ["isolation-A", "isolation-B"],
+          "primaryRequests": 18,
+          "nativeToolCredentialPolicy": "selected-only"
+        },
+        {
+          "path": "docs/probes/2026-09-19-run-isolation-pi.json",
+          "sha256": "aeaf014b8031340d54c9d830742e6454a99771017b61a707abb845e5b495654b",
+          "route": "pi",
+          "version": "0.85.1",
+          "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi",
+          "checkedAt": "2026-09-19T14:33:56.684Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "openai-chat-completions",
+          "models": ["isolation-A", "isolation-B"],
+          "primaryRequests": 18,
+          "nativeToolCredentialPolicy": "selected-only"
+        },
+        {
+          "path": "docs/probes/2026-09-19-run-isolation-dsh-pi-ai.json",
+          "sha256": "f6c95e52fcfba1412ed6c73004976886fe83893da0434c00961d221df6dc1a19",
+          "route": "dsh-pi-ai",
+          "version": "0.1.5-rc.2",
+          "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+          "checkedAt": "2026-09-19T14:34:04.218Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "openai-chat-completions",
+          "models": ["isolation-A", "isolation-B"],
+          "primaryRequests": 18,
+          "nativeToolCredentialPolicy": "scrubbed"
+        },
+        {
+          "path": "docs/probes/2026-09-19-run-isolation-dsh-native.json",
+          "sha256": "4519b7a2ed41c89d88820d8ff37367c480c80067d24b86b9dee2225992ea7d10",
+          "route": "dsh-native",
+          "version": "0.1.5-rc.2",
+          "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+          "checkedAt": "2026-09-19T14:34:10.852Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "deepseek-official",
+          "models": ["isolation-A", "isolation-B"],
+          "primaryRequests": 18,
+          "nativeToolCredentialPolicy": "scrubbed"
+        }
+      ]
+    },
+    "lint": {
+      "command": "npm run lint",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    "fullUnitSuiteRerun": false,
+    "priorUnitEvidence": {
+      "report": "2026-09-19-launch-argument-boundary.json",
+      "tests": 976,
+      "files": 61
+    },
+    "productionBuildRerun": false,
+    "userInterfaceChanged": false
+  },
+  "nativeToolEnvironment": {
+    "dshSubprocessVersion": "0.1.5-rc.2",
+    "inspectedLocalSources": [
+      {
+        "path": "@deepseek-ai/dsh-subprocess/lib/index.js",
+        "sha256": "deb2d485fadbb28707aa5aa7fbca0fc89ddb247b5a32d71782f78a9bf258e766"
+      },
+      {
+        "path": "@deepseek-ai/dsh-terminal-bash/README.md",
+        "sha256": "42a1d742ee5ea122113f502e43c2e249e99b4008dad8cecb4cc7d7249d6580f7"
+      }
+    ],
+    "dsh": "Native bash children scrub credential-shaped inherited variables; provider requests still authenticate with the selected key.",
+    "openCodeAndPi": "Inspected native bash children inherit selected run credentials; sibling and unselected fixture credentials are absent.",
+    "correctedFixtureAssumptions": "DSH bash requires a description and scrubs selected credentials. Initial fixture assumptions were corrected from inspected pinned source; no production change was needed."
+  },
+  "encryption": "Test AES-GCM implementation of SecretCipher; OS storage is verified separately by the Electron credential-rotation fixture.",
+  "externalProviderCalls": false,
+  "deliveryGatesPromoted": [],
+  "remaining": [
+    "Complete X3 logging, preview and input-storage surface audit",
+    "Native plaintext transcripts and independently loaded secrets retain their documented limits",
+    "Different working directories are selected explicitly; this fixture creates no worktrees or OS sandbox",
+    "MCP and plugin-specific isolation require their separate evidence",
+    "External-provider, other-platform and packaged-application acceptance"
+  ]
+}

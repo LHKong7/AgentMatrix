@@ -1,0 +1,770 @@
+import { engineConfigurationIssues } from '../../../shared/engines/validation'
+import { EngineSupport } from './EngineSupport'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  FolderOpen,
+  LoaderCircle,
+  MessageSquare,
+  Plus,
+  RefreshCw,
+  Send,
+  Square,
+} from 'lucide-react'
+import { absolutePath } from '../../../shared/engines/schema'
+import type { EngineWorkspace } from '../../../shared/engines/workspace'
+import { resolveAgentProfile } from '../../../shared/engines/resolution'
+import type {
+  SessionCommand,
+  SessionSnapshot,
+  InteractionRequest,
+  SessionRemoval,
+} from '../../../shared/sessions/schema'
+import { formatError } from '../../../shared/errors'
+import { api } from '../lib/api'
+import { SessionFeed, emptySessionView } from '../lib/session-feed'
+import { Input, Select, Textarea } from './ui/input'
+import { useI18n } from '../i18n'
+import { ConfigurationReport } from './ConfigurationReport'
+import { ConfigurationFailureDetails } from './ConfigurationFailureDetails'
+import { Transcript } from './SessionTranscript'
+import { SessionHistory } from './SessionHistory'
+import { UnusedRunData } from './UnusedRunData'
+import { buttonVariants } from './ui/button'
+
+const selectedKey = 'agentmatrix.selected-session'
+type Response = Extract<SessionCommand, { kind: 'respond' }>['response']
+
+export function SessionsPanel({
+  workspace,
+  desktop,
+  platform,
+  initialAgent,
+  initialSession = null,
+}: {
+  workspace: EngineWorkspace
+  desktop: boolean
+  platform?: string
+  initialAgent: string | null
+  /** A conversation chosen in the session list opens directly in this panel. */
+  initialSession?: string | null
+}) {
+  const { t, locale } = useI18n()
+  const [agentId, setAgentId] = useState(initialAgent ?? workspace.agents[0]?.id ?? '')
+  const [directoryOverride, setDirectoryOverride] = useState<{
+    agentId: string
+    path: string
+  } | null>(null)
+  const [sessions, setSessions] = useState<SessionSnapshot[]>([])
+  const [pendingRemovals, setPendingRemovals] = useState<SessionRemoval[]>([])
+  const [selected, setSelected] = useState<string | null>(initialSession)
+  const [view, setView] = useState(emptySessionView)
+  const [message, setMessage] = useState('')
+  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [error, setError] = useState<unknown>(null)
+  const [busy, setBusy] = useState(false)
+  const [refresh, setRefresh] = useState(0)
+  const [showConfiguration, setShowConfiguration] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [showUnusedData, setShowUnusedData] = useState(false)
+  const locked = useRef(false)
+  const pendingMessage = useRef<string | null>(null)
+  const transcript = useRef<HTMLDivElement>(null)
+  const following = useRef(true)
+  const state = view.snapshot?.id === selected ? view.snapshot : null
+  const blocked = busy || view.loading || view.unavailable
+  const profile = workspace.agents.find((agent) => agent.id === agentId)
+  const hasDirectoryOverride = directoryOverride?.agentId === agentId
+  const cwd = hasDirectoryOverride ? directoryOverride.path : (profile?.execution.cwd ?? '')
+  const validDirectory = absolutePath.safeParse(cwd).success
+  const supported = ['opencode', 'pi', 'deepseek-harness'].includes(
+    workspace.installations.find((engine) => engine.id === profile?.engineInstallationId)?.kind ??
+      '',
+  )
+  const resolution = useMemo(
+    () =>
+      profile && validDirectory
+        ? resolveAgentProfile(
+            {
+              ...workspace,
+              agents: workspace.agents.map((agent) =>
+                agent.id === profile.id
+                  ? { ...agent, execution: { ...agent.execution, cwd } }
+                  : agent,
+              ),
+            },
+            profile.id,
+          )
+        : null,
+    [workspace, profile, cwd, validDirectory],
+  )
+  const engineIssues = useMemo(
+    () =>
+      resolution?.status === 'resolved'
+        ? engineConfigurationIssues(resolution.configuration, { platform })
+        : [],
+    [resolution, platform],
+  )
+
+  useEffect(() => {
+    let active = true,
+      polling = false
+    const load = async () => {
+      if (polling) return
+      polling = true
+      try {
+        const [values, pending] = await Promise.all([
+          api.sessions.list(),
+          api.sessions.pendingRemovals(),
+        ])
+        if (!active) return
+        setPendingRemovals(pending)
+        setSessions((previous) =>
+          values.map((value) => {
+            const old = previous.find((item) => item.id === value.id)
+            return old && old.cursor > value.cursor ? old : value
+          }),
+        )
+        setSelected((id) => {
+          if (id && values.some((item) => item.id === id)) return id
+          let saved: string | null = null
+          try {
+            saved = localStorage.getItem(selectedKey)
+          } catch {
+            /* Session selection is optional. */
+          }
+          return values.find((item) => item.id === saved)?.id ?? values[0]?.id ?? null
+        })
+      } catch (failure) {
+        if (active) setError(failure)
+      } finally {
+        polling = false
+      }
+    }
+    void load()
+    const timer = window.setInterval(() => void load(), 3000)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [refresh])
+  useEffect(() => {
+    if (!selected) return
+    try {
+      localStorage.setItem(selectedKey, selected)
+    } catch {
+      /* No conversation content is cached here. */
+    }
+    setView(emptySessionView())
+    following.current = true
+    setAnswers({})
+    const feed = new SessionFeed(api.sessions, selected, (next) => {
+      setView(next)
+      if (next.snapshot) {
+        const snapshot = next.snapshot
+        setSessions((values) => [snapshot, ...values.filter((item) => item.id !== snapshot.id)])
+        if (
+          pendingMessage.current &&
+          [snapshot.activeTurn?.messageId, snapshot.lastTurn?.messageId].includes(
+            pendingMessage.current,
+          )
+        ) {
+          pendingMessage.current = null
+          setMessage('')
+        }
+      }
+    })
+    void feed.start()
+    return () => feed.dispose()
+  }, [selected, refresh])
+  useEffect(() => {
+    if (following.current && transcript.current)
+      transcript.current.scrollTop = transcript.current.scrollHeight
+  }, [view.events, locale])
+
+  async function act(operation: () => Promise<unknown>) {
+    if (locked.current) return
+    locked.current = true
+    setBusy(true)
+    setError(null)
+    try {
+      await operation()
+    } catch (failure) {
+      setError(failure)
+    } finally {
+      locked.current = false
+      setBusy(false)
+    }
+  }
+  const command = (input: SessionCommand) =>
+    act(async () => {
+      const snapshot = await api.sessions.command(input)
+      setSessions((values) => [snapshot, ...values.filter((item) => item.id !== snapshot.id)])
+    })
+  const remove = (input: SessionRemoval) =>
+    act(async () => {
+      try {
+        await api.sessions.remove(input)
+        setSessions((values) => values.filter((item) => item.id !== input.sessionId))
+        setSelected((id) => (id === input.sessionId ? null : id))
+        setShowHistory(false)
+        setShowConfiguration(false)
+      } finally {
+        setRefresh((value) => value + 1)
+      }
+    })
+  const respond = (request: InteractionRequest, response: Response) => {
+    if (!state?.runId || !state.activeTurn) return
+    void command({
+      kind: 'respond',
+      commandId: crypto.randomUUID(),
+      sessionId: state.id,
+      runId: state.runId,
+      turnId: state.activeTurn.id,
+      requestId: request.id,
+      response,
+    })
+  }
+  const toolContext = (request: InteractionRequest) => {
+    if (request.kind !== 'permission' || !request.toolCallId) return null
+    const event = [...view.events]
+      .reverse()
+      .find(
+        (event) =>
+          event.turnId === state?.activeTurn?.id &&
+          event.data.kind === 'tool.updated' &&
+          event.data.toolCallId === request.toolCallId,
+      )
+    return event?.data.kind === 'tool.updated' ? event.data.content : null
+  }
+  return (
+    <>
+      {showHistory && state && (
+        <SessionHistory key={state.id} session={state} onClose={() => setShowHistory(false)} />
+      )}
+      {showConfiguration && state && (
+        <ConfigurationReport
+          key={state.id}
+          session={state}
+          workspaceRevision={workspace.revision}
+          onClose={() => setShowConfiguration(false)}
+        />
+      )}
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+            <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
+            AgentMatrix
+          </div>
+          <h1>{t('nav.sessions')}</h1>
+          <p>{t('sessions.description')}</p>
+        </div>
+        <button
+          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          onClick={() => {
+            setError(null)
+            setRefresh((value) => value + 1)
+          }}
+        >
+          <RefreshCw size={16} />
+          {t('sessions.refresh')}
+        </button>
+      </div>
+      <section className="mb-5 flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4">
+        <label className="grid min-w-60 gap-2 text-xs font-medium">
+          {t('sessions.agent')}
+          <Select
+            value={agentId}
+            aria-label={t('sessions.agent')}
+            disabled={busy}
+            onChange={(event) => {
+              setAgentId(event.target.value)
+              setDirectoryOverride(null)
+              setError(null)
+            }}
+          >
+            <option value="">{t('sessions.choose')}</option>
+            {workspace.agents.map((agent) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name}
+              </option>
+            ))}
+          </Select>
+        </label>
+        <div className="flex min-w-0 flex-1 basis-full flex-wrap items-end gap-3">
+          <label className="grid min-w-60 gap-2 text-xs font-medium min-w-0 flex-1">
+            {t('sessions.directory')}
+            <Input
+              value={cwd}
+              onChange={(event) => {
+                setDirectoryOverride({ agentId, path: event.target.value })
+                setError(null)
+              }}
+              placeholder={t('sessions.directoryPlaceholder')}
+              disabled={busy || !profile}
+              maxLength={4000}
+              autoComplete="off"
+              spellCheck={false}
+              aria-invalid={Boolean(profile && !validDirectory)}
+              aria-describedby="session-directory-hint"
+            />
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              disabled={!desktop || busy || !profile}
+              onClick={() =>
+                void act(async () => {
+                  const path = await api.chooseWorkingDirectory(
+                    validDirectory ? { defaultPath: cwd } : {},
+                  )
+                  if (path !== null) setDirectoryOverride({ agentId, path })
+                })
+              }
+            >
+              <FolderOpen size={16} />
+              {t('sessions.browseDirectory')}
+            </button>
+            {hasDirectoryOverride && (
+              <button
+                className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                disabled={busy}
+                onClick={() => {
+                  setDirectoryOverride(null)
+                  setError(null)
+                }}
+              >
+                {t('sessions.defaultDirectory')}
+              </button>
+            )}
+          </div>
+        </div>
+        <button
+          className={buttonVariants()}
+          disabled={
+            !desktop ||
+            busy ||
+            !profile?.enabled ||
+            !supported ||
+            resolution?.status !== 'resolved' ||
+            engineIssues.length > 0
+          }
+          onClick={() =>
+            void act(async () => {
+              const created = await api.sessions.command({
+                kind: 'create',
+                commandId: crypto.randomUUID(),
+                agentId,
+                ...(hasDirectoryOverride ? { cwd } : {}),
+              })
+              setSessions((values) => [created, ...values])
+              setSelected(created.id)
+              await api.sessions.command({
+                kind: 'start',
+                commandId: crypto.randomUUID(),
+                sessionId: created.id,
+              })
+            })
+          }
+        >
+          <Plus size={16} />
+          {t('sessions.new')}
+        </button>
+        <p className="text-xs leading-relaxed text-muted-foreground" id="session-directory-hint">
+          {t('sessions.directoryHint')}
+        </p>
+        {profile && !validDirectory && (
+          <p className="grid basis-full gap-1 text-xs text-warning" role="status">
+            {t('error.runtimeCwd')}
+          </p>
+        )}
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          {desktop ? t('sessions.support') : t('error.runtimeDesktopOnly')}
+        </p>
+        {resolution?.status === 'resolved' && (
+          <EngineSupport configuration={resolution.configuration} platform={platform} />
+        )}
+        {resolution?.status === 'invalid' && (
+          <div className="grid basis-full gap-1 text-xs text-warning">
+            {resolution.issues.map((issue, index) => (
+              <span key={index}>{t(`resolution.${issue.code}`)}</span>
+            ))}
+            <span>{t('sessions.probeHint')}</span>
+          </div>
+        )}
+      </section>
+      {(error != null || view.error != null) && (
+        <div
+          className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive"
+          role="alert"
+        >
+          {formatError(error ?? view.error, locale)}
+        </div>
+      )}
+      {pendingRemovals.length > 0 && (
+        <div className="grid basis-full gap-1 text-xs text-warning" role="status">
+          <p>{t('sessions.removalPending', { count: pendingRemovals.length })}</p>
+          <button
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            disabled={busy}
+            onClick={() =>
+              void act(async () => {
+                const results = await Promise.allSettled(
+                  pendingRemovals.map((item) => api.sessions.remove(item)),
+                )
+                setRefresh((value) => value + 1)
+                const failure = results.find((result) => result.status === 'rejected')
+                if (failure?.status === 'rejected') throw failure.reason
+              })
+            }
+          >
+            {t('sessions.retryRemoval')}
+          </button>
+        </div>
+      )}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(11rem,15rem)_minmax(0,1fr)]">
+        <aside
+          className="grid max-h-[70vh] gap-1.5 overflow-y-auto pr-1"
+          aria-label={t('nav.sessions')}
+        >
+          <button
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            disabled={!desktop || busy}
+            onClick={() => setShowUnusedData(true)}
+          >
+            {t('runData.title')}
+          </button>
+          {!sessions.length && <p>{t('sessions.empty')}</p>}
+          {sessions.map((session) => (
+            <button
+              key={session.id}
+              data-session-list-id={session.id}
+              className={selected === session.id ? 'selected' : ''}
+              onClick={() => {
+                setSelected(session.id)
+                setError(null)
+                setMessage('')
+              }}
+            >
+              <MessageSquare size={16} />
+              <span>
+                <strong>
+                  {workspace.agents.find((agent) => agent.id === session.agentId)?.name ??
+                    session.agentId}
+                </strong>
+                <small>
+                  {t(`sessions.status.${session.status}`)} ·{' '}
+                  {new Date(session.createdAt).toLocaleString(locale)}
+                </small>
+              </span>
+            </button>
+          ))}
+        </aside>
+        <section
+          className="conversation flex min-h-[28rem] flex-col gap-3 rounded-xl border border-border bg-card p-4"
+          aria-label={t('sessions.message')}
+          data-session-id={state?.id}
+        >
+          {!selected ? (
+            <p className="grid justify-items-center gap-2 rounded-xl border border-dashed border-border px-6 py-16 text-center">
+              {t('sessions.select')}
+            </p>
+          ) : !state ? (
+            <div className="grid justify-items-center gap-3 py-16 text-sm text-muted-foreground">
+              {view.loading && <LoaderCircle className="animate-spin" size={22} />}
+              {t(view.loading ? 'common.loading' : 'common.loadFailed')}
+            </div>
+          ) : (
+            <>
+              <div className="conversation-header flex flex-wrap items-start justify-between gap-3 border-b border-border pb-3">
+                <div>
+                  <strong data-testid="session-status">
+                    {t(`sessions.status.${state.status}`)}
+                  </strong>
+                  <small>
+                    {state.engineVersion} · {state.mode} · {state.cwd}
+                  </small>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    disabled={blocked}
+                    onClick={() => setShowHistory(true)}
+                  >
+                    {t('history.title')}
+                  </button>
+                  <button
+                    className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                    disabled={blocked}
+                    onClick={() => setShowConfiguration(true)}
+                  >
+                    {t('report.title')}
+                  </button>
+                  {state.status === 'created' && (
+                    <button
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                      disabled={blocked}
+                      onClick={() =>
+                        void command({
+                          kind: 'start',
+                          commandId: crypto.randomUUID(),
+                          sessionId: state.id,
+                        })
+                      }
+                    >
+                      {t('sessions.start')}
+                    </button>
+                  )}
+                  {['failed', 'interrupted'].includes(state.status) &&
+                    state.nativeSessionId &&
+                    state.runId && (
+                      <button
+                        className={buttonVariants()}
+                        disabled={blocked}
+                        title={t('sessions.resumeHint')}
+                        onClick={() =>
+                          void command({
+                            kind: 'resume',
+                            commandId: crypto.randomUUID(),
+                            sessionId: state.id,
+                            previousRunId: state.runId!,
+                          })
+                        }
+                      >
+                        {t('sessions.resume')}
+                      </button>
+                    )}
+                  {state.activeTurn &&
+                    state.runId &&
+                    ['running', 'waiting'].includes(state.status) && (
+                      <button
+                        className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                        disabled={blocked}
+                        onClick={() =>
+                          void command({
+                            kind: 'cancel',
+                            commandId: crypto.randomUUID(),
+                            sessionId: state.id,
+                            runId: state.runId!,
+                            turnId: state.activeTurn!.id,
+                          })
+                        }
+                      >
+                        <Square size={14} />
+                        {t('sessions.cancel')}
+                      </button>
+                    )}
+                  {!['closed', 'closing'].includes(state.status) && (
+                    <button
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                      disabled={blocked}
+                      onClick={() =>
+                        void command({
+                          kind: 'close',
+                          commandId: crypto.randomUUID(),
+                          sessionId: state.id,
+                          runId: state.runId,
+                        })
+                      }
+                    >
+                      {t('sessions.close')}
+                    </button>
+                  )}
+                  {state.status === 'closed' && (
+                    <button
+                      className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                      disabled={blocked}
+                      onClick={() => {
+                        if (window.confirm(t('sessions.removeConfirm')))
+                          void remove({ sessionId: state.id, expectedCursor: state.cursor })
+                      }}
+                    >
+                      {t('sessions.remove')}
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground px-4 py-3">
+                {t('sessions.captured')}
+              </p>
+              {state.failure && (
+                <div
+                  className="rounded-lg border border-destructive/35 bg-destructive/10 px-4 py-3 text-xs leading-relaxed text-destructive block"
+                  role="status"
+                >
+                  {t(`sessions.failure.${state.failure.code}`)}
+                  {state.failure.code === 'configuration' && (
+                    <ConfigurationFailureDetails diagnostic={state.failure.configuration} />
+                  )}
+                </div>
+              )}
+              <div
+                className="transcript grid max-h-[46vh] content-start gap-3 overflow-y-auto rounded-lg border border-border bg-surface p-3"
+                aria-label={t('nav.sessions')}
+                ref={transcript}
+                onScroll={(event) => {
+                  const node = event.currentTarget
+                  following.current = node.scrollHeight - node.scrollTop - node.clientHeight < 48
+                }}
+              >
+                {view.truncated && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {t('sessions.historyLimit', { count: view.events.length })}{' '}
+                    <button
+                      className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                      disabled={blocked}
+                      onClick={() => setShowHistory(true)}
+                    >
+                      {t('history.title')}
+                    </button>
+                  </p>
+                )}
+                <Transcript events={view.events} />
+              </div>
+              {state.pendingRequests.map((request) => (
+                <section
+                  className="permission-card grid gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs"
+                  key={request.id}
+                >
+                  <strong>
+                    {t('sessions.permission')}: {request.title}
+                  </strong>
+                  {request.deadlineAt && (
+                    <small>
+                      {t('sessions.deadline', {
+                        time: new Date(request.deadlineAt).toLocaleTimeString(locale),
+                      })}
+                    </small>
+                  )}
+                  {toolContext(request) && (
+                    <pre className="max-h-40 overflow-auto rounded-md bg-muted p-2 text-[11px]">
+                      {toolContext(request)}
+                    </pre>
+                  )}
+                  <fieldset
+                    disabled={
+                      blocked ||
+                      Boolean(request.deadlineAt && Date.parse(request.deadlineAt) <= Date.now())
+                    }
+                  >
+                    {(request.kind === 'permission' || request.kind === 'select') &&
+                      request.options.map((option) => (
+                        <button
+                          key={option.id}
+                          className={buttonVariants({
+                            variant: 'outline',
+                            size: 'sm',
+                            className: 'h-auto flex-col items-start gap-0.5 py-2 text-left',
+                          })}
+                          onClick={() => respond(request, { kind: 'choice', optionId: option.id })}
+                        >
+                          {request.kind === 'permission' && 'kind' in option
+                            ? t(`sessions.permission.${option.kind}`)
+                            : option.label}
+                          <small className="text-[10px] font-normal text-muted-foreground">
+                            {request.kind === 'permission' ? option.label : ''}
+                          </small>
+                        </button>
+                      ))}
+                    {request.kind === 'confirm' && (
+                      <>
+                        <p>{request.message}</p>
+                        <button
+                          className={buttonVariants()}
+                          onClick={() => respond(request, { kind: 'confirm', accepted: true })}
+                        >
+                          {t('sessions.confirm')}
+                        </button>
+                        <button
+                          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                          onClick={() => respond(request, { kind: 'confirm', accepted: false })}
+                        >
+                          {t('sessions.reject')}
+                        </button>
+                      </>
+                    )}
+                    {request.kind === 'input' && (
+                      <>
+                        <p>{request.message}</p>
+                        <Textarea
+                          aria-label={request.title}
+                          placeholder={request.placeholder}
+                          rows={request.multiline ? 3 : 1}
+                          value={answers[request.id] ?? request.initialValue ?? ''}
+                          onChange={(event) =>
+                            setAnswers((values) => ({
+                              ...values,
+                              [request.id]: event.target.value,
+                            }))
+                          }
+                        />
+                        <button
+                          className={buttonVariants()}
+                          onClick={() =>
+                            respond(request, {
+                              kind: 'input',
+                              value: answers[request.id] ?? request.initialValue ?? '',
+                            })
+                          }
+                        >
+                          {t('sessions.respond')}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                      onClick={() => respond(request, { kind: 'cancelled' })}
+                    >
+                      {t('sessions.dismiss')}
+                    </button>
+                  </fieldset>
+                </section>
+              ))}
+              {state.status === 'ready' && (
+                <form
+                  className="grid gap-2 border-t border-border pt-3"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    if (!state.runId || state.status !== 'ready' || blocked || !message.trim())
+                      return
+                    const messageId = crypto.randomUUID()
+                    following.current = true
+                    pendingMessage.current = messageId
+                    void command({
+                      kind: 'send',
+                      commandId: crypto.randomUUID(),
+                      sessionId: state.id,
+                      runId: state.runId,
+                      messageId,
+                      text: message,
+                    })
+                  }}
+                >
+                  <label className="grid min-w-60 gap-2 text-xs font-medium">
+                    {t('sessions.message')}
+                    <Textarea
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      placeholder={t('sessions.placeholder')}
+                      maxLength={65_536}
+                      rows={3}
+                      disabled={view.unavailable}
+                    />
+                  </label>
+                  <button
+                    className={buttonVariants()}
+                    type="submit"
+                    disabled={blocked || state.status !== 'ready' || !message.trim()}
+                  >
+                    <Send size={16} />
+                    {t('sessions.send')}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+        </section>
+      </div>
+      {showUnusedData && <UnusedRunData onClose={() => setShowUnusedData(false)} />}
+    </>
+  )
+}

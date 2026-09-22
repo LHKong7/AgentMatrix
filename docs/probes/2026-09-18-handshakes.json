@@ -1,0 +1,217 @@
+{
+  "checkedAt": "2026-09-17T16:56:24.533Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "node": "v22.20.0",
+  "modelCalls": false,
+  "engines": {
+    "opencode": {
+      "executable": "<user-home>/.opencode/bin/opencode",
+      "version": "1.18.16",
+      "checks": {
+        "opencode": {
+          "args": ["acp", "--pure", "--cwd", "<isolated-probe-root>/opencode"],
+          "responses": [
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "result": {
+                "protocolVersion": 1,
+                "agentCapabilities": {
+                  "loadSession": true,
+                  "mcpCapabilities": {
+                    "http": true,
+                    "sse": true
+                  },
+                  "promptCapabilities": {
+                    "embeddedContext": true,
+                    "image": true
+                  },
+                  "sessionCapabilities": {
+                    "close": {},
+                    "fork": {},
+                    "list": {},
+                    "resume": {}
+                  }
+                },
+                "authMethods": [
+                  {
+                    "description": "Run `opencode auth login` in the terminal",
+                    "name": "Login with opencode",
+                    "id": "opencode-login"
+                  }
+                ],
+                "agentInfo": {
+                  "name": "OpenCode",
+                  "version": "1.18.16"
+                }
+              }
+            }
+          ],
+          "exit": {
+            "code": null,
+            "signal": "SIGTERM",
+            "stderr": ""
+          }
+        }
+      }
+    },
+    "pi": {
+      "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+      "version": "0.85.1",
+      "checks": {
+        "pi": {
+          "args": [
+            "--mode",
+            "rpc",
+            "--no-session",
+            "--no-extensions",
+            "--no-skills",
+            "--no-prompt-templates",
+            "--no-approve"
+          ],
+          "responses": [
+            {
+              "id": 1,
+              "type": "response",
+              "command": "get_state",
+              "success": true,
+              "data": {
+                "model": {
+                  "id": "unknown",
+                  "name": "unknown",
+                  "api": "unknown",
+                  "provider": "unknown",
+                  "baseUrl": "",
+                  "reasoning": false,
+                  "input": [],
+                  "cost": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0
+                  },
+                  "contextWindow": 0,
+                  "maxTokens": 0
+                },
+                "thinkingLevel": "off",
+                "isStreaming": false,
+                "isCompacting": false,
+                "steeringMode": "one-at-a-time",
+                "followUpMode": "one-at-a-time",
+                "sessionId": "01a0b04c-4f61-755d-a796-addbfbdf51d1",
+                "autoCompactionEnabled": true,
+                "messageCount": 0,
+                "pendingMessageCount": 0
+              }
+            },
+            {
+              "id": 2,
+              "type": "response",
+              "command": "new_session",
+              "success": true,
+              "data": {
+                "cancelled": false
+              }
+            },
+            {
+              "id": 3,
+              "type": "response",
+              "command": "abort",
+              "success": true
+            }
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null,
+            "stderr": ""
+          }
+        }
+      }
+    },
+    "dsh": {
+      "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/@deepseek-ai/dsh/lib/bin.js",
+      "version": "0.1.5-rc.2",
+      "checks": {
+        "sdk": {
+          "args": ["--profile", "sdk"],
+          "responses": [
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "result": {
+                "serverInfo": {
+                  "name": "deepseek-harness-sdk-runtime",
+                  "version": "0.0.1"
+                }
+              }
+            },
+            {
+              "jsonrpc": "2.0",
+              "id": 2,
+              "error": {
+                "code": -32603,
+                "message": "unknown DeepSeek Harness SDK runtime method: session/cancel"
+              }
+            },
+            {
+              "jsonrpc": "2.0",
+              "id": 3,
+              "error": {
+                "code": -32603,
+                "message": "unknown DeepSeek Harness SDK runtime method: session/resume"
+              }
+            },
+            {
+              "jsonrpc": "2.0",
+              "id": 4,
+              "result": {}
+            }
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null,
+            "stderr": ""
+          }
+        },
+        "acp": {
+          "args": ["--profile", "acp"],
+          "responses": [
+            {
+              "jsonrpc": "2.0",
+              "id": 1,
+              "result": {
+                "protocolVersion": 1,
+                "agentInfo": {
+                  "name": "deepseek-harness-acp",
+                  "version": "0.0.1"
+                },
+                "agentCapabilities": {
+                  "mcpCapabilities": {
+                    "http": true
+                  },
+                  "promptCapabilities": {
+                    "image": false,
+                    "audio": false,
+                    "embeddedContext": false
+                  },
+                  "sessionCapabilities": {
+                    "close": {},
+                    "list": {},
+                    "resume": {}
+                  }
+                },
+                "authMethods": []
+              }
+            }
+          ],
+          "exit": {
+            "code": 0,
+            "signal": null,
+            "stderr": ""
+          }
+        }
+      }
+    }
+  }
+}

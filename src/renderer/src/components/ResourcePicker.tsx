@@ -1,27 +1,42 @@
+import { useI18n } from '../i18n'
+import { Badge } from './ui/badge'
+import { Checkbox } from './ui/checkbox'
+
 export function ResourcePicker({
   title,
   items,
   selected,
   onChange,
+  hideTitle = false,
 }: {
   title: string
   items: { id: string; name: string; description: string; enabled: boolean }[]
   selected: string[]
   onChange: (ids: string[]) => void
+  /** The surrounding panel already names this group. */
+  hideTitle?: boolean
 }) {
+  const { t, number } = useI18n()
   return (
-    <section className="resource-picker">
-      <div className="section-heading">
-        <h3>{title}</h3>
-        <span>{selected.length} 个已选择</span>
+    <section className="mb-5 grid gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className={hideTitle ? 'sr-only' : undefined}>{title}</h3>
+        <span className="text-[11px] text-muted-foreground">
+          {t('picker.selected', { count: number(selected.length) })}
+        </span>
       </div>
       {items.length === 0 ? (
-        <p className="field-empty">资源库中还没有 {title}，可以先保存，再前往对应页面添加。</p>
+        <p className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground">
+          {t('picker.empty', { resource: title })}
+        </p>
       ) : (
         items.map((item) => (
-          <label className="selection-row" key={item.id}>
-            <input
-              type="checkbox"
+          <label
+            className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2 transition-colors hover:bg-accent/50"
+            key={item.id}
+          >
+            <Checkbox
+              className="mt-0.5"
               checked={selected.includes(item.id)}
               onChange={(event) =>
                 onChange(
@@ -31,11 +46,11 @@ export function ResourcePicker({
                 )
               }
             />
-            <span>
-              <strong>{item.name}</strong>
-              <small>{item.description || '未填写描述'}</small>
+            <span className="grid min-w-0 flex-1 gap-0.5">
+              <strong className="text-xs">{item.name}</strong>
+              <small>{item.description || t('common.noDescription')}</small>
             </span>
-            {!item.enabled && <span className="tag">已停用</span>}
+            {!item.enabled && <Badge variant="muted">{t('common.disabled')}</Badge>}
           </label>
         ))
       )}

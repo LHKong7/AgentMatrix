@@ -1,0 +1,86 @@
+{
+  "checkedAt": "2026-09-17T18:19:26.295Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "sdkVersion": "1.4.0",
+  "modelCalls": false,
+  "scope": "Application ACP initialization and owned process-group cleanup; no turns",
+  "engines": [
+    {
+      "kind": "opencode",
+      "executable": "<user-home>/.opencode/bin/opencode",
+      "response": {
+        "protocolVersion": 1,
+        "agentCapabilities": {
+          "loadSession": true,
+          "mcpCapabilities": {
+            "http": true,
+            "sse": true
+          },
+          "promptCapabilities": {
+            "embeddedContext": true,
+            "image": true
+          },
+          "sessionCapabilities": {
+            "close": {},
+            "fork": {},
+            "list": {},
+            "resume": {}
+          }
+        },
+        "authMethods": [
+          {
+            "description": "Run `opencode auth login` in the terminal",
+            "name": "Login with opencode",
+            "id": "opencode-login"
+          }
+        ],
+        "agentInfo": {
+          "name": "OpenCode",
+          "version": "1.18.16"
+        }
+      },
+      "cleanup": {
+        "code": null,
+        "signal": "SIGTERM",
+        "forced": false,
+        "scope": "posix-process-group",
+        "outputTruncated": false
+      }
+    },
+    {
+      "kind": "deepseek-harness",
+      "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+      "response": {
+        "protocolVersion": 1,
+        "agentInfo": {
+          "name": "deepseek-harness-acp",
+          "version": "0.0.1"
+        },
+        "agentCapabilities": {
+          "mcpCapabilities": {
+            "http": true
+          },
+          "promptCapabilities": {
+            "image": false,
+            "audio": false,
+            "embeddedContext": false
+          },
+          "sessionCapabilities": {
+            "close": {},
+            "list": {},
+            "resume": {}
+          }
+        },
+        "authMethods": []
+      },
+      "cleanup": {
+        "code": 0,
+        "signal": null,
+        "forced": false,
+        "scope": "posix-process-group",
+        "outputTruncated": false
+      }
+    }
+  ]
+}

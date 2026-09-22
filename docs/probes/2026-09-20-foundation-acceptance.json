@@ -1,0 +1,128 @@
+{
+  "checkedAt": "2026-09-19T15:03:54.214Z",
+  "decisionDate": "2026-09-20",
+  "decisionTimezone": "Asia/Seoul",
+  "sourceRevision": "3f0ff270e5e235f58fb22b266869a721cd85f470",
+  "gate": "B0",
+  "decision": "passed",
+  "scope": "macOS arm64 development-host shared foundation as defined by B0 and A7/A9/A10/A11/A12",
+  "productionSourceChanges": false,
+  "sourceSha256": {
+    "src/main/credentials/vault.ts": "c6f0c9801e895c143f5908148d577afc90fd6ab75035e3baf0eebaf09bff768a",
+    "src/main/credentials/electron-cipher.ts": "b1594af35b0515d6e9c1f8c415713387e5eaf0cc44eff58aab363a1b8b992f60",
+    "src/main/engine-workspace-store.ts": "60c5bc85b5b406272ce2b9cbe84548b8fddf98c5cfd6ef20c55584c38e6b5f26",
+    "src/shared/engines/migration.ts": "044bd5fcdb0f6549e2964638a63f76a0e4d25718f8105a58769277d7328c462b",
+    "src/shared/engines/resolution.ts": "75b600a399a36f3b6b8c9696bad4c1ab922882716e78055b4c32d0d49af53d1a",
+    "src/shared/engines/validation.ts": "3aac5418258926af3e8d6b948682f24d7be1f4ea54106cf2a18e2ca125b7bc32",
+    "src/shared/sessions/schema.ts": "672e2a90b77b5885537bb55a6c37a424fb3248001b717051b30c29b6a4afe665",
+    "src/shared/sessions/state.ts": "7d301dc1264467f088f10b7004026a6e67338fbc5a5ea0e8590df1e2abd4566a",
+    "src/main/sessions/coordinator.ts": "32c0fd97d188b767b45590636d92f7d1227634bf21073818430bef63fdf1f745",
+    "src/main/sessions/ipc.ts": "11898183ac3de58e18e77767b0749f3903f8983f972fdbd11b4d29bafdc1c67f",
+    "src/main/sessions/desktop-factory.ts": "9d6f4c5ef26e59e640ef18e2cc47a8fda8812cfaafba10ac01f9a23901c27bc9",
+    "src/main/engines/configuration-report.ts": "c077f4125d2c701307b01507b058274462f64e8dd11df9b4eaa205c15d16e761",
+    "src/shared/api.ts": "547fc4110abdf555ee186e5c42d0ebbb3280946e1d98922532c63d68ad8e9756",
+    "src/preload/index.ts": "8536368f7ab307c6b543d208f074293cb4f8bc3976ea73346125044a6fa45231",
+    "src/renderer/src/components/AgentEditor.tsx": "cf5e396ee4f57fce1895bc5a689fbad49bb62774adbf55825be07ba2a0c89d31",
+    "src/renderer/src/components/SessionsPanel.tsx": "2d0b3bdbea89efa2c15e4339f44c94388133d6a6e97e5d905599e33b086fa1a9",
+    "tests/credential-vault.test.ts": "7f12bb0dcdd9d5b3ded3a5c6eb6271af95be30a29f720cf55184a6850d9fef32",
+    "tests/engine-migration.test.ts": "d8cdef1e63a719c154bad0a957202cc27317b22ff3c4b6d6c32755ddbdcdaae8",
+    "tests/engine-workspace-store.test.ts": "70e4c509b2a775e76a042261270ce65d4c359786a01420afbd395531dbc9ca58",
+    "tests/engine-resolution.test.ts": "6b25d2a347380c35cfaff79bdfc33386bb2b8b87bb6bee9d80887d0931d2b4f8",
+    "tests/engine-editing.test.ts": "493c9be32a36d7b8a2054e236b1023bac95b704aeff182792de39dd5e26ead58",
+    "tests/engine-capabilities.test.ts": "04d1bf950651edbb3b608a9bfd5906dffa9864310b5c83d22c98ecef5e04a21c",
+    "tests/session-state.test.ts": "7e175b374d3e7486b6ddad1f0e33ab86acb325c4d03d6c26a8f1fd38c10b6cc3",
+    "tests/session-coordinator.test.ts": "cbba106f4795155bfe5b799d86613508986affd086f5a466244deb0b1a0d4c1a",
+    "tests/session-ipc.test.ts": "c1ac62397d84f6f9616df5c9891b29a032d10130b5c290feaf23be1195bcd612",
+    "tests/configuration-report.test.ts": "6b54e8ab37b0b20b7afae6ead772f00c6725f5d0edb29cb22cf698c0ef5858d2",
+    "tests/library-impact.test.ts": "2a6ca8cdb562f422b260e70e1fc0c76de0d4a6122e83804a128dcd5b3f12d629",
+    "tests/i18n.test.ts": "f084ecbee98cbd98a6b0596112c10ccb0515bb69f398b1e4c7239c2d5c7fbc3b",
+    "scripts/smoke.mjs": "615a98c0c63629ff0de2e1f7ca84ee6e87dfd402f7aaaef4396d9d5655f5651e",
+    "package.json": "b2f31660e0d60d1fb251bdedf30ebed5d0a9ad92f7054350c4161ae685bddfe4"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "nodeVersion": "22.20.0",
+  "validation": {
+    "desktop": {
+      "command": "AGENT_MATRIX_FOUNDATION_REPORT=/private/tmp/agentmatrix-foundation-desktop.json AGENT_MATRIX_FOUNDATION_SCREENSHOT=/private/tmp/agentmatrix-foundation node scripts/smoke.mjs --foundation",
+      "exitCode": 0,
+      "report": "docs/probes/2026-09-20-foundation-desktop.json",
+      "sha256": "815a4ce171bbc7d9f540d0181c9c1f15c2d5aee45d949a6d9048a0d1239d2f8b",
+      "draftRejections": 6,
+      "requiresRealOsStorage": true,
+      "replacementDecryptedAfterRestart": true
+    },
+    "lint": {
+      "command": "npm run lint",
+      "exitCode": 0
+    },
+    "build": {
+      "command": "npm run build",
+      "includesTypecheck": true,
+      "exitCode": 0,
+      "outputSha256": {
+        "out/main/index.js": "a97170b1a99608ed7fb58c74cbeabe720ac00a20ba19aaebda94a07c8ee5b30d",
+        "out/preload/index.js": "6e893cc1b97fb9759eb22c35f01b75381abb8ca8da0a584d29ecf898f4b9bf22",
+        "out/renderer/assets/index-CGX362cQ.js": "34b6adc0fb66509afb9586fd21a9bf4b645240c9238edbafb82902d8bb2b4883",
+        "out/renderer/assets/index-D9dBZoJB.css": "531b4c57c0d90721dc370359b5e2f06f5bd9be23de06c2368ca86b9655cb85b6",
+        "out/renderer/index.html": "2425970387b8cbd595924f6df08f91c7a958ab6eca37a085ffa7a7bc14059c20"
+      }
+    },
+    "unit": {
+      "rerun": false,
+      "report": "2026-09-19-ipc-error-boundary.json",
+      "tests": 983,
+      "files": 61,
+      "testedCommit": "8083c08056fd0c5a5753863847b2d100dce4311c",
+      "unchangedPaths": [
+        "src",
+        ":(glob)tests/**/*.test.ts",
+        "tests/helpers",
+        "tests/fixtures",
+        "vitest.config.ts",
+        "package-lock.json"
+      ],
+      "unchangedSourceTree": "c696d9bc3ca4884c2f05a349bb72346d39abbe12",
+      "currentSourceTree": "c696d9bc3ca4884c2f05a349bb72346d39abbe12",
+      "dependencyDeclarationsUnchanged": true
+    },
+    "screenshots": [
+      {
+        "locale": "en",
+        "path": "/private/tmp/agentmatrix-foundation.en.png",
+        "sha256": "0f48eee005a319cd4e738f25ee2a04ceba9729b0cc4a5f388a5720c25a8b71f1",
+        "visuallyInspected": true,
+        "checkedIn": false
+      },
+      {
+        "locale": "zh-CN",
+        "path": "/private/tmp/agentmatrix-foundation.zh-CN.png",
+        "sha256": "d07aa68232b5d601907ec42a2cd3db00ba5f765aefd5fb0bd48cab9aa9e4c016",
+        "visuallyInspected": true,
+        "checkedIn": false
+      }
+    ],
+    "overlappingDesktopOrNativeSuites": false,
+    "rebuildDuringSuite": false
+  },
+  "evidenceScope": {
+    "migration": "Unit interruption-state fixtures and real exact-byte migration/restart; no new process-kill injection.",
+    "credentials": "Actual Electron OS encryption/decryption for original and replaced values, plus unit unavailable-backend and mutation-failure guards.",
+    "sessions": "Shared state/coordinator/IPC assertions and real invalid-create boundary; this desktop fixture does not execute native runtimes.",
+    "resolution": "Per-field planned/observed/composition/unknown/failure contracts and saved/captured version comparisons; unknown native readback remains unknown.",
+    "supportingNativeRecordsNotRerun": [
+      "2026-09-19-shared-assets-desktop.json",
+      "2026-09-19-run-isolation-acceptance.json",
+      "2026-09-19-skill-loading-acceptance.json"
+    ]
+  },
+  "promotedGates": ["B0"],
+  "nativeRuntimeGatesPromoted": [],
+  "nativeCliExecuted": false,
+  "externalProviderCalls": false,
+  "remaining": [
+    "B7/C4/D4 own acceptance, including intended external provider details and complete X3",
+    "Native winning-source attribution and optional capabilities retain their observed/unknown/unsupported boundaries",
+    "Other OS and distribution claims require their own verification; release distribution remains outside the initial milestone"
+  ]
+}

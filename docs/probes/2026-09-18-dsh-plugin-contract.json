@@ -1,0 +1,103 @@
+{
+  "checkedAt": "2026-09-17T23:18:34.889Z",
+  "engine": "deepseek-harness",
+  "version": "0.1.5-rc.2",
+  "platform": "darwin",
+  "arch": "arm64",
+  "nativeComponents": [
+    {
+      "name": "@deepseek-ai/dsh",
+      "version": "0.1.5-rc.2",
+      "manifestSha256": "0d9ea2f7a42e7bacf319abd57016e40d0351d07032c7eb709d7c54158300d4cb",
+      "entrySha256": "0ff7f1d72c4e0cbe14001709c81e20a04b70464118a7f78568952988e28f2ac5"
+    },
+    {
+      "name": "@deepseek-ai/dsh-app-boot",
+      "version": "0.1.5-rc.2",
+      "manifestSha256": "b9bf8168cc666ff079920ef216d9d142fd7f91d0ef9abc436c64bc1a7562b778",
+      "entrySha256": "d8fdfe41996a4fefcff63af4982787924b0ae651f24bb1402f775b70202529bb"
+    },
+    {
+      "name": "@deepseek-ai/dsh-acp",
+      "version": "0.1.5-rc.2",
+      "manifestSha256": "51a9b362f64ff2cb978ff1ea5a0fef8480665ac190129ac0de20b032fb80a50a",
+      "entrySha256": "dcfa3790c65b58280d812e656ac439fe40303bf9b2f3b45842bdfb2345899cde"
+    },
+    {
+      "name": "@deepseek-ai/cordis",
+      "version": "4.0.2",
+      "manifestSha256": "1cb01e8234e0131450504f80e3ecb869b0f6b643cc1ab9e778ca91fed4378ebc",
+      "entrySha256": "1729cdbf8ee40b17c8839e06bf96491490548559e11ef7e411271e0754e751c5"
+    },
+    {
+      "name": "@deepseek-ai/cordis-plugin-loader",
+      "version": "1.0.3",
+      "manifestSha256": "789bf4eabbde07f4a47d4b4cd2ef63ef6560c0d81f6fd15faef6257a7341d7e1",
+      "entrySha256": "95f3651b2ac3caa6d19fd4e75121617ad28355e604102920480defb1da895e1b"
+    },
+    {
+      "name": "@deepseek-ai/cordis-plugin-include",
+      "version": "1.0.7",
+      "manifestSha256": "5d74056c9ed71956b30c32c49061128e2c8c14bfad6cbcb551d290738346fd04",
+      "entrySha256": "2194500a0615b8c9faf9bdfa6c2c975291ff29737c867bf14ef179259db0de47"
+    }
+  ],
+  "provider": "local synthetic HTTP fixture",
+  "scope": "Native composition fixture; selected-plugin application bindings remain disabled",
+  "dumpDoesNotExecute": true,
+  "shapes": [
+    "cjs-object",
+    "esm-default-function",
+    "esm-default-class",
+    "esm-named-async-generator"
+  ],
+  "sameModuleSeparateFibers": true,
+  "nativeConfigValidation": true,
+  "relativeImports": true,
+  "systemSectionsReachedProvider": true,
+  "customToolResult": true,
+  "sessionCreatedAndDisposed": true,
+  "generatorDisposal": true,
+  "nativeResume": true,
+  "loaderSettlementGate": true,
+  "acpSessionBeforePluginSettles": true,
+  "appReadyAfterActiveTree": true,
+  "failedTreesNeverAppReady": true,
+  "failures": [
+    {
+      "kind": "import",
+      "initializedBeforeExit": true,
+      "exitCode": 1
+    },
+    {
+      "kind": "dependency",
+      "initializedBeforeExit": true,
+      "exitCode": 1
+    },
+    {
+      "kind": "shape",
+      "initializedBeforeExit": true,
+      "exitCode": 1
+    },
+    {
+      "kind": "config",
+      "initializedBeforeExit": true,
+      "exitCode": 1
+    },
+    {
+      "kind": "apply",
+      "initializedBeforeExit": true,
+      "exitCode": 1
+    },
+    {
+      "kind": "async-apply",
+      "initializedBeforeExit": true,
+      "exitCode": 1
+    },
+    {
+      "kind": "pending",
+      "initializedBeforeExit": true,
+      "exitCode": 1
+    }
+  ]
+}

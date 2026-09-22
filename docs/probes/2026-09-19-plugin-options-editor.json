@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-09-19T13:21:50.766Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engines": ["opencode", "pi", "deepseek-harness"],
+  "verification": "files-only",
+  "nativeCliExecuted": false,
+  "moduleCodeExecuted": false,
+  "externalRequests": false,
+  "englishAndChinese": true,
+  "allPiEntriesAndDigests": true,
+  "separatePiPeerRanges": true,
+  "dshFrameworkVersionUnknown": true,
+  "engineSpecificPackageRestrictions": true,
+  "packageVersionAdoption": true,
+  "nativeIdAndSourceUnchanged": true,
+  "inspectionDoesNotSave": true,
+  "savedReferencesSurviveRestart": true,
+  "secretMetadataOmitted": true,
+  "staleResultsCleared": true,
+  "pluginOptionsEngineSwitchPreservesKindUntilCleared": true
+}

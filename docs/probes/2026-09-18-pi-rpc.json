@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-09-17T19:50:30.801Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "pi",
+  "version": "0.85.1",
+  "route": "Local Chat Completions protocol fixture",
+  "externalProviderCalls": false,
+  "applicationRpcClient": true,
+  "streamingUnicode": true,
+  "toolRoundTrip": true,
+  "keyEnvironmentReference": true,
+  "replacementAndAppendPrompt": true,
+  "acceptanceBeforeSettlement": true,
+  "postAcceptanceFailure": true,
+  "streamingCancellation": true,
+  "processRestart": true,
+  "nativeSessionRestoration": true,
+  "restoredProviderContext": true,
+  "extensionDialogReply": true,
+  "extensionDialogCancellation": true,
+  "extensionCommandWithoutAgentSettlement": true,
+  "projectTrustDefaultDenied": true,
+  "projectTrustOverrides": true,
+  "unrelatedTrustDecisionsUnchanged": true,
+  "universalToolApproval": false,
+  "coreMcpExtension": null,
+  "cleanup": {
+    "scope": "posix-process-group",
+    "failure": null,
+    "forced": false
+  }
+}

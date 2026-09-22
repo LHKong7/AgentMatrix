@@ -1,0 +1,225 @@
+{
+  "checkedAt": "2026-09-19T02:39:58.012Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engines": [
+    {
+      "engine": "opencode",
+      "version": "1.18.16",
+      "executable": "~/.opencode/bin/opencode"
+    },
+    {
+      "engine": "pi",
+      "version": "0.85.1",
+      "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi"
+    },
+    {
+      "engine": "dsh",
+      "version": "0.1.5-rc.2",
+      "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh"
+    }
+  ],
+  "service": "Local synthetic HTTP provider",
+  "protocol": "openai-chat-completions",
+  "model": "fixture-model",
+  "externalProviderCalls": false,
+  "dshRoute": "dsh-llm-pi-ai",
+  "sharedLibrary": {
+    "prompts": 1,
+    "directorySkills": 1,
+    "modelProfiles": 1,
+    "connections": 1,
+    "agentProfiles": 3
+  },
+  "desktopInstallationProbes": true,
+  "realSkillImportAndReimport": true,
+  "sharedEditsWithoutProfileChanges": true,
+  "sharedEditsDuringActiveTurns": ["opencode", "pi", "dsh"],
+  "bilingualImpactAndVersionReports": true,
+  "capturedSourceIndependentAfterEditAndDeletion": true,
+  "nativeResumePreservesOldAndNewInputs": true,
+  "freshToolResultsCorrelatedPerTurn": true,
+  "immutableManifests": true,
+  "turns": [
+    {
+      "engine": "opencode",
+      "phase": "original",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "pi",
+      "phase": "original",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "dsh",
+      "phase": "original",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "opencode",
+      "phase": "running-during-edit",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "pi",
+      "phase": "running-during-edit",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "dsh",
+      "phase": "running-during-edit",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "opencode",
+      "phase": "old-after-edit",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "opencode",
+      "phase": "new-after-edit",
+      "promptVersion": 2,
+      "skillVersion": 2,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "pi",
+      "phase": "old-after-edit",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "pi",
+      "phase": "new-after-edit",
+      "promptVersion": 2,
+      "skillVersion": 2,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "dsh",
+      "phase": "old-after-edit",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "dsh",
+      "phase": "new-after-edit",
+      "promptVersion": 2,
+      "skillVersion": 2,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "opencode",
+      "phase": "resumed-v1",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "opencode",
+      "phase": "resumed-v2",
+      "promptVersion": 2,
+      "skillVersion": 2,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "pi",
+      "phase": "resumed-v1",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "pi",
+      "phase": "resumed-v2",
+      "promptVersion": 2,
+      "skillVersion": 2,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "dsh",
+      "phase": "resumed-v1",
+      "promptVersion": 1,
+      "skillVersion": 1,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    },
+    {
+      "engine": "dsh",
+      "phase": "resumed-v2",
+      "promptVersion": 2,
+      "skillVersion": 2,
+      "nativeSkillEntryRead": true,
+      "nativeReferenceRead": true,
+      "streamedProviderRoundTrip": true,
+      "requests": 3
+    }
+  ]
+}

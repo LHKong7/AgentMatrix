@@ -1,0 +1,22 @@
+{
+  "checkedAt": "2026-09-17T20:56:12.000Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engineVersion": "0.1.5-rc.2",
+  "acpAgentVersion": "0.0.1",
+  "route": "pi-ai",
+  "externalProviderCalls": false,
+  "desktopFactory": true,
+  "versionAndModelReadback": true,
+  "committedMessagesAndTools": true,
+  "splitCredentialRedaction": true,
+  "commandReplayWithoutResubmit": true,
+  "permissionReply": true,
+  "providerStreamCancellation": true,
+  "permissionCancellation": true,
+  "nativeResumeWithToolContext": true,
+  "resumeWithoutTranscriptReplay": true,
+  "providerFailureRejected": true,
+  "usageAndCostUnknown": true,
+  "providerCalls": 6
+}

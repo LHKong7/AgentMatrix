@@ -1,0 +1,115 @@
+{
+  "checkedAt": "2026-09-19T14:54:32.951Z",
+  "sourceRevision": "8083c08056fd0c5a5753863847b2d100dce4311c",
+  "productionSourceChanges": false,
+  "sourceSha256": {
+    "tests/skill-loading-installed.probe.ts": "4e62c98836e36f0d4a1a56d47d97e3747f41ec6e0560d8613710dfa820a9eec4",
+    "vitest.skills.config.ts": "8b6548308df37f94a059bee5054842dd4f13c1e44d27f31c8b2c3133eabf5007",
+    "package.json": "e4398d0c639da9a1580808149d475ec134c7ba4cbe6381b9addf6a882a5aa530"
+  },
+  "platform": "darwin",
+  "architecture": "arm64",
+  "validation": {
+    "native": {
+      "command": "AGENT_MATRIX_TEST_OPENCODE=/Users/linghankong/.opencode/bin/opencode AGENT_MATRIX_TEST_PI=/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi AGENT_MATRIX_TEST_DSH=/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh AGENT_MATRIX_SKILL_LOADING_REPORT=/private/tmp/agentmatrix-skill-loading npx vitest run --config vitest.skills.config.ts --maxWorkers=1",
+      "exitCode": 0,
+      "files": 1,
+      "cases": 4,
+      "skipped": 0,
+      "workers": 1,
+      "sequentialCases": true,
+      "overlappingNativeSuites": false,
+      "rebuildDuringRun": false,
+      "totalTurns": 16,
+      "primaryRequests": 32,
+      "reports": [
+        {
+          "path": "docs/probes/2026-09-19-skill-loading-opencode.json",
+          "sha256": "459ac42cdbc08e50aa8af13dc3108e11ed68a7f9e1d65f897d3d84afad459dbf",
+          "route": "opencode",
+          "version": "1.18.16",
+          "executable": "~/.opencode/bin/opencode",
+          "checkedAt": "2026-09-19T14:52:31.168Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "openai-chat-completions",
+          "model": "fixture-model",
+          "nativeTurns": 4,
+          "primaryRequests": 8
+        },
+        {
+          "path": "docs/probes/2026-09-19-skill-loading-pi.json",
+          "sha256": "9a228b5f45b7f2e7362a07a6d1b2feb51c548e5661eadd009edd0b4b90c637b0",
+          "route": "pi",
+          "version": "0.85.1",
+          "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi",
+          "checkedAt": "2026-09-19T14:52:33.948Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "openai-chat-completions",
+          "model": "fixture-model",
+          "nativeTurns": 4,
+          "primaryRequests": 8
+        },
+        {
+          "path": "docs/probes/2026-09-19-skill-loading-dsh-pi-ai.json",
+          "sha256": "d99c90d7fd19c2cf2081c61e8533e7f5c89dc7a68645a5f7c500709200b518c3",
+          "route": "dsh-pi-ai",
+          "version": "0.1.5-rc.2",
+          "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+          "checkedAt": "2026-09-19T14:52:40.939Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "openai-chat-completions",
+          "model": "fixture-model",
+          "nativeTurns": 4,
+          "primaryRequests": 8
+        },
+        {
+          "path": "docs/probes/2026-09-19-skill-loading-dsh-native.json",
+          "sha256": "1d151aaf6743c8faef85479d5dfcfbb78503457eea5f66334404d490b7ee000f",
+          "route": "dsh-native",
+          "version": "0.1.5-rc.2",
+          "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+          "checkedAt": "2026-09-19T14:52:46.865Z",
+          "service": "Local synthetic Chat Completions provider",
+          "protocol": "deepseek-official",
+          "model": "fixture-model",
+          "nativeTurns": 4,
+          "primaryRequests": 8
+        }
+      ]
+    },
+    "lint": {
+      "command": "npm run lint",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    "fullUnitSuiteRerun": false,
+    "priorUnitEvidence": {
+      "report": "2026-09-19-ipc-error-boundary.json",
+      "tests": 983,
+      "files": 61
+    },
+    "productionBuildRerun": false,
+    "electronSuiteRerun": false,
+    "userInterfaceChanged": false
+  },
+  "scenario": [
+    "Selected directory metadata in initial request, body absent until entry tool read, reference contents absent until explicit reference read",
+    "Enabled-unbound and disabled-unbound library metadata/body markers excluded from primary requests",
+    "Duplicate selected frontmatter names rejected without additional credential resolutions or primary requests",
+    "Bound disabled asset omitted from a new capture and native conversation",
+    "Re-enabled but unbound asset omitted from another new native conversation",
+    "Original native session restored with prior reply and fresh captured tool results after source/library deletion"
+  ],
+  "credentialScope": "RunInputStore has no cipher in this fixture. Real OS storage and encrypted-history behavior retain separate Electron acceptance evidence.",
+  "externalProviderCalls": false,
+  "deliveryGatesPromoted": [],
+  "remaining": [
+    "Independent global/project/plugin Skill discovery and collision precedence are not established by selected-name validation",
+    "Model-visible deferred loading does not establish that native code avoided internal filesystem reads",
+    "Arbitrary frontmatter invocation flags and extension behavior require separate native evidence if claimed",
+    "Complete X3, external-provider and other-platform acceptance remain separate"
+  ]
+}

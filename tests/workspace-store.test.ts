@@ -41,7 +41,7 @@ describe('desktop persistence', () => {
     'preserves unreadable or unsupported data: %s',
     async (contents) => {
       await writeFile(store.filePath, contents)
-      await expect(store.load()).rejects.toThrow('原文件已保留')
+      await expect(store.load()).rejects.toThrow('error.unreadable')
       expect(await readFile(store.filePath, 'utf8')).toBe(contents)
     },
   )

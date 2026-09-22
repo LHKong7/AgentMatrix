@@ -1,4 +1,16 @@
-import type { Workspace } from './workspace'
+import type { EngineWorkspace } from './engines/workspace'
+import type { CapturedSkillDirectory } from './engines/skill-import'
+import type { PluginInspection, PluginInspectionQuery } from './engines/plugin-inspection'
+import type { SessionApi } from './sessions/schema'
+import type { NativeImportPreview } from './engines/native-import'
+import type { EngineDiscovery, EngineDownloadResult } from './engines/discovery'
+import type { SupportedEngine } from './engines/contracts'
+import type {
+  CredentialInput,
+  CredentialMetadata,
+  CredentialStatus,
+  DeleteCredentialInput,
+} from './credentials'
 
 export interface AppInfo {
   version: string
@@ -8,13 +20,40 @@ export interface AppInfo {
 }
 
 export interface AgentMatrixApi {
-  loadWorkspace(): Promise<Workspace>
-  saveWorkspace(workspace: Workspace): Promise<Workspace>
+  loadWorkspace(): Promise<EngineWorkspace>
+  saveWorkspace(workspace: EngineWorkspace): Promise<EngineWorkspace>
   getAppInfo(): Promise<AppInfo>
+  getCredentialStatus(): Promise<CredentialStatus>
+  setCredential(input: CredentialInput): Promise<CredentialMetadata>
+  deleteCredential(input: DeleteCredentialInput): Promise<void>
+  importSkillDirectory(): Promise<CapturedSkillDirectory | null>
+  chooseWorkingDirectory(input: { defaultPath?: string }): Promise<string | null>
+  probeEngine(input: { installationId: string }): Promise<EngineWorkspace>
+  discoverEngines(): Promise<EngineDiscovery>
+  downloadEngine(input: { kind: SupportedEngine }): Promise<EngineDownloadResult>
+  inspectNativePlugin(input: PluginInspectionQuery): Promise<PluginInspection>
+  previewNativeImport(input: {
+    installationId: string
+    previousPreviewId?: string
+    referencePath?: string
+  }): Promise<NativeImportPreview | null>
+  applyNativeImport(input: { id: string; workspaceRevision: number }): Promise<EngineWorkspace>
+  sessions: SessionApi
 }
 
 export const channels = {
   load: 'workspace:load',
   save: 'workspace:save',
   info: 'app:info',
+  credentialStatus: 'credentials:status',
+  credentialSet: 'credentials:set',
+  credentialDelete: 'credentials:delete',
+  skillImport: 'skills:import-directory',
+  workingDirectory: 'sessions:choose-working-directory',
+  engineProbe: 'engines:probe',
+  engineDiscover: 'engines:discover',
+  engineDownload: 'engines:download',
+  pluginInspect: 'plugins:inspect-installed',
+  nativeImportPreview: 'native-import:preview',
+  nativeImportApply: 'native-import:apply',
 } as const

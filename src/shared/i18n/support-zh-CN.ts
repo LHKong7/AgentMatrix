@@ -1,0 +1,75 @@
+import type { supportEn } from './support-en'
+
+export const supportZhCN: Record<keyof typeof supportEn, string> = {
+  'support.issue.endpoint':
+    'Anthropic 请填写服务根地址或 /v1 基地址，不含登录信息、查询参数、片段或 /messages 后缀。',
+  'support.issue.native-plugin-options': '这些插件选项属于其他引擎，请清除或修改后再启动。',
+  'support.issue.pi-plugin-policy':
+    '已选 Pi 扩展可以注册或启用工具，此适配器要求这些绑定使用不受限执行策略。',
+  'support.issue.plugins-pure-mode':
+    'OpenCode pure 模式会跳过外部插件。使用已选插件启动前，请移除 --pure。',
+  'support.title': '引擎兼容性',
+  'support.blocked': '此配置可继续保存为草稿；开始新会话前需要解决以下适配限制。',
+  'support.eligible': '当前设置未触发已知的适配限制，启动时仍需检查。',
+  'support.limits':
+    '启动会检查可执行文件、工作目录、捕获文件、原生配置来源、凭据和原生状态。此预览不会运行 CLI，也不验证模型服务、Skill 调用、MCP 连通性或沙箱执行。',
+  'support.details': '能力详情',
+  'support.unavailable': '暂时无法生成能力详情。',
+  'support.evidenceScope':
+    '实现方式、运行验证和可用性分别记录。适配规则说明当前实现，不代表此配置已通过运行验证。未使用的可选能力不会阻止启动。',
+  'support.mechanism': '实现方式',
+  'support.verification': '运行验证',
+  'support.availability': '可用性',
+  'support.requested': '已配置',
+  'support.unused': '未请求',
+  'support.identity': '{engine} {version} · {mode} · 配置摘要',
+  'support.contractEvidence': '适配规则检查时间：{time}。实际记录的原生检查请查看会话配置报告。',
+  'support.mechanism.native': '原生接口',
+  'support.mechanism.adapter': '适配器映射',
+  'support.mechanism.extension-required': '需要扩展',
+  'support.mechanism.unsupported': '当前适配器不支持',
+  'support.mechanism.unknown': '未知',
+  'support.verification.untested': '此配置尚未验证',
+  'support.verification.passed': '已在记录范围内验证',
+  'support.verification.failed': '记录的检查失败',
+  'support.availability.ready': '在记录范围内可用',
+  'support.availability.missing-dependency': '依赖不可用',
+  'support.availability.missing-credential': '凭据不可用',
+  'support.availability.blocked': '受阻',
+  'support.availability.unknown': '尚未进行启动检查',
+  'support.reason.startup': '等待启动时的原生校验。',
+  'support.reason.credentials': '已配置凭据引用不代表凭据可读取或服务端接受该凭据。',
+  'support.reason.assets': '捕获文件、Skill 元数据、名称冲突和原生发现仍需进一步检查。',
+  'support.reason.mcp': '服务配置完成映射不代表连接或认证成功。',
+  'support.reason.unsupported': '当前适配器未在所选路线上实现此能力。',
+  'support.reason.unused': '此 Agent 未请求这个可选设置。',
+  'support.issue.unsupported-engine': '此引擎尚无桌面运行适配器。',
+  'support.issue.installation-version': '安装版本或运行模式与固定的适配版本不符，请检查引擎安装。',
+  'support.issue.platform': '此引擎安装无法在当前桌面平台运行。',
+  'support.issue.prefix-arguments':
+    '前置参数无效。请通过插件绑定选择 Pi 扩展；DeepSeek Harness 的前置参数必须为空。',
+  'support.issue.native-options':
+    '专属设置不符合当前适配器要求。OpenCode 需要有效的 Agent 名称，DeepSeek Harness 需要 ACP 配置。',
+  'support.issue.native-plugins':
+    '尚未实现选定原生插件的激活。可保留绑定作为草稿，或在启动前移除绑定。',
+  'support.issue.protocol': '当前适配器无法映射所选协议、端点或模型。',
+  'support.issue.authentication': '认证方式或 API Key 请求头与所选引擎及协议不匹配。',
+  'support.issue.secret-reference': '请选择凭据或环境变量引用。',
+  'support.issue.sampling':
+    '此路线无法应用采样参数。DeepSeek Harness 不接受这些参数；Pi 仅在两种 OpenAI API 路线上支持。',
+  'support.issue.reasoning':
+    '此路线不支持请求的推理设置。OpenCode 尚未映射此项；DSH 原生 DeepSeek 路线支持 off、low、high、max，网关路线仅支持 off。',
+  'support.issue.reasoning-conflict': '共享推理参数与 Pi 的思考级别不一致。',
+  'support.issue.thinking-level':
+    'Pi 思考级别必须为 off、minimal、low、medium、high、xhigh 或 max。',
+  'support.issue.reserved-header': 'DeepSeek Harness 保留了 User-Agent 请求头。',
+  'support.issue.native-headers': '当前适配器的原生 DeepSeek 路线不接受自定义请求头。',
+  'support.issue.empty-prompt': '所选 Prompt 应用方式要求内容非空。',
+  'support.issue.replacement-conflict': '只能应用一个完整 Prompt 替换。',
+  'support.issue.mcp-extension': 'Pi MCP 需要显式选择并验证的扩展；当前适配器未启用兼容扩展。',
+  'support.issue.mcp-transport': '不支持强制使用旧版 SSE，请选择支持的 MCP 传输方式。',
+  'support.issue.mcp-authentication': 'DeepSeek Harness 适配器尚未实现 MCP OAuth。',
+  'support.issue.universal-approval':
+    'Pi 无法保证每次工具调用都请求批准。请选择禁用工具或不受限模式；项目信任是独立设置。',
+  'support.issue.command-value': 'MCP 命令、参数或环境变量值包含无效的空字符。',
+}

@@ -1,92 +1,140 @@
 # AgentMatrix
 
-一个以本地配置为中心的 Agent 桌面工作空间。基于 **Electron + React + TypeScript**，使用 electron-vite 开发和构建。
+A desktop workspace for managing agent configurations locally. Built with **Electron + React + TypeScript**, using electron-vite for development and builds.
 
-项目文档：[架构约定](docs/architecture.md) · [首批 9 个 CLI Agent 接入调研与配置架构](docs/cli-agent-research.md)。
+Documentation: [Architecture](docs/architecture.md) · [Shared setup and per-agent configuration](docs/shared-setup.md) · [Installed CLI detection and download](docs/engine-discovery.md) · [Model configuration per CLI](docs/model-configuration.md) · [Session list](docs/session-list.md) · [Themes and components](docs/theme-and-components.md) · [Research: nine CLI agents and configuration design](docs/cli-agent-research.md) · [Integration implementation plan](docs/cli-agent-plan.md) · [Three-engine acceptance checklist](docs/three-engine-acceptance.md).
 
-## 启动
+## Getting started
 
-需要 Node.js **22.12+（22.x）或 24+**，推荐使用 `.nvmrc` 对应的 Node 22。
+Requires Node.js **22.12+ (22.x) or 24+**. The Node 22 version in `.nvmrc` is recommended.
 
 ```bash
 npm ci
 npm run dev
 ```
 
-首次打开会创建一个「通用助手」配置。修改后点击保存，重启仍然保留。
+The first launch creates a general assistant configuration. Save your edits to keep them across restarts.
 
-仅预览界面：
+To preview the UI in a browser:
 
 ```bash
 npm run dev:web
 ```
 
-浏览器预览使用独立的 localStorage，不会读写桌面端配置。
+Browser preview uses separate localStorage and never reads or writes desktop workspace files.
 
-## 当前功能
+## Current features
 
-- **Agent 管理**：新增、编辑、删除、启停和搜索。
-- **模型配置**：记录提供方、模型 ID、Base URL、Temperature。
-- **System Prompt**：独立编辑系统指令。
-- **MCP Servers**：维护 stdio 命令 / 参数 / 环境变量引用，或 Streamable HTTP 地址 / Token 环境变量名。
-- **Skills**：维护 Markdown 指令和可选的来源路径。
-- **插件配置**：将已有 MCP 与 Skills 组合为可复用的能力集合。
-- **能力绑定**：直接绑定资源或通过插件组合，合并去重，过滤已停用配置；删除资源时自动清理引用。
-- **本地持久化**：版本化 JSON、Zod 校验、临时文件替换、串行保存与 revision 冲突检查。
+- **Agents and engines:** maintain drafts for OpenCode, Pi, and DeepSeek Harness, with installation paths, model bindings, and separate native settings. Saving a path does not execute or verify the CLI.
+- **One setup for every CLI agent:** system prompts, Skills and tools (MCP servers) are configured once in **Shared setup** and apply to every agent, while the engine, model route, API endpoint, credential, working directory and execution policy stay on each agent. An agent's own binding replaces an inherited one for the same resource, and an agent can be excluded entirely. See [shared setup and per-agent configuration](docs/shared-setup.md).
+- **Installed CLI detection and one-click download:** the Engines page checks for OpenCode, Pi, and DeepSeek Harness when it opens, reading each candidate's version command in a temporary configuration directory. A detected path can be saved as an installation with one click, and a missing engine can be downloaded at its pinned version into the application's own data directory with install scripts disabled; the result is verified before it is reported. See [detection and download boundaries](docs/engine-discovery.md).
+- **OpenCode, Pi, and DSH desktop sessions:** explicitly check a saved installation, then start from a saved profile. View messages and tools, answer supported native permission requests, cancel turns, reload history, and resume interrupted sessions. Adapters are pinned to OpenCode 1.18.16, Pi 0.85.1, and experimental DSH 0.1.5-rc.2. DSH displays committed replies; OpenCode and Pi stream text. Native approvals apply to OpenCode and DSH; Pi requires an explicit compatible execution policy; see [setup and verification](docs/desktop-sessions.md).
+- **Shared connections and models, guided by the CLI:** maintain API protocols, endpoints, authentication references, model IDs, and optional sampling parameters independently of agents. The connection and model editors ask which engine the values are for, then offer only the routes and authentication strategies that engine maps, show the model identifier form it expects, replace free-text reasoning with the values it accepts, and end with a field-by-field requirements checklist. A test keeps that table and the launch-time validator in agreement. See [model configuration per CLI](docs/model-configuration.md). Anthropic connections use a [shared root-or-`/v1` endpoint convention](docs/anthropic-provider-acceptance.md) across the three engines.
+- **Configuration diagnostics:** [failed native checks](docs/configuration-failures.md) identify affected field groups in the conversation, history, and bilingual report, preserve historical successes, and omit native values. OpenCode reports can show [captured declarations matching a conflict](docs/opencode-override-sources.md), with ambiguous and unknown source attribution kept explicit.
+- **Native source tracking:** new OpenCode snapshots capture [Agent, Mode, and Command directory inventories](docs/native-resource-sources.md), display their metadata in both languages, and reject resume after source changes. Complete field-level override provenance remains open.
+- **Native configuration import:** preview an [OpenCode JSON/JSONC file](docs/native-configuration-import.md), [Pi model/auth/settings and Prompt files](docs/pi-native-configuration-import.md), or [DSH composition/settings/credentials](docs/dsh-native-configuration-import.md) in Settings, then import shared resources and disabled Agent drafts. Known credentials enter the encrypted vault; exact source bytes and unknown fields remain in an encrypted archive with immutable per-file provenance.
+- **Versioned prompts and Skills:** edit Markdown assets, preserve previous revisions, and bind either the latest revision or a specific version. Prompt application modes are explicit. A [combined desktop fixture](docs/shared-asset-acceptance.md) verifies one shared Prompt and directory Skill across all three engines, including edits during active turns and old/new versions after native resume.
+- **Skill directory imports:** select a directory in the desktop editor to capture `SKILL.md`, scripts, and references with file digests. Reimport creates a new revision while retaining previous bytes; importing never executes scripts.
+- **MCP definitions:** configure stdio, Streamable HTTP, or SSE, with arguments, environment values, secret references, headers, and authentication metadata.
+- **Resource bundles:** reuse prompt, Skill, and MCP bindings. Native plugins have separate metadata tied to an engine installation. The desktop editor can [inspect selected installed OpenCode, Pi, and DSH plugin files](docs/native-plugin-inspection.md), including entry resolution, package versions, declared engine ranges, and digests; supported installed ESM plugins now have [instance-specific startup and resume checks](docs/opencode-plugin-activation.md). Selected [Pi extensions](docs/pi-plugin-activation.md) also support native startup/resume checks, custom tools, and extension command dialogs; they require unrestricted execution. Selected [DSH modules](docs/dsh-plugin-activation.md) support native boot/session checks, separate instances of the same module, and bilingual JSON options editing.
+- **Session list:** one tab gathering every conversation with counters, status filters, search, and the selected conversation's work record and saved chat history, with links into the live session, the full history, and the configuration report. See [session list](docs/session-list.md).
+- **Saved history:** browse older events in bounded pages and export the selected history to JSONL. Historical interaction requests are read-only, and exports preserve the journal's existing credential redaction; see [history and export behavior](docs/session-history.md).
+- **Session configuration reports:** inspect captured values, native readback evidence, asset versions and binding sources, and changes pending a new session. An expandable [native capability table](docs/session-capabilities.md) separates mechanism, verification and current availability, including declared versus successfully used restoration. Reports preserve historical checks after restart and leave unsupported readback unknown; see [evidence and limits](docs/configuration-report.md).
+- **Resolved previews:** inspect shared bindings and draft diagnostics before native adapter validation. Direct bindings override bundle bindings; disabled assets are excluded. Removing definitions cleans references while retaining dependent agents as drafts.
+- **Local persistence:** schema v2 JSON, Zod validation, atomic replacement, revision conflicts, immutable asset history, and automatic v1 migration with an exact-byte backup.
+- **API credentials:** add, replace, and delete encrypted credentials in Settings. Main-process storage uses Electron’s asynchronous OS-backed encryption; the UI receives metadata only. Session reports compare [attachment and stored revisions](docs/credential-rotation.md); active processes keep prior inputs, while new starts and native resumes resolve current credentials. Browser preview disables credential storage.
+- **Light and dark themes on shadcn components:** a neutral token palette drives both themes, with a light/dark/system preference saved per device. Every screen is built from the shadcn primitives in `components/ui`; there is no separate stylesheet. See [themes and components](docs/theme-and-components.md).
+- **English and Simplified Chinese:** instant language switching, translated forms and application errors, and a saved language preference.
 
-这是配置管理基础版本。**尚未执行模型请求、MCP 连接、Skills 文件读取或第三方插件安装**，启用状态代表配置可用，不代表 Agent / 服务正在运行。插件目前是资源组合清单，不运行任意第三方代码。
+The [B0 shared foundation](docs/foundation-acceptance.md) passes on the macOS arm64 development host. All three engines are connected to the desktop UI and verified on macOS against local provider fixtures. DSH has separate [configuration](docs/dsh-configuration.md) and [runtime](docs/dsh-runtime.md) evidence, including both its generic and native DeepSeek provider components. External provider acceptance, complete native override provenance, complete native source ingestion, and third-party plugin installation remain open. Enabled means the configuration is available; it does not mean an agent or service is running. Resolved previews show intended inputs, not verified native behavior.
 
-## 命令
+Configure an engine installation, then create a shared connection and model. Maintain prompts, Skills, and MCP definitions in their own libraries and select them in an agent's Bindings tab. The Resolved preview tab reports missing configuration. Incomplete profiles remain editable; a complete shared preview still requires native adapter compatibility checks before launch.
 
-| 命令                   | 说明                                                      |
-| ---------------------- | --------------------------------------------------------- |
-| `npm run dev`          | 启动 Electron，支持界面热更新                             |
-| `npm run dev:web`      | 在浏览器中预览 UI                                         |
-| `npm run check`        | ESLint、单元测试、TypeScript 和生产构建                   |
-| `npm run test:smoke`   | 构建并启动真实 Electron，验证配置编辑、绑定、重启和持久化 |
-| `npm run format`       | 格式化源码与文档                                          |
-| `npm run format:check` | 检查格式                                                  |
-| `npm run build`        | 构建到 `out/`                                             |
-| `npm start`            | 运行已有生产构建                                          |
-| `npm run package`      | 为当前平台生成未签名应用目录                              |
-| `npm run dist`         | 为当前平台生成分发包，输出到 `release/`                   |
+## Language support
 
-桌面冒烟测试使用临时配置目录并自动清理，需要可用的桌面图形环境。CI 默认运行不依赖图形环境的 `check`。
+Use the language selector in the top bar or **Settings → Language**. On the first visit, the UI follows the first supported system/browser language, with English as the fallback. Chinese language variants resolve to Simplified Chinese. An explicit choice is saved under `agent-matrix:locale` in localStorage and restored after reload or restart. Desktop and browser preview keep separate preferences.
 
-## 目录
+Switching languages updates UI text, accessible labels, dialogs, validation messages, and number formatting. It also updates the document's `lang` attribute. Existing agent names, descriptions, prompts, Skill instructions, and resource data are user content and are never translated or overwritten. New agent drafts use the active language; the first desktop workspace uses the system language. If preference storage is unavailable, switching still works for the current window.
+
+Translations live in `src/shared/i18n/en.ts` and `zh-CN.ts`, including their `configuration-*.ts` and `session-*.ts` catalogs. Use stable keys through `useI18n().t()` in React or `translate()` in shared code. Chinese entries must satisfy the English key schema; tests verify matching placeholders. Main-process application failures use stable serialized error codes so the renderer can translate them in the current language. Native OS diagnostics retain their technical details.
+
+## Commands
+
+| Command                            | Purpose                                                                                                                                             |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                      | Start Electron with hot reload                                                                                                                      |
+| `npm run dev:web`                  | Preview the UI in a browser                                                                                                                         |
+| `npm run check`                    | Run ESLint, unit tests, TypeScript, and production builds                                                                                           |
+| `npm run test:smoke`               | Build and test a real Electron window, including language switching and persistence                                                                 |
+| `npm run test:foundation`          | Build and run strict B0 desktop acceptance, requiring OS encryption, bilingual draft launch guards and credential replacement after restart         |
+| `npm run test:ipc-errors`          | Verify real Electron error projection, private path/exception masking, both locales and failure recovery                                            |
+| `npm run test:sessions`            | Build and test desktop sessions with an explicitly selected OpenCode, Pi, or DSH CLI and a local provider fixture                                   |
+| `npm run test:shared-assets`       | Build and verify shared Prompt/Skill updates across all three installed engines in one desktop workspace                                            |
+| `npm run test:native-import`       | Verify OpenCode, Pi or DSH import, OS encryption, bilingual UI, and an imported native session against a local provider                             |
+| `npm run test:credential-rotation` | Verify stored-key rotation, active/new/resumed native sessions, deletion failures, and bilingual revision reports across all three engines          |
+| `npm run probe:dsh`                | Opt-in installed DSH lifecycle, configuration, and coordinated runtime through two local provider routes                                            |
+| `npm run probe:providers`          | Opt-in Responses and Anthropic Messages endpoint, authentication, tool and lifecycle checks across all three installed engines using local fixtures |
+| `npm run probe:isolation`          | Verify two overlapping snapshots, native tool environments, resource versions, exact resume and independent cleanup on all four routes              |
+| `npm run probe:skills`             | Verify native Skill body/reference loading, disabled/unbound resources, selected-name collisions and restoration on four routes                     |
+| `npm run probe:pi`                 | Opt-in installed Pi transport, configuration, and coordinated runtime with local fixtures                                                           |
+| `npm run probe:acp`                | Opt-in installed OpenCode/DSH handshake through the application ACP client                                                                          |
+| `npm run format`                   | Format source and documentation                                                                                                                     |
+| `npm run format:check`             | Check formatting                                                                                                                                    |
+| `npm run build`                    | Build into `out/`                                                                                                                                   |
+| `npm start`                        | Run the existing production build                                                                                                                   |
+| `npm run package`                  | Create an unsigned app directory for the current platform                                                                                           |
+| `npm run dist`                     | Build platform distributables into `release/`                                                                                                       |
+
+Configuration reports now show [selected Skill source evidence](docs/skill-source-verification.md), distinguishing Pi RPC observations, OpenCode preflight, and unknown results.
+
+Closed conversations support [confirmed deletion and recoverable cleanup](docs/session-retention.md), including reference checks before removing captured inputs and native state. Shared assets, credentials, project files, and exported histories are retained.
+
+Desktop smoke tests use a temporary configuration directory and clean it up afterward. They require a desktop graphics environment. CI runs `check`, which does not require a display.
+
+The ACP probe requires explicit executable-path environment variables; see [ACP client verification](docs/acp-client.md#verification). Its successful handshake does not validate model calls or tool execution. The separate [Pi RPC probe](docs/pi-rpc.md) verifies native turns, cancellation, restoration, and trust behavior against a local fixture; the [Pi runtime and desktop fixtures](docs/pi-runtime.md) also pass.
+
+## Project layout
 
 ```text
 src/
-  main/                  Electron 生命周期、IPC 边界、本地存储
-  preload/               只暴露明确的类型化配置 API
-  shared/                配置 schema、领域类型、资源组合规则、IPC 契约
+  main/                  Electron lifecycle, IPC boundaries, local storage
+  preload/               Explicit, typed configuration and session APIs
+  shared/                Schemas, domain types, composition rules, IPC contracts
+    i18n/                Typed English and Simplified Chinese catalogs
+    errors.ts            Localizable application error codes and formatting
   renderer/
     src/
-      components/        Agent、MCP、Skill、插件编辑器
-      lib/               桌面 API / 浏览器预览适配器
-      App.tsx            工作空间页面与导航
-      tokens.css         颜色、字体设计变量
-      styles.css         界面样式
-tests/                   配置校验、资源组合、持久化测试
-scripts/                 开发 CSP 与真实 Electron 冒烟测试
-docs/architecture.md     架构约定和后续扩展点
+      components/        Configuration editors, language controls, and sessions
+        ui/              shadcn component primitives (button, card, input, …)
+      i18n/              React translation context and language preferences
+      theme/             Light/dark theme context and saved preference
+      lib/               Desktop API / browser preview adapter
+      App.tsx            Workspace pages and navigation
+      tokens.css         Light/dark design tokens, Tailwind and the element baseline
+tests/                   Configuration, composition, persistence, and i18n tests
+scripts/                 Development CSP and real Electron smoke tests
+docs/                    Architecture, CLI research, and implementation plan
 ```
 
-## 数据与开发约定
+## Data and development conventions
 
-桌面配置位于 Electron `userData/workspace.json`，可以在「设置」页面查看准确路径。macOS 通常为 `~/Library/Application Support/AgentMatrix/workspace.json`。开发冒烟测试通过 `AGENT_MATRIX_DATA_DIR` 指定临时目录；打包版本忽略该环境变量。
+Desktop configuration lives in Electron's `userData/workspace.json`; Settings shows its exact path. On macOS it is usually `~/Library/Application Support/AgentMatrix/workspace.json`. Development smoke tests use `AGENT_MATRIX_DATA_DIR` for isolation; packaged builds ignore that variable.
 
-环境变量配置保存的是**变量名引用**，例如 `{"API_TOKEN":"MY_API_TOKEN"}`，预留给未来运行时从系统环境解析。当前版本未实现凭证库，不要将密钥写入 Prompt、参数或普通配置字段。
+Connections and MCP definitions store **secret references**, either an environment variable name or a credential ID. Settings provides the encrypted credential vault at `userData/credentials/vault.json`; configuration editors can select saved credential metadata without reading plaintext values. The desktop runtime resolves only the captured references immediately before launching OpenCode, Pi, or DSH. Do not put keys into prompts, arguments, or ordinary configuration fields.
 
-配置无法解析或版本不兼容时会展示错误，并保留原文件。没有静默重置逻辑。手工编辑配置建议先退出应用并备份文件。
+The active store uses schema v2. Before converting a v1 workspace, it preserves the original bytes as `workspace.json.v1.<sha256>.bak`; migration retains IDs and bindings and leaves unresolved engine choices editable. A fresh workspace has no assumed provider, model, installation, or sampling temperature. Browser preview writes `agent-matrix:preview:v2` and retains the old `agent-matrix:preview:v1` value when migrating.
 
-主进程启用 `contextIsolation`、渲染沙箱并关闭 Node 集成；Preload 仅提供读取配置、保存配置和读取应用信息三个接口，IPC 验证来源。生产页面限制 CSP，开发模式仅为 React Fast Refresh 放开内联脚本。参考 [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) 与 [electron-vite 开发文档](https://electron-vite.org/guide/dev)。
+Imported Skill files live under `userData/assets/skills/<digest>/`. The importer rejects symlinks, ambiguous/nonportable paths, changed sources, and oversized directories. It preserves frontmatter without interpreting it. Skill discovery and name compatibility still require an engine adapter. See [Skill capture boundaries](docs/skill-capture.md) for limits and retention behavior.
 
-## 下一阶段
+Unreadable or incompatible workspace files produce an error and are preserved. There is no silent reset. Exit the app and make a backup before editing its workspace file manually.
 
-1. 分离 CLI 引擎、模型连接与共享资源，增加系统凭证库和能力校验。
-2. 实现各 CLI 的配置适配器与原生会话接口，支持流式事件、审批、取消和恢复。
-3. 完整 Skill 目录导入、MCP 配置分发、原生插件管理与配置生效状态。
-4. 逐个验证首批九类引擎，再扩展任务调度和多 Agent 协作。具体设计见 [CLI Agent 接入调研](docs/cli-agent-research.md)。
+The main process enables context isolation and renderer sandboxing, and disables Node integration. Preload exposes workspace loading/saving, app information, credential metadata/set/delete operations, explicit installation probing, and typed session commands/events. No plaintext credential read operation is exposed. IPC validates the sender. Production uses a restrictive CSP; development permits inline scripts for React Fast Refresh only. See [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation) and [electron-vite development](https://electron-vite.org/guide/dev).
 
-桌面分发配置已预留 macOS DMG、Windows NSIS、Linux AppImage；正式发布前需补充品牌图标、签名、公证及各平台验证。
+## Next stages
+
+1. Complete native provenance and library-wide update impact reporting for **OpenCode, Pi, and DeepSeek Harness**. Shared libraries, selected-file native import, Skill capture, bilingual editors, credential revision reports, v2 migration, immutable run inputs, and typed session IPC are active. Automatic installation discovery, complete native precedence, and referenced-resource ingestion remain open.
+2. Finish the **OpenCode ACP** acceptance gate: verify the intended external endpoint/model/auth route, complete effective configuration reporting, and audit the remaining shared-configuration requirements. Early Pi and DSH lifecycle probes now pass against local fixtures. Streaming, tools, permissions, cancellation, history, and restart/resume now run through the bilingual desktop UI against a local fixture. Shared prompt/Skill/MCP mappings remain part of acceptance.
+3. Complete **Pi RPC** and **DeepSeek Harness ACP** acceptance, reusing the shared library and session UI with separate native mappings and acceptance checks. Pi MCP requires a separately verified extension; DSH uses a pinned composition and explicit ACP limits after its installed SDK probe. General plugin installation and automatic upgrades are deferred. See the [probe report](docs/engine-probe-2026-09-18.md), [delivery milestones](docs/cli-agent-plan.md#21-incremental-delivery), and [implementation status](docs/implementation-status.md).
+4. After the initial three-engine milestone, expand to Claude Code, Codex, Gemini CLI, Cline, Goose, and OpenHands, then later scheduling and collaboration. See the [implementation plan](docs/cli-agent-plan.md) and [nine-engine research](docs/cli-agent-research.md).
+
+Packaging targets are configured for macOS DMG, Windows NSIS, and Linux AppImage. Brand assets, signing, notarization, and platform verification remain release work.

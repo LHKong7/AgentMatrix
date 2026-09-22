@@ -1,13 +1,15 @@
 import { z } from 'zod'
+import { translate, type Locale } from './i18n'
+export { formatError } from './errors'
 
-const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/, 'ID 只能包含字母、数字、下划线和连字符')
-const name = z.string().trim().min(1, '名称不能为空').max(80)
+const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/, 'validation.id')
+const name = z.string().trim().min(1, 'validation.name').max(80)
 const description = z.string().max(500)
 const ids = z
   .array(id)
   .max(200)
-  .refine((items) => new Set(items).size === items.length, '引用不能重复')
-const httpUrl = z.url().refine((value) => /^https?:\/\//.test(value), '仅支持 HTTP / HTTPS 地址')
+  .refine((items) => new Set(items).size === items.length, 'validation.duplicateRefs')
+const httpUrl = z.url().refine((value) => /^https?:\/\//.test(value), 'validation.http')
 
 export const agentSchema = z
   .object({
@@ -55,7 +57,7 @@ export const mcpServerSchema = z.discriminatedUnion('transport', [
 export const skillSchema = z
   .object({
     ...resourceFields,
-    instructions: z.string().min(1, '请填写 Skill 指令').max(100_000),
+    instructions: z.string().min(1, 'validation.instructions').max(100_000),
     sourcePath: z.string().max(2000),
   })
   .strict()
@@ -63,7 +65,7 @@ export const skillSchema = z
 export const pluginSchema = z
   .object({
     ...resourceFields,
-    version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/, '版本格式应为 1.0.0'),
+    version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/, 'validation.version'),
     mcpServerIds: ids,
     skillIds: ids,
   })
@@ -83,12 +85,12 @@ export const workspaceSchema = z
     for (const key of ['agents', 'mcpServers', 'skills', 'plugins'] as const) {
       const allIds = workspace[key].map((entry) => entry.id)
       if (new Set(allIds).size !== allIds.length) {
-        ctx.addIssue({ code: 'custom', path: [key], message: 'ID 不能重复' })
+        ctx.addIssue({ code: 'custom', path: [key], message: 'validation.duplicateIds' })
       }
     }
     const checkRefs = (refs: string[], available: { id: string }[], path: (string | number)[]) => {
       if (refs.some((ref) => !available.some((entry) => entry.id === ref))) {
-        ctx.addIssue({ code: 'custom', path, message: '引用的资源不存在' })
+        ctx.addIssue({ code: 'custom', path, message: 'validation.missingRef' })
       }
     }
     workspace.agents.forEach((agent, index) => {
@@ -110,32 +112,32 @@ export type Workspace = z.infer<typeof workspaceSchema>
 export type ResourceKind = 'mcpServers' | 'skills' | 'plugins'
 export type Resource = McpServer | Skill | Plugin
 
-export function createAgent(agentId: string): Agent {
+export function createAgent(agentId: string, locale: Locale = 'en'): Agent {
   return {
     id: agentId,
-    name: '新 Agent',
+    name: translate(locale, 'defaults.newAgent'),
     description: '',
     enabled: true,
     provider: 'openai-compatible',
     model: '',
     baseUrl: '',
     temperature: 0.7,
-    systemPrompt: '你是一位严谨、可靠的助手。请清晰地回答用户问题，在信息不足时主动澄清。',
+    systemPrompt: translate(locale, 'defaults.prompt'),
     mcpServerIds: [],
     skillIds: [],
     pluginIds: [],
   }
 }
 
-export function createWorkspace(): Workspace {
+export function createWorkspace(locale: Locale = 'en'): Workspace {
   return {
     schemaVersion: 1,
     revision: 0,
     agents: [
       {
-        ...createAgent('general-assistant'),
-        name: '通用助手',
-        description: '从一个想法开始，打造属于你的 Agent。',
+        ...createAgent('general-assistant', locale),
+        name: translate(locale, 'defaults.agent'),
+        description: translate(locale, 'defaults.description'),
       },
     ],
     mcpServers: [],
@@ -192,11 +194,4 @@ export function resolveResources(workspace: Workspace, agent: Agent) {
     mcpServers: workspace.mcpServers.filter((server) => server.enabled && mcpIds.has(server.id)),
     skills: workspace.skills.filter((skill) => skill.enabled && skillIds.has(skill.id)),
   }
-}
-
-export function formatError(error: unknown): string {
-  if (error instanceof z.ZodError) {
-    return error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('\n')
-  }
-  return error instanceof Error ? error.message : '操作失败，请重试。'
 }

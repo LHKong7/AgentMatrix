@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-09-17T20:11:05.425Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engineVersion": "0.85.1",
+  "externalProviderCalls": false,
+  "savedProfileAdapter": true,
+  "nativeModelAndSkillReadback": true,
+  "customEndpointAndSecretHeaders": true,
+  "literalHeaderEscaping": true,
+  "replacementAndAppend": true,
+  "nativeAppendPreserved": true,
+  "directorySkillAndReferenceToolResults": true,
+  "isolatedInputRevisions": true,
+  "denyTools": true,
+  "independentProjectTrustAndContext": true,
+  "unselectedExtensionsAndSkillsDisabled": true,
+  "unrelatedTrustUnchanged": true,
+  "nativeControlsVerifiedAfterExit": true,
+  "providerCalls": 10
+}

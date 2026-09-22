@@ -1,0 +1,51 @@
+{
+  "checkedAt": "2026-09-19T15:41:49.945Z",
+  "baseCommit": "7bcdb1945c89b6e5a519f9a8cebdcc668d8c0fb0",
+  "productionSourceTree": "aa3bbf95674d8983608cc5107e4c56feceb1008c",
+  "testSourceTree": "b849f46cc17779787c6c6d41f20f0ee22728b2d7",
+  "productionCodeChanged": false,
+  "priorUnitResult": {
+    "tests": 987,
+    "files": 61,
+    "maxWorkers": 2,
+    "reusedFromBaseCommit": true,
+    "rerun": false
+  },
+  "freshChecks": [
+    "ESLint for the modified fixture",
+    "Node syntax check",
+    "Four-route real Electron credential fixture",
+    "Changed-file formatting",
+    "git diff --check"
+  ],
+  "report": {
+    "path": "docs/probes/2026-09-20-stream-boundary-desktop.json",
+    "sha256": "975418bf606a7f5d8068e5e47a6c33705a4f1ec0850e80a587ba3e41e2887d93"
+  },
+  "observedFileHashes": {
+    "scripts/credential-rotation-smoke.mjs": "3e748560d6a76c2afcebd6471a0fa97ee727700583b3c96a6e10e3c818270d8f",
+    "out/main/index.js": "bd2d1b8008bef96f6b5f32364f133ed773f74f40a5cf0585050a7f702156bad3",
+    "out/preload/index.js": "6e893cc1b97fb9759eb22c35f01b75381abb8ca8da0a584d29ecf898f4b9bf22",
+    "package-lock.json": "472fda1db4bef5b6c2744eba73c1d712f5de4918e4c027d807a21e6d1f5385eb"
+  },
+  "nativeEntryHashes": {
+    "opencode": "a41776bf64c75786d6baf531b840ffb873c090d7c44793ae2dd4b1896de56a1f",
+    "pi": "e6d7fcf36a239cf3746e67ddf4222081ac01a601b85a3ee688bdfe9c161d754c",
+    "dsh": "0ff7f1d72c4e0cbe14001709c81e20a04b70464118a7f78568952988e28f2ac5"
+  },
+  "probeDependencies": {
+    "restoredOffline": true,
+    "lifecycleScriptsDisabled": true,
+    "versions": {
+      "pi": "0.85.1",
+      "dsh": "0.1.5-rc.2"
+    },
+    "lockfileSha256": "0f1468fe8215ee5b5249779ba6225e171be77c262e006f487785f3e392dc192d",
+    "note": "The temporary dependency lockfile is not a checked-in distribution lockfile."
+  },
+  "successfulPublicResponseChecks": 568,
+  "liveEvents": 161,
+  "liveTurns": 20,
+  "primaryStreams": 20,
+  "scope": "macOS arm64 development build, four installed runtime routes, loopback synthetic provider and OS credential encryption. Provider chunking does not imply identical native event granularity; DSH can publish committed message content. No external provider or full X3 gate is claimed."
+}

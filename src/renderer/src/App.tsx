@@ -5,13 +5,16 @@ import {
   Boxes,
   Check,
   ChevronRight,
-  CircleHelp,
-  Code2,
+  CircleAlert,
   Command,
   FileText,
   FolderOpen,
   Layers3,
+  Layers,
+  ListTree,
   LoaderCircle,
+  MessageSquare,
+  Palette,
   Plus,
   Puzzle,
   Search,
@@ -19,82 +22,149 @@ import {
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Trash2,
   type LucideIcon,
 } from 'lucide-react'
 import type { AppInfo } from '../../shared/api'
+import { appError, formatError } from '../../shared/errors'
 import {
-  createAgent,
-  createResource,
-  formatError,
-  removeResource,
-  resolveResources,
-  workspaceSchema,
-  type Agent,
-  type Resource,
-  type ResourceKind,
-  type Workspace,
-} from '../../shared/workspace'
+  bindConnectionToEngine,
+  collectionLabels,
+  libraryEntryLabels,
+  profileResourceCounts,
+  createLibraryEntry,
+  createProfile,
+  removeConfiguration,
+  upsertConfiguration,
+  type Collection,
+  type ConfigurationEntry,
+  type LibraryCollection,
+  type LibraryEntry,
+} from '../../shared/engines/editing'
+import { engineWorkspaceSchema, type EngineWorkspace } from '../../shared/engines/workspace'
+import { bindingFor, installationsBoundTo } from '../../shared/engines/provider'
+import { isSupportedEngine } from '../../shared/engines/contracts'
+import { EvidenceBadge } from './components/EvidenceBadge'
+import type { AgentProfile } from '../../shared/engines/schema'
+import type { MessageKey } from '../../shared/i18n'
+import { useI18n } from './i18n'
 import { api } from './lib/api'
 import { AgentEditor } from './components/AgentEditor'
-import { ResourceEditor, resourceLabels } from './components/ResourceEditor'
+import { ResourceEditor } from './components/ResourceEditor'
+import { LanguageSelect } from './components/LanguageSelect'
+import { ThemeToggle } from './components/ThemeToggle'
+import { CredentialPanel } from './components/CredentialPanel'
+import { NativeImportPanel } from './components/NativeImportPanel'
+import { EngineDiscoveryPanel } from './components/EngineDiscoveryPanel'
+import { SessionsPanel } from './components/SessionsPanel'
+import { SessionListPanel } from './components/SessionListPanel'
+import { SharedSetupPanel } from './components/SharedSetupPanel'
+import { EngineGrants } from './components/EngineGrants'
+import { Badge } from './components/ui/badge'
+import { Button } from './components/ui/button'
+import { Alert, AlertDescription } from './components/ui/alert'
+import { Card, CardContent, CardFooter, CardHeader } from './components/ui/card'
+import { Input } from './components/ui/input'
+import { cn } from './lib/utils'
 
-type Page = 'agents' | ResourceKind | 'settings'
 type Editor =
-  | { type: 'agent'; value: Agent; isNew: boolean }
-  | { type: 'resource'; kind: ResourceKind; value: Resource }
+  | { kind: 'agents'; value: AgentProfile; isNew: boolean }
+  | { kind: LibraryCollection; value: LibraryEntry }
+type Page = Collection | 'settings' | 'sessions' | 'sessionList' | 'sharedSetup'
+const icons: Record<Collection, LucideIcon> = {
+  agents: Bot,
+  installations: Command,
+  connections: SlidersHorizontal,
+  models: Layers3,
+  prompts: FileText,
+  mcpServers: Server,
+  skills: FileText,
+  bundles: Boxes,
+  nativePlugins: Puzzle,
+}
+/**
+ * The workspace read in the order it is used: what a CLI runs, who it reaches, and what it
+ * knows. Engines own the installation, its granted connections and the model routes; the
+ * library owns everything that is shared across every CLI.
+ */
+const engineArea: Collection[] = ['installations', 'connections', 'models', 'nativePlugins']
+const navigation = [
+  { label: 'nav.group.agents', items: ['agents'] },
+  {
+    label: 'nav.group.engines',
+    items: ['installations', 'connections', 'models', 'nativePlugins'],
+  },
+  { label: 'nav.group.library', items: ['prompts', 'mcpServers', 'skills', 'bundles'] },
+] as const satisfies readonly { label: MessageKey; items: readonly Collection[] }[]
 
-const navigation: { page: Page; label: string; icon: LucideIcon }[] = [
-  { page: 'agents', label: '我的 Agents', icon: Bot },
-  { page: 'mcpServers', label: 'MCP Servers', icon: Server },
-  { page: 'skills', label: 'Skills', icon: FileText },
-  { page: 'plugins', label: '插件', icon: Puzzle },
-]
+function NavHeading({ label, first = false }: { label: string; first?: boolean }) {
+  return (
+    <span
+      className={cn(
+        'px-3 pb-1 text-[10px] font-medium tracking-[0.14em] text-muted-foreground uppercase',
+        !first && 'pt-3',
+      )}
+    >
+      {label}
+    </span>
+  )
+}
 
-const resourceCopy = {
-  mcpServers: {
-    title: '连接工具，拓展边界。',
-    description: '集中管理本地和远程 MCP 服务，让 Agent 拥有更多工具。',
-    icon: Server,
-    empty: '添加你的第一个 MCP Server',
-    detail: '配置本地命令或远程服务地址，随时绑定给需要它的 Agent。',
-  },
-  skills: {
-    title: '把经验，变成能力。',
-    description: '将可复用的指令与工作流程整理为 Skills。',
-    icon: FileText,
-    empty: '添加你的第一个 Skill',
-    detail: '写下擅长的工作流程，让不同 Agent 复用同一份经验。',
-  },
-  plugins: {
-    title: '自由组合，即刻复用。',
-    description: '将 MCP 和 Skills 组合成插件，为 Agent 配置成套能力。',
-    icon: Puzzle,
-    empty: '创建你的第一个插件',
-    detail: '从资源库选择 MCP 和 Skills，组成适合你的能力集合。',
-  },
+function NavItem({
+  icon: Icon,
+  label,
+  active,
+  count,
+  onClick,
+}: {
+  icon: LucideIcon
+  label: string
+  active: boolean
+  count?: string
+  onClick: () => void
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      title={label}
+      aria-current={active ? 'page' : undefined}
+      onClick={onClick}
+      className={cn(
+        'h-9 w-full justify-start gap-3 px-3 font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+        active && 'bg-sidebar-accent font-medium text-sidebar-accent-foreground',
+      )}
+    >
+      <Icon size={18} aria-hidden="true" />
+      <span className="truncate">{label}</span>
+      {count !== undefined && (
+        <small className="ml-auto font-mono text-[10px] text-muted-foreground">{count}</small>
+      )}
+    </Button>
+  )
 }
 
 export function App() {
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const { t, locale, number } = useI18n()
+  const [workspace, setWorkspace] = useState<EngineWorkspace | null>(null)
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [page, setPage] = useState<Page>('agents')
+  const [sessionAgent, setSessionAgent] = useState<string | null>(null)
+  const [sessionSelection, setSessionSelection] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<Editor | null>(null)
-  const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
+  const [error, setError] = useState<unknown>(null)
+  const [notice, setNotice] = useState(false)
   const [saving, setSaving] = useState(false)
   const saveLock = useRef(false)
-
   async function load() {
-    setError('')
+    setError(null)
     try {
       const [state, appInfo] = await Promise.all([api.loadWorkspace(), api.getAppInfo()])
       setWorkspace(state)
       setInfo(appInfo)
     } catch (failure) {
-      setError(formatError(failure))
+      setError(failure)
     }
   }
   useEffect(() => {
@@ -102,484 +172,633 @@ export function App() {
   }, [])
   useEffect(() => {
     if (!notice) return
-    const timeout = window.setTimeout(() => setNotice(''), 3000)
-    return () => window.clearTimeout(timeout)
+    const handle = window.setTimeout(() => setNotice(false), 3000)
+    return () => window.clearTimeout(handle)
   }, [notice])
-
-  async function save(next: Workspace) {
-    if (saveLock.current) throw new Error('正在保存，请稍后重试。')
+  async function save(next: EngineWorkspace) {
+    if (saveLock.current) throw appError('error.saving')
     saveLock.current = true
     setSaving(true)
     try {
-      const saved = await api.saveWorkspace(workspaceSchema.parse(next))
+      const saved = await api.saveWorkspace(engineWorkspaceSchema.parse(next))
       setWorkspace(saved)
-      setError('')
-      setNotice('配置已保存')
+      setError(null)
+      setNotice(true)
     } finally {
       saveLock.current = false
       setSaving(false)
     }
   }
-  async function action(next: Workspace) {
+  async function action(next: EngineWorkspace) {
     try {
       await save(next)
     } catch (failure) {
-      setError(formatError(failure))
+      setError(failure)
     }
   }
   function navigate(next: Page) {
     setPage(next)
     setQuery('')
   }
-  function newAgent() {
-    setEditor({ type: 'agent', value: createAgent(crypto.randomUUID()), isNew: true })
-  }
-  function newResource(kind: ResourceKind) {
-    setEditor({ type: 'resource', kind, value: createResource(kind, crypto.randomUUID()) })
-  }
-  function deleteAgent(agent: Agent) {
-    if (workspace && window.confirm(`删除「${agent.name}」？此操作不会删除共享资源。`)) {
-      void action({
-        ...workspace,
-        agents: workspace.agents.filter((entry) => entry.id !== agent.id),
+  function add(kind: Collection) {
+    if (kind === 'agents')
+      setEditor({ kind, value: createProfile(crypto.randomUUID(), locale), isNew: true })
+    else
+      setEditor({
+        kind,
+        value: createLibraryEntry(kind, crypto.randomUUID(), info?.platform ?? 'browser'),
       })
-    }
   }
-  function deleteResource(kind: ResourceKind, resource: Resource) {
+  function remove(kind: Collection, value: ConfigurationEntry) {
     if (
       workspace &&
-      window.confirm(`删除「${resource.name}」？Agent 和插件中的相关绑定也会移除。`)
-    ) {
-      void action(removeResource(workspace, kind, resource.id))
+      window.confirm(
+        t(kind === 'agents' ? 'agents.deleteConfirm' : 'config.deleteConfirm', {
+          name: value.name,
+        }),
+      )
+    )
+      void action(removeConfiguration(workspace, kind, value.id))
+  }
+  const matches = (value: ConfigurationEntry) =>
+    `${value.name} ${'description' in value ? value.description : ''}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
+  const label =
+    page === 'sessions'
+      ? t('nav.sessions')
+      : page === 'sessionList'
+        ? t('nav.sessionList')
+        : page === 'sharedSetup'
+          ? t('nav.sharedSetup')
+          : page === 'settings'
+            ? t('nav.settings')
+            : t(collectionLabels[page])
+  async function probe(installationId: string) {
+    if (saveLock.current) return
+    saveLock.current = true
+    setSaving(true)
+    setError(null)
+    try {
+      setWorkspace(await api.probeEngine({ installationId }))
+      setNotice(true)
+    } catch (failure) {
+      setError(failure)
+    } finally {
+      saveLock.current = false
+      setSaving(false)
     }
   }
-  const matches = (entry: { name: string; description: string }) =>
-    `${entry.name} ${entry.description}`.toLowerCase().includes(query.toLowerCase())
-  const currentLabel =
-    page === 'settings' ? '设置' : navigation.find((item) => item.page === page)?.label
+  function summary(entry: LibraryEntry): string {
+    if ('executable' in entry) return `${entry.kind} · ${entry.version ?? t('config.unprobed')}`
+    if ('protocol' in entry) return `${entry.protocol ?? t('config.choose')} · ${entry.baseUrl}`
+    if ('modelId' in entry) return entry.modelId || t('agents.modelEmpty')
+    if ('versions' in entry) return t('config.revision', { version: entry.currentVersion })
+    if ('transport' in entry) return entry.transport === 'stdio' ? entry.command : entry.url
+    if ('nativeId' in entry) return `${entry.nativeId} · ${entry.version}`
+    return `v${entry.version} · ${entry.mcpServerIds.length} MCP · ${entry.skillBindings.length} Skills`
+  }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-symbol">
-            <Boxes size={25} strokeWidth={1.8} />
+    <div className="flex min-h-screen bg-background">
+      <aside className="fixed inset-y-0 left-0 flex w-59 flex-col gap-4 overflow-y-auto border-r border-sidebar-border bg-sidebar px-4 py-6 text-sidebar-foreground">
+        <div className="flex items-center gap-3">
+          <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand text-brand-foreground">
+            <Boxes size={24} aria-hidden="true" />
           </div>
-          <span>
-            Agent<span className="brand-light">Matrix</span>
-            <small>YOUR AGENT WORKSPACE</small>
+          <span className="grid min-w-0">
+            <span className="text-sm font-semibold">
+              Agent<span className="font-normal text-muted-foreground">Matrix</span>
+            </span>
+            <small className="text-[9px] tracking-[0.14em] uppercase">{t('brand.tagline')}</small>
           </span>
         </div>
-        <div className="workspace-switch">
-          <div className="workspace-avatar">M</div>
-          <div>
-            <strong>个人工作空间</strong>
-            <span>Local workspace</span>
+        <div className="flex items-center gap-3 rounded-lg border border-sidebar-border bg-card p-3">
+          <div className="grid size-8 place-items-center rounded-md bg-muted text-xs font-semibold">
+            M
           </div>
-          <span className="local-dot" />
-        </div>
-        <span className="nav-caption">工作空间</span>
-        <nav aria-label="主导航">
-          {navigation.map(({ page: target, label, icon: Icon }) => (
-            <button
-              key={target}
-              className={`nav-item ${page === target ? 'active' : ''}`}
-              onClick={() => navigate(target)}
-            >
-              <Icon size={19} />
-              <span>{label}</span>
-              {workspace && <small>{workspace[target as ResourceKind | 'agents'].length}</small>}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-note">
-          <Layers3 size={20} />
-          <strong>你的工作方式，你来定义</strong>
-          <p>
-            连接工具、沉淀经验，
-            <br />
-            让每个 Agent 各有所长。
-          </p>
-          <button onClick={() => navigate('plugins')}>
-            探索插件配置 <ArrowRight size={14} />
-          </button>
-        </div>
-        <div className="sidebar-bottom">
-          <button
-            className={`nav-item ${page === 'settings' ? 'active' : ''}`}
-            onClick={() => navigate('settings')}
-          >
-            <Settings2 size={19} />
-            <span>设置</span>
-          </button>
-          <div className="local-status">
-            <ShieldCheck size={15} />
-            <span>
-              {info?.storage === 'browser' ? '浏览器预览 · 独立存储' : '本地存储 · 由你掌控'}
+          <div className="grid min-w-0 flex-1 gap-0.5">
+            <strong className="truncate text-xs">{t('workspace.personal')}</strong>
+            <span className="truncate text-[11px] text-muted-foreground">
+              {t('workspace.local')}
             </span>
           </div>
+          <span className="size-2 rounded-full bg-success" aria-hidden="true" />
+        </div>
+        <nav aria-label={t('nav.main')} className="grid gap-0.5">
+          <NavHeading label={t('nav.group.sessions')} first />
+          <NavItem
+            icon={MessageSquare}
+            label={t('nav.sessions')}
+            active={page === 'sessions'}
+            onClick={() => {
+              setSessionAgent(null)
+              setSessionSelection(null)
+              navigate('sessions')
+            }}
+          />
+          <NavItem
+            icon={ListTree}
+            label={t('nav.sessionList')}
+            active={page === 'sessionList'}
+            onClick={() => navigate('sessionList')}
+          />
+          {navigation.map((group) => (
+            <div key={group.label} className="grid gap-0.5">
+              <NavHeading label={t(group.label)} />
+              {group.items.map((kind) => (
+                <NavItem
+                  key={kind}
+                  icon={icons[kind]}
+                  label={t(collectionLabels[kind])}
+                  active={page === kind}
+                  count={workspace ? number(workspace[kind].length) : undefined}
+                  onClick={() => navigate(kind)}
+                />
+              ))}
+              {group.label === 'nav.group.agents' && (
+                <NavItem
+                  icon={Layers}
+                  label={t('nav.sharedSetup')}
+                  active={page === 'sharedSetup'}
+                  onClick={() => navigate('sharedSetup')}
+                />
+              )}
+            </div>
+          ))}
+        </nav>
+        <div className="mt-auto grid gap-3">
+          <NavItem
+            icon={Settings2}
+            label={t('nav.settings')}
+            active={page === 'settings'}
+            onClick={() => navigate('settings')}
+          />
+          <span className="flex items-center gap-1.5 px-3 text-[10px] leading-relaxed text-muted-foreground">
+            <ShieldCheck size={13} aria-hidden="true" />
+            {t(info?.storage === 'browser' ? 'storage.browser' : 'storage.desktop')}
+          </span>
         </div>
       </aside>
-      <div className="main-shell">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <FolderOpen size={16} />
-            <span>工作空间</span>
-            <ChevronRight size={14} />
-            <strong>{currentLabel}</strong>
+      <div className="ml-59 flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-4 border-b border-border bg-background/85 px-8 py-4 backdrop-blur">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+            <FolderOpen size={16} aria-hidden="true" />
+            <span>AgentMatrix</span>
+            <ChevronRight size={14} aria-hidden="true" />
+            <strong className="truncate text-foreground">{label}</strong>
           </div>
-          <div className="topbar-right">
-            <span className="version">v{info?.version ?? '0.1.0'}</span>
-            <span className="avatar">ME</span>
+          <div className="flex items-center gap-2">
+            <LanguageSelect />
+            <ThemeToggle />
+            <Badge variant="outline" className="font-mono">
+              v{info?.version ?? '0.1.0'}
+            </Badge>
+            <span className="grid size-8 place-items-center rounded-full bg-muted text-[10px] font-semibold">
+              ME
+            </span>
           </div>
         </header>
-        <main>
-          {error && (
-            <div className="error-banner" role="alert">
-              <span>{error}</span>
-              <button onClick={() => void load()}>重新加载</button>
-            </div>
+        <main className="min-w-0 flex-1 px-8 py-7">
+          {error != null && (
+            <Alert variant="destructive" className="mb-5" role="alert">
+              <CircleAlert aria-hidden="true" />
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>{formatError(error, locale)}</span>
+                <Button variant="outline" size="sm" onClick={() => void load()}>
+                  {t('common.reload')}
+                </Button>
+              </AlertDescription>
+            </Alert>
           )}
           {!workspace ? (
-            <div className="loading">
-              {error ? <CircleHelp size={28} /> : <LoaderCircle className="spin" size={28} />}
-              <p>{error ? '配置加载失败，请检查文件后重试。' : '正在打开工作空间…'}</p>
+            <div className="grid justify-items-center gap-3 py-24 text-sm text-muted-foreground">
+              <LoaderCircle className="size-7 animate-spin" aria-hidden="true" />
+              <p>{t(error ? 'common.loadFailed' : 'common.loading')}</p>
             </div>
+          ) : page === 'sessions' ? (
+            <SessionsPanel
+              workspace={workspace}
+              desktop={info?.storage === 'desktop'}
+              initialAgent={sessionAgent}
+              initialSession={sessionSelection}
+              platform={info?.platform}
+            />
+          ) : page === 'sharedSetup' ? (
+            <SharedSetupPanel workspace={workspace} busy={saving} onSave={save} />
+          ) : page === 'sessionList' ? (
+            <SessionListPanel
+              workspace={workspace}
+              desktop={info?.storage === 'desktop'}
+              onOpenSession={(sessionId) => {
+                setSessionSelection(sessionId)
+                setSessionAgent(null)
+                navigate('sessions')
+              }}
+            />
           ) : (
             <>
+              <div className="mb-6 flex flex-wrap items-end justify-between gap-5">
+                <div className="min-w-0">
+                  <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">
+                    <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
+                    {t(
+                      page === 'agents'
+                        ? 'agents.eyebrow'
+                        : page === 'settings'
+                          ? 'settings.eyebrow'
+                          : engineArea.includes(page)
+                            ? 'engines.eyebrow'
+                            : 'resources.eyebrow',
+                    )}
+                  </div>
+                  <h1>{label}</h1>
+                  <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                    {t(
+                      page === 'agents'
+                        ? 'agents.description'
+                        : page === 'settings'
+                          ? 'settings.description'
+                          : engineArea.includes(page)
+                            ? 'engines.description'
+                            : 'config.libraryHint',
+                    )}
+                  </p>
+                </div>
+                {page !== 'settings' && (
+                  <Button onClick={() => add(page)} disabled={saving}>
+                    <Plus aria-hidden="true" />
+                    {page === 'agents'
+                      ? t('agents.create')
+                      : t('resources.add', { resource: t(libraryEntryLabels[page]) })}
+                  </Button>
+                )}
+              </div>
+              {page === 'installations' && (
+                <>
+                  <EngineDiscoveryPanel
+                    workspace={workspace}
+                    desktop={info?.storage === 'desktop'}
+                    platform={info?.platform}
+                    busy={saving}
+                    onSave={save}
+                    onWorkspace={setWorkspace}
+                  />
+                  <EngineGrants workspace={workspace} busy={saving} onSave={save} />
+                </>
+              )}
+              {page !== 'settings' && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="flex items-center gap-2">
+                    {label}
+                    <Badge variant="muted">{number(workspace[page].length)}</Badge>
+                  </h2>
+                  <label className="relative flex min-w-56 items-center">
+                    <Search
+                      className="pointer-events-none absolute left-3 size-4 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <Input
+                      className="pl-9"
+                      aria-label={t('resources.search')}
+                      placeholder={t('resources.search')}
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                    />
+                  </label>
+                </div>
+              )}
               {page === 'agents' && (
                 <>
-                  <div className="page-heading">
-                    <div>
-                      <div className="eyebrow">
-                        <span />
-                        AGENT COLLECTION
-                      </div>
-                      <h1>
-                        你的 Agent，各司其职<span className="accent">。</span>
-                      </h1>
-                      <p>在一个工作空间里，构建、配置并管理你的 AI 助手。</p>
-                    </div>
-                    <button className="button primary" onClick={newAgent} disabled={saving}>
-                      <Plus size={18} />
-                      创建 Agent
-                    </button>
-                  </div>
-                  <div className="stats-grid">
-                    <Stat
-                      label="Agents"
-                      value={workspace.agents.length}
-                      icon={Bot}
-                      detail={`${workspace.agents.filter((agent) => agent.enabled).length} 个配置已启用`}
-                    />
-                    <Stat
-                      label="MCP Servers"
-                      value={workspace.mcpServers.length}
-                      icon={Server}
-                      detail="连接外部工具与数据"
-                    />
-                    <Stat
-                      label="Skills"
-                      value={workspace.skills.length}
-                      icon={FileText}
-                      detail="可复用的知识与指令"
-                    />
-                    <Stat
-                      label="插件"
-                      value={workspace.plugins.length}
-                      icon={Puzzle}
-                      detail="自由组合的能力集合"
-                    />
-                  </div>
-                  <div className="list-toolbar">
-                    <div>
-                      <h2>
-                        我的 Agents <span>{workspace.agents.length}</span>
-                      </h2>
-                      <p>为不同的工作，配置合适的伙伴。</p>
-                    </div>
-                    <SearchInput value={query} onChange={setQuery} placeholder="搜索 Agent…" />
-                  </div>
-                  <div className="card-grid">
-                    {workspace.agents.filter(matches).map((agent, index) => {
-                      const resources = resolveResources(workspace, agent)
+                  <div className="card-grid grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+                    {workspace.agents.filter(matches).map((agent) => {
+                      const resources = profileResourceCounts(workspace, agent)
+                      const engine = workspace.installations.find(
+                        (item) => item.id === agent.engineInstallationId,
+                      )
+                      const model = workspace.models.find(
+                        (item) => item.id === agent.modelProfileId,
+                      )
                       return (
-                        <article className="agent-card" key={agent.id}>
-                          <div className="card-top">
-                            <div className={`agent-icon tone-${index % 3}`}>
-                              <Bot size={26} strokeWidth={1.7} />
-                            </div>
-                            <button
-                              className={`status-pill ${agent.enabled ? 'enabled' : ''}`}
-                              aria-label={`${agent.enabled ? '停用' : '启用'} ${agent.name}`}
-                              disabled={saving}
-                              onClick={() =>
-                                void action({
-                                  ...workspace,
-                                  agents: workspace.agents.map((entry) =>
-                                    entry.id === agent.id
-                                      ? { ...entry, enabled: !entry.enabled }
-                                      : entry,
-                                  ),
-                                })
-                              }
-                            >
-                              <span />
-                              {agent.enabled ? '已启用' : '已停用'}
-                            </button>
-                          </div>
-                          <h3>{agent.name}</h3>
-                          <p className="card-description">
-                            {agent.description || '为这个 Agent 添加描述，定义它的专长。'}
-                          </p>
-                          <div className="model-label">
-                            <Command size={13} />
-                            <span>{agent.model || '尚未配置模型'}</span>
-                          </div>
-                          <div className="capability-row">
-                            <span>
-                              <Server size={13} />
-                              {resources.mcpServers.length} MCP
-                            </span>
-                            <span>
-                              <FileText size={13} />
-                              {resources.skills.length} Skills
-                            </span>
-                            <span>
-                              <Puzzle size={13} />
-                              {resources.plugins.length} 插件
-                            </span>
-                          </div>
-                          <div className="card-footer">
-                            <button
-                              className="text-button"
-                              aria-label={`编辑 ${agent.name}`}
-                              onClick={() =>
-                                setEditor({ type: 'agent', value: agent, isNew: false })
-                              }
-                              disabled={saving}
-                            >
-                              <SlidersHorizontal size={15} />
-                              配置 Agent
-                              <ArrowRight size={14} />
-                            </button>
-                            <button
-                              className="icon-button danger-hover"
-                              aria-label={`删除 ${agent.name}`}
-                              onClick={() => deleteAgent(agent)}
-                              disabled={saving}
-                            >
-                              <Trash2 size={15} />
-                            </button>
-                          </div>
-                        </article>
+                        <Card asChild key={agent.id}>
+                          <article>
+                            <CardHeader className="flex flex-row items-start justify-between gap-3">
+                              <div className="grid size-11 place-items-center rounded-xl bg-muted text-muted-foreground">
+                                <Bot size={22} aria-hidden="true" />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 gap-1.5 px-2 text-[11px] font-normal"
+                                aria-label={t(
+                                  agent.enabled ? 'common.disableNamed' : 'common.enableNamed',
+                                  { name: agent.name },
+                                )}
+                                disabled={saving}
+                                onClick={() =>
+                                  void action(
+                                    upsertConfiguration(workspace, 'agents', {
+                                      ...agent,
+                                      enabled: !agent.enabled,
+                                    }),
+                                  )
+                                }
+                              >
+                                <span
+                                  className={cn(
+                                    'size-1.5 rounded-full',
+                                    agent.enabled ? 'bg-success' : 'bg-muted-foreground',
+                                  )}
+                                  aria-hidden="true"
+                                />
+                                {t(agent.enabled ? 'common.enabled' : 'common.disabled')}
+                              </Button>
+                            </CardHeader>
+                            <CardContent className="grid gap-3">
+                              <div className="grid gap-1">
+                                <h3 className="flex flex-wrap items-center gap-2 text-sm">
+                                  {agent.name}
+                                  <EvidenceBadge
+                                    workspace={workspace}
+                                    subject={{ kind: 'agent', id: agent.id }}
+                                  />
+                                </h3>
+                                <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                                  {agent.description || t('agents.descriptionEmpty')}
+                                </p>
+                              </div>
+                              <div className="grid gap-1.5">
+                                <span className="flex items-center gap-2 truncate rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                                  <Command size={12} aria-hidden="true" />
+                                  {engine?.name ?? t('resolution.engine-required')}
+                                </span>
+                                <span className="flex items-center gap-2 truncate rounded-md bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                                  <Layers3 size={12} aria-hidden="true" />
+                                  {model?.modelId || t('agents.modelEmpty')}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <Badge variant="muted">{resources.prompts} Prompt</Badge>
+                                <Badge variant="muted">{resources.skills} Skills</Badge>
+                                <Badge variant="muted">{resources.mcp} MCP</Badge>
+                                <Badge variant="muted">
+                                  {resources.bundles} {t('config.bundles')}
+                                </Badge>
+                              </div>
+                            </CardContent>
+                            <CardFooter className="mt-auto border-t border-border pt-3">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1"
+                                disabled={saving || !agent.enabled}
+                                onClick={() => {
+                                  setSessionSelection(null)
+                                  setSessionAgent(agent.id)
+                                  navigate('sessions')
+                                }}
+                              >
+                                <MessageSquare aria-hidden="true" />
+                                {t('sessions.open')}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="flex-1 [&>svg:last-child]:ml-auto"
+                                aria-label={t('common.editNamed', { name: agent.name })}
+                                disabled={saving}
+                                onClick={() =>
+                                  setEditor({ kind: 'agents', value: agent, isNew: false })
+                                }
+                              >
+                                <SlidersHorizontal aria-hidden="true" />
+                                {t('agents.configure')}
+                                <ArrowRight aria-hidden="true" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                aria-label={t('common.deleteNamed', { name: agent.name })}
+                                disabled={saving}
+                                onClick={() => remove('agents', agent)}
+                              >
+                                <Trash2 aria-hidden="true" />
+                              </Button>
+                            </CardFooter>
+                          </article>
+                        </Card>
                       )
                     })}
                     {!query && (
-                      <button className="create-card" onClick={newAgent} disabled={saving}>
-                        <span className="create-plus">
-                          <Plus size={25} />
+                      <button
+                        className="grid min-h-56 place-content-center justify-items-center gap-2 rounded-xl border border-dashed border-border p-6 text-center transition-colors hover:border-ring hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/45 focus-visible:outline-none disabled:opacity-60"
+                        onClick={() => add('agents')}
+                        disabled={saving}
+                      >
+                        <span className="grid size-11 place-items-center rounded-full bg-muted text-muted-foreground">
+                          <Plus size={22} aria-hidden="true" />
                         </span>
-                        <strong>新的想法，新的 Agent</strong>
-                        <span>从角色设定开始，赋予它独特的能力</span>
-                        <span className="create-link">
-                          创建 Agent <ArrowRight size={15} />
+                        <strong className="text-sm">{t('agents.newIdea')}</strong>
+                        <span className="max-w-64 text-xs leading-relaxed text-muted-foreground">
+                          {t('agents.newHint')}
+                        </span>
+                        <span className="mt-1 flex items-center gap-1.5 text-xs font-medium">
+                          {t('agents.create')}
+                          <ArrowRight size={14} aria-hidden="true" />
                         </span>
                       </button>
                     )}
                   </div>
-                  {query && !workspace.agents.some(matches) && (
-                    <p className="no-results">没有找到匹配的 Agent。</p>
-                  )}
-                  <div className="getting-started">
-                    <div className="guide-icon">
-                      <Sparkles size={22} />
-                    </div>
-                    <div>
-                      <strong>从一个 Agent，开始你的工作流</strong>
-                      <p>定义 System Prompt → 添加 MCP 与 Skills → 组合专属能力。</p>
-                    </div>
-                    <button className="text-button" onClick={() => navigate('skills')}>
-                      管理 Skills <ArrowRight size={16} />
-                    </button>
-                  </div>
-                  <p className="runtime-note">
-                    配置工作区已就绪 · 对话与 Agent 运行将在后续版本接入
-                  </p>
+                  <p className="mt-5 text-xs text-muted-foreground">{t('agents.runtimeNote')}</p>
                 </>
               )}
-              {page !== 'agents' &&
-                page !== 'settings' &&
-                (() => {
-                  const copy = resourceCopy[page]
-                  const Icon = copy.icon
-                  const entries = workspace[page].filter(matches)
-                  return (
-                    <>
-                      <div className="page-heading">
-                        <div>
-                          <div className="eyebrow">
-                            <span />
-                            CAPABILITY LIBRARY
+              {page !== 'agents' && page !== 'settings' && (
+                <div className="grid gap-3">
+                  {workspace[page].filter(matches).map((entry) => {
+                    const Icon = icons[page]
+                    return (
+                      <Card asChild key={entry.id}>
+                        <article className="flex-row flex-wrap items-center gap-4 px-4">
+                          <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                            <Icon size={20} aria-hidden="true" />
                           </div>
-                          <h1>{copy.title}</h1>
-                          <p>{copy.description}</p>
-                        </div>
-                        <button
-                          className="button primary"
-                          onClick={() => newResource(page)}
-                          disabled={saving}
-                        >
-                          <Plus size={18} />
-                          添加 {resourceLabels[page]}
-                        </button>
-                      </div>
-                      <div className="list-toolbar">
-                        <h2>
-                          {currentLabel} <span>{workspace[page].length}</span>
-                        </h2>
-                        <SearchInput value={query} onChange={setQuery} placeholder="搜索资源…" />
-                      </div>
-                      {entries.length ? (
-                        <div className="resource-list">
-                          {entries.map((resource) => (
-                            <article className="resource-card" key={resource.id}>
-                              <div className="resource-icon">
-                                <Icon size={23} />
-                              </div>
-                              <div className="resource-summary">
-                                <h3>
-                                  {resource.name}
-                                  <span className={`tag ${resource.enabled ? 'green' : ''}`}>
-                                    {resource.enabled ? '已启用' : '已停用'}
-                                  </span>
-                                </h3>
-                                <p>{resource.description || '暂无描述'}</p>
-                                <code>
-                                  {'transport' in resource
-                                    ? resource.transport === 'stdio'
-                                      ? resource.command
-                                      : resource.url
-                                    : 'version' in resource
-                                      ? `v${resource.version} · ${resource.mcpServerIds.length} MCP · ${resource.skillIds.length} Skills`
-                                      : resource.sourcePath || '内联 Markdown 指令'}
-                                </code>
-                              </div>
-                              <button
-                                className="button secondary"
-                                aria-label={`编辑 ${resource.name}`}
-                                onClick={() =>
-                                  setEditor({ type: 'resource', kind: page, value: resource })
-                                }
-                                disabled={saving}
-                              >
-                                配置
-                              </button>
-                              <button
-                                className="icon-button danger-hover"
-                                aria-label={`删除 ${resource.name}`}
-                                onClick={() => deleteResource(page, resource)}
-                                disabled={saving}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="empty-state">
-                          <div className="empty-icon">
-                            <Icon size={34} strokeWidth={1.5} />
+                          <div className="grid min-w-0 flex-1 gap-1">
+                            <h3 className="flex flex-wrap items-center gap-2">
+                              {entry.name}
+                              {'enabled' in entry && (
+                                <Badge variant={entry.enabled ? 'success' : 'muted'}>
+                                  {t(entry.enabled ? 'common.enabled' : 'common.disabled')}
+                                </Badge>
+                              )}
+                              {page === 'connections' && (
+                                <>
+                                  <Badge variant="muted">
+                                    {t('grants.engines', {
+                                      count: number(
+                                        installationsBoundTo(workspace, entry.id).length,
+                                      ),
+                                      total: number(
+                                        workspace.installations.filter((item) =>
+                                          isSupportedEngine(item.kind),
+                                        ).length,
+                                      ),
+                                    })}
+                                  </Badge>
+                                  <EvidenceBadge
+                                    workspace={workspace}
+                                    subject={{ kind: 'connection', id: entry.id }}
+                                  />
+                                </>
+                              )}
+                              {page === 'installations' && (
+                                <EvidenceBadge
+                                  workspace={workspace}
+                                  subject={{ kind: 'installation', id: entry.id }}
+                                />
+                              )}
+                            </h3>
+                            {'description' in entry && (
+                              <p className="text-xs text-muted-foreground">
+                                {entry.description || t('common.noDescription')}
+                              </p>
+                            )}
+                            <code className="text-muted-foreground">{summary(entry)}</code>
                           </div>
-                          <h2>{query ? '没有找到匹配的资源' : copy.empty}</h2>
-                          <p>{query ? '换个关键词试试。' : copy.detail}</p>
-                          {!query && (
-                            <button className="button secondary" onClick={() => newResource(page)}>
-                              <Plus size={16} />
-                              添加 {resourceLabels[page]}
-                            </button>
+                          {page === 'installations' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={
+                                saving ||
+                                info?.storage !== 'desktop' ||
+                                ('kind' in entry &&
+                                  !['opencode', 'pi', 'deepseek-harness'].includes(entry.kind))
+                              }
+                              onClick={() => void probe(entry.id)}
+                            >
+                              {t('sessions.probe')}
+                            </Button>
                           )}
-                        </div>
-                      )}
-                    </>
-                  )
-                })()}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label={t('common.editNamed', { name: entry.name })}
+                            disabled={saving}
+                            onClick={() => setEditor({ kind: page, value: entry })}
+                          >
+                            {t('common.configure')}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            aria-label={t('common.deleteNamed', { name: entry.name })}
+                            disabled={saving}
+                            onClick={() => remove(page, entry)}
+                          >
+                            <Trash2 aria-hidden="true" />
+                          </Button>
+                        </article>
+                      </Card>
+                    )
+                  })}
+                  {!workspace[page].some(matches) && (
+                    <div className="grid justify-items-center gap-2 rounded-xl border border-dashed border-border px-6 py-16 text-center">
+                      <h2>
+                        {query ? t('resources.noResults') : t('config.empty', { resource: label })}
+                      </h2>
+                      <p className="max-w-lg text-xs leading-relaxed text-muted-foreground">
+                        {t('config.libraryHint')}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
               {page === 'settings' && (
                 <>
-                  <div className="page-heading">
-                    <div>
-                      <div className="eyebrow">
-                        <span />
-                        WORKSPACE SETTINGS
+                  <Card className="mb-5">
+                    <CardContent className="grid gap-3">
+                      <h2 className="flex items-center gap-2 text-base font-semibold">
+                        <Palette className="size-4 text-primary" aria-hidden="true" />
+                        {t('settings.theme')}
+                      </h2>
+                      <div className="flex">
+                        <ThemeToggle compact={false} />
                       </div>
-                      <h1>一切，尽在掌握。</h1>
-                      <p>查看工作空间信息与当前版本的能力。</p>
-                    </div>
-                  </div>
-                  <section className="settings-panel">
-                    <h2>
-                      <ShieldCheck size={20} />
-                      本地工作空间
-                    </h2>
-                    <dl>
-                      <div>
-                        <dt>应用版本</dt>
-                        <dd>AgentMatrix {info?.version}</dd>
-                      </div>
-                      <div>
-                        <dt>运行环境</dt>
-                        <dd>
-                          {info?.platform}{' '}
-                          {info?.storage === 'browser' ? '· 浏览器预览' : '· Electron 桌面端'}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>配置位置</dt>
-                        <dd>
-                          <code>{info?.configPath}</code>
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>数据格式</dt>
-                        <dd>
-                          JSON · Schema v{workspace.schemaVersion} · Revision {workspace.revision}
-                        </dd>
-                      </div>
-                    </dl>
-                    <p className="hint">
-                      桌面配置保存在应用数据目录，重启后保留。浏览器预览使用独立存储。
-                    </p>
-                  </section>
-                  <section className="settings-panel">
-                    <h2>
-                      <Code2 size={20} />
-                      从配置，到协作
-                    </h2>
-                    <div className="roadmap-row">
-                      <Check size={18} />
-                      <div>
-                        <strong>配置管理</strong>
-                        <p>Agent、System Prompt、MCP、Skills、插件组合与本地持久化。</p>
-                      </div>
-                      <span className="tag green">已支持</span>
-                    </div>
-                    <div className="roadmap-row pending">
-                      <Layers3 size={18} />
-                      <div>
-                        <strong>Agent 运行时</strong>
-                        <p>模型接入、密钥管理、流式对话与 MCP 工具调用。</p>
-                      </div>
-                      <span className="tag">待接入</span>
-                    </div>
-                    <div className="roadmap-row pending">
-                      <Puzzle size={18} />
-                      <div>
-                        <strong>插件生态</strong>
-                        <p>插件安装、SKILL.md 文件发现与权限管理。</p>
-                      </div>
-                      <span className="tag">待接入</span>
-                    </div>
-                  </section>
+                      <p className="text-xs leading-relaxed text-muted-foreground">
+                        {t('settings.themeHint')}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="mb-5" asChild>
+                    <section>
+                      <CardContent className="grid gap-3">
+                        <h2>{t('settings.language')}</h2>
+                        <div className="flex">
+                          <LanguageSelect />
+                        </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {t('settings.languageHint')}
+                        </p>
+                      </CardContent>
+                    </section>
+                  </Card>
+                  <NativeImportPanel
+                    workspace={workspace}
+                    desktop={info?.storage === 'desktop'}
+                    onImported={setWorkspace}
+                  />
+                  <CredentialPanel key={workspace.nativeImports?.length ?? 0} />
+                  <Card className="mb-5" asChild>
+                    <section>
+                      <CardContent className="grid gap-4">
+                        <h2 className="flex items-center gap-2">
+                          <ShieldCheck size={16} aria-hidden="true" />
+                          {t('workspace.local')}
+                        </h2>
+                        <dl className="sm:grid-cols-2">
+                          <div>
+                            <dt>{t('settings.version')}</dt>
+                            <dd>AgentMatrix {info?.version}</dd>
+                          </div>
+                          <div>
+                            <dt>{t('settings.environment')}</dt>
+                            <dd>
+                              {info?.platform} ·{' '}
+                              {t(
+                                info?.storage === 'browser'
+                                  ? 'settings.browser'
+                                  : 'settings.desktop',
+                              )}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>{t('settings.path')}</dt>
+                            <dd>
+                              <code>
+                                {info?.storage === 'browser'
+                                  ? t('storage.browserPath')
+                                  : info?.configPath}
+                              </code>
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>{t('settings.format')}</dt>
+                            <dd>
+                              {t('settings.dataFormat', {
+                                schema: workspace.schemaVersion,
+                                revision: number(workspace.revision),
+                              })}
+                            </dd>
+                          </div>
+                        </dl>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                          {t('settings.storageHint')}
+                        </p>
+                      </CardContent>
+                    </section>
+                  </Card>
                 </>
               )}
             </>
@@ -587,91 +806,51 @@ export function App() {
         </main>
       </div>
       {notice && (
-        <div className="toast" role="status">
-          <Check size={16} />
-          {notice}
+        <div
+          role="status"
+          className="fixed right-6 bottom-6 z-50 flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-medium text-primary-foreground shadow-lg"
+        >
+          <Check size={15} aria-hidden="true" />
+          {t('common.saved')}
         </div>
       )}
-      {workspace && editor?.type === 'agent' && (
+      {workspace && editor?.kind === 'agents' && (
         <AgentEditor
           agent={editor.value}
           workspace={workspace}
           isNew={editor.isNew}
+          platform={info?.platform}
           busy={saving}
           onClose={() => setEditor(null)}
+          onGrant={(installationId, connectionId) =>
+            save(
+              bindConnectionToEngine(workspace, {
+                // Re-granting a connection that moved to another route replaces its grant.
+                id: bindingFor(workspace, installationId, connectionId)?.id ?? crypto.randomUUID(),
+                installationId,
+                connectionId,
+              }),
+            )
+          }
           onSave={async (agent) => {
-            await save({
-              ...workspace,
-              agents: editor.isNew
-                ? [...workspace.agents, agent]
-                : workspace.agents.map((entry) => (entry.id === agent.id ? agent : entry)),
-            })
+            await save(upsertConfiguration(workspace, 'agents', agent))
             setEditor(null)
           }}
         />
       )}
-      {workspace && editor?.type === 'resource' && (
+      {workspace && editor && editor.kind !== 'agents' && (
         <ResourceEditor
           resource={editor.value}
           kind={editor.kind}
           workspace={workspace}
           busy={saving}
           onClose={() => setEditor(null)}
-          onSave={async (resource) => {
-            const entries = workspace[editor.kind]
-            const updated = entries.some((entry) => entry.id === resource.id)
-              ? entries.map((entry) => (entry.id === resource.id ? resource : entry))
-              : [...entries, resource]
-            await save({ ...workspace, [editor.kind]: updated })
+          onSave={async (entry) => {
+            await save(upsertConfiguration(workspace, editor.kind, entry))
             setEditor(null)
           }}
         />
       )}
     </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  icon: Icon,
-  detail,
-}: {
-  label: string
-  value: number
-  icon: LucideIcon
-  detail: string
-}) {
-  return (
-    <div className="stat-card">
-      <div className="stat-label">
-        <span>{label}</span>
-        <Icon size={18} />
-      </div>
-      <strong>{String(value).padStart(2, '0')}</strong>
-      <span className="stat-detail">{detail}</span>
-    </div>
-  )
-}
-
-function SearchInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string
-  onChange: (value: string) => void
-  placeholder: string
-}) {
-  return (
-    <label className="search">
-      <Search size={16} />
-      <input
-        aria-label={placeholder}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </label>
   )
 }

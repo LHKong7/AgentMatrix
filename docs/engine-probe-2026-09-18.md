@@ -1,0 +1,63 @@
+# Initial installed-engine probes
+
+Local date: **2026-09-18 (Asia/Seoul)**. Raw timestamps use UTC. Host: macOS arm64, Node 22.20.0. See the [captured responses](probes/2026-09-18-handshakes.json).
+
+These checks made **no model calls**, received no provider keys, and do not establish full adapter compatibility. Engines used temporary working/configuration directories and a small environment allowlist. System `HOME` was preserved; engine-specific homes/XDG directories isolated generated state. Existing user configuration was not edited. Pi extensions/Skills/project resources were disabled for discovery; runtime resource loading still needs separate verification.
+
+## Installations and results
+
+| Engine           | Installed release and source                                                                                                                    | Observed result                                                                                                                                                                          | Still unverified                                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| OpenCode         | Existing `<user-home>/.opencode/bin/opencode`, **1.18.16**                                                                                      | ACP v1 initialization succeeded. The engine advertises load/resume/list/close/fork and HTTP/SSE MCP. Normal discovery cleanup terminated the process                                     | Actual turns, approvals, cancellation in flight, persistence, configuration precedence, MCP, Skills, and provider compatibility  |
+| Pi               | Official npm `@earendil-works/pi-coding-agent@0.85.1`, installed under `/private/tmp/agentmatrix-engine-probes` with lifecycle scripts disabled | RPC `get_state`, `new_session`, and idle `abort` returned success. No provider/model was configured; its placeholder model is unknown                                                    | Streaming, tool execution, cancellation during a turn, saved-session restoration, trust/resource loading, and actual model calls |
+| DeepSeek Harness | Official npm `@deepseek-ai/dsh@0.1.5-rc.2`, same isolated installation                                                                          | SDK initialized as `deepseek-harness-sdk-runtime` wire version **0.0.1**; ACP v1 also initialized. SDK rejected cancel and resume methods; ACP advertises close/list/resume and HTTP MCP | Runtime turns, permission flow, cancellation in flight, persistence, profile/patch precedence, MCP/Skills, and provider routes   |
+
+The OpenCode ACP process starts a local service. A sandboxed launch failed with `ServeError`; a launch permitted to bind its local port succeeded. This is a host execution restriction, not evidence that OpenCode lacks ACP. Windows and Linux were not probed. Credential encryption was subsequently verified on this macOS host as recorded below. Actual filesystem/network sandbox enforcement remains unverified.
+
+## DSH transport decision
+
+The shipped `@deepseek-ai/dsh-sdk-protocol` request map and `dsh-sdk-jsonrpc-server` request dispatcher expose only `initialize`, `session/prompt`, and `shutdown`. Actual requests to `session/cancel` and `session/resume` returned JSON-RPC error `-32603` with an unknown-method message. SDK package version and wire `serverInfo.version` are different identifiers and must both be recorded.
+
+**Initial adapter decision: use `dsh --profile acp` for this release.** Its advertised session capabilities align better with the planned controls, but advertising is not successful behavioral testing. Reuse the ACP transport while keeping DSH configuration, event normalization, permission semantics, and persistence separate from OpenCode.
+
+The reduced scope explicitly excludes DSH-specific cards, terminal interaction, elicitation, forks, and native transcript replay described as unavailable in the [pinned ACP reference](https://github.com/deepseek-ai/deepseek-harness/blob/0d1f50007f9bca3f52b06e1c3074fa14d5fb0720/packages/acp/acp/README.md). AgentMatrix may display its own retained event history; it must not claim that history came from native replay. SDK support is deferred until its contract can satisfy the required controls or a separate documented use case is implemented.
+
+## Reproducing discovery
+
+Install the exact probe versions outside the application dependency tree:
+
+```bash
+npm install --prefix /private/tmp/agentmatrix-engine-probes --ignore-scripts --no-audit --no-fund --save-exact @earendil-works/pi-coding-agent@0.85.1 @deepseek-ai/dsh@0.1.5-rc.2
+node scripts/probe-engines.mjs \
+  --pi=/private/tmp/agentmatrix-engine-probes/node_modules/.bin/pi \
+  --dsh=/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh \
+  --output=/private/tmp/agentmatrix-engine-probe.json
+```
+
+The script resolves OpenCode from `PATH`, or accepts `--opencode=/absolute/path`. It does not install software or send prompts. It records missing executables and failures instead of calling them compatible. It cleans up its generated configuration directories; the explicitly installed probe packages remain available for subsequent integration checks. The checked-in report redacts the user's home prefix.
+
+## Remaining evidence
+
+- V1: version/entry-point discovery is partial. OpenCode, [Pi](pi-configuration.md), and [DSH configuration mappings](dsh-configuration.md) now have local native evidence; complete discovery/provenance remains open.
+- V2: awaiting the selected service/model and local credential reference for actual streaming/tool calls. Synthetic or local protocol fixtures cannot pass this gate.
+- V3: macOS process startup/cleanup and credential encryption observed; descendant cleanup under active work and execution boundaries remain open. Other platforms are untested.
+- V4: SDK limitations are established and the selected ACP route now passes two local provider lifecycle fixtures. [DSH evidence](dsh-acp.md); the [configuration adapter](dsh-configuration.md) and [runtime/desktop integration](dsh-runtime.md) also pass local fixtures. External-service and full D4 acceptance remain open.
+- V5: the later [Pi lifecycle fixture](pi-rpc.md) passes local prompt/event/cancellation/restoration and trust checks. The separate [runtime and desktop fixtures](pi-runtime.md) also pass. External-provider and full C4 acceptance remain open.
+
+Official entry points: [OpenCode ACP](https://opencode.ai/docs/acp/), [Pi repository](https://github.com/earendil-works/pi), and [DeepSeek Harness repository](https://github.com/deepseek-ai/deepseek-harness). Published package files were also inspected locally; repository descriptions alone were not used to mark runtime checks as passed.
+
+## Credential-storage follow-up
+
+The real Electron 44.4.1 smoke test passed on this macOS host using a temporary AgentMatrix data directory and synthetic secrets. `safeStorage` asynchronous encryption was available; vault bytes contained ciphertext, OS decryption recovered the synthetic value, metadata-only IPC omitted secret values, and restart/replacement/deletion passed. Backend failure and corrupt-storage preservation are covered by unit tests. This does not verify Windows/Linux credential backends or general agent sandbox enforcement.
+
+## Application-client follow-up
+
+The application ACP client, using official SDK 1.4.0 and AgentMatrix's bounded framing/deadline layer, subsequently initialized both OpenCode and DSH successfully. See the [captured application-client handshakes](probes/2026-09-18-application-acp.json) and [reproduction command](acp-client.md#verification). This verifies interoperability beyond the original discovery script; it still makes no model calls and does not pass the streaming, tool, cancellation, or resume gates.
+
+## Pi lifecycle follow-up
+
+Pi 0.85.1 subsequently passed the application RPC client against a local Chat Completions fixture: streaming and file-tool calls, acceptance followed by provider failure, in-flight cancellation, process restart and restoration of the same native conversation, retained tool context in the next request, extension dialog replies/cancellation, and project-trust overrides. See the [recorded result](probes/2026-09-18-pi-rpc.json), [contract differences and reproduction](pi-rpc.md). This supplies the local V5 evidence. It does not pass the external-provider or Pi desktop gates; no MCP extension or universal tool approval is claimed.
+
+## DSH lifecycle follow-up
+
+The installed DSH 0.1.5-rc.2 ACP profile subsequently passed local provider calls through both `dsh-llm-pi-ai` and `dsh-llm-deepseek`, with file tools, one-shot approval, streaming and permission cancellation, prompt failure, close/list/restart/resume, retained tool context, patch replacement, and startup-only patch behavior. See the [recorded result](probes/2026-09-18-dsh-acp.json) and [version/protocol boundaries](dsh-acp.md). DSH forwards committed messages and context occupancy, with no native transcript replay; these differences constrain the shared runtime. Neither fixture contacts an external model provider.

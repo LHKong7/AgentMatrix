@@ -1,0 +1,227 @@
+export const reportEn = {
+  'report.pluginDependencies': 'Selected plugin source dependencies',
+  'report.pluginDependencyScope':
+    'Captured file observations for selected plugins, explicit relative module references and package scopes. Package resolution, computed imports and other runtime resources remain only partially observed. File bodies are not stored here.',
+  'report.pluginDependenciesLegacy': 'This capture has no recorded plugin dependency observations.',
+  'report.pluginDependencyUnknown.package': 'Package import not resolved by source inspection',
+  'report.pluginDependencyUnknown.dynamic': 'Computed or shadowed import not resolved',
+  'report.pluginDependencyUnknown.resolution': 'Module resolution outside the observed file forms',
+  'report.pluginDependencyUnknown.syntax': 'Source syntax could not be inspected',
+  'report.pluginDependencyUnknown.source-limit': 'Source parsing limit reached',
+  'report.overrideSources': 'Matching native declarations',
+  'report.overrideSourcesHint':
+    'These captured files contain declarations matching the rejected native values. Matches may have multiple sources and do not establish which source won. Values are omitted. This is evidence from the failed check, not a fresh scan.',
+  'report.overrideSourcesUnknown':
+    'No matching declaration was identified in the checked literal JSON/JSONC sources. Dynamic, changed, unsupported or unexamined sources may still be responsible.',
+  'report.redactionRetained':
+    'These inputs require encrypted key history for output masking across attachments. Retired keys are never reused for authentication. Reading this report does not decrypt that history.',
+  'report.redactionLegacy':
+    'These older inputs do not retain key history. Output masking only knows the keys resolved for the current attachment; earlier keys may be unrecognized after rotation.',
+  'report.instructionSources': 'Native instruction file references',
+  'report.instructionHint':
+    'Captured local file matches from native configuration candidates. Files and match lists are checked again before reuse. This inventory does not establish native precedence or final prompt content; opening this report does not read the sources.',
+  'report.instructionsNotCaptured': 'Instruction references were not captured for these inputs.',
+  'report.instructionsEmpty': 'No literal local instruction selectors were captured.',
+  'report.instructionsNoMatches':
+    'No matching files at capture time; later matches change these inputs.',
+  'report.instructionUnknown.remote':
+    'Remote instruction content is unobserved. The URL is omitted.',
+  'report.instructionUnknown.dynamic':
+    'Dynamic instruction reference is unobserved; macros were not evaluated.',
+  'report.instructionUnknown.configuration':
+    'This configuration or selector could not be inspected within the supported limits.',
+  'report.mcpTitle': 'MCP connection checks',
+  'report.mcpHint':
+    'Recorded checks have the scope stated below. They do not prove tool execution or continuing availability. Saved changes apply to new sessions.',
+  'report.mcpScope.opencode-acp':
+    'OpenCode native status at attachment. The conversation may remain usable when an MCP service fails.',
+  'report.mcpScope.dsh-mcp-startup':
+    'DSH native components completed initial connection and tool discovery. This does not read current connection state; registrations may survive a disconnect.',
+  'report.mcpScope.unknown': 'No engine-specific MCP runtime evidence is available.',
+  'report.mcpStatus.startup-complete': 'Native MCP initialization completed',
+  'report.check.dsh.mcp-startup':
+    'Pinned native MCP components completed startup; matching rows and current session checked',
+  'report.diagnosticCheck.dsh-mcp': 'DSH native MCP component startup',
+  'report.mcpUnobserved': 'No native MCP connection check was recorded for this attachment.',
+  'report.mcpEmpty': 'No MCP services were selected in these captured inputs.',
+  'report.mcpServer': 'Captured service',
+  'report.mcpTransport': 'Requested transport',
+  'report.mcpStatus': 'Status at check time',
+  'report.mcpStatus.connected': 'Connected',
+  'report.mcpStatus.disabled': 'Disabled by the engine',
+  'report.mcpStatus.failed': 'Connection or tool discovery failed',
+  'report.mcpStatus.authentication-required': 'Native authentication required',
+  'report.mcpStatus.registration-required': 'Native client registration required',
+  'report.mcpStatus.unknown': 'Unknown; no validated native status',
+  'report.credentialTitle': 'Credential revisions',
+  'report.credentialHint':
+    'A running process keeps the credentials resolved for its attachment. A new start or resume resolves them again. Recorded revisions identify stored inputs, not provider acceptance or continuing native use. Environment values are not compared.',
+  'report.credentialChecked': 'Storage metadata checked: {time}',
+  'report.credentialEmpty': 'No managed secret references were captured in this launch.',
+  'report.credentialReference': 'Captured secret use',
+  'report.credentialAttachment': 'Last successful attachment',
+  'report.credentialStored': 'Current stored revision',
+  'report.credentialComparison': 'Comparison / next attachment',
+  'report.credentialSlot': 'Secret {number}',
+  'report.credentialSource.vault': 'Encrypted credential',
+  'report.credentialSource.environment': 'Environment reference',
+  'report.credentialPurpose.model-auth': 'Model authentication',
+  'report.credentialPurpose.model-header': 'Model request header',
+  'report.credentialPurpose.mcp-auth': 'MCP authentication',
+  'report.credentialPurpose.mcp-header': 'MCP request header',
+  'report.credentialPurpose.mcp-env': 'MCP environment',
+  'report.credentialPurpose.other': 'Other launch input',
+  'report.credentialState.same': 'Matches the last attachment revision.',
+  'report.credentialState.changed':
+    'Stored revision changed. Start or resume resolves the current credential; the running process keeps its prior input.',
+  'report.credentialState.missing':
+    'Stored credential was removed. A new attachment cannot resolve this reference.',
+  'report.credentialState.unverified':
+    'No comparable attachment revision was recorded. Start or resume resolves the current credential.',
+  'report.credentialState.environment': 'Environment values and rotations are not compared.',
+  'report.credentialState.unavailable':
+    'Credential metadata or encrypted storage is unavailable; comparison is unknown.',
+
+  'report.check.dsh.plugins':
+    'Native DSH boot completed; selected plugin fibers and current session checked with a fresh request; dependency coverage is partial',
+
+  'report.title': 'Configuration report',
+  'report.description': 'Captured inputs, native checks, and changes for new sessions.',
+  'report.limits':
+    'Checks cover the stated native interface at attachment time. A config readback does not prove a model request, Skill invocation, MCP connection, or sandbox enforcement. Later native changes may not be observable.',
+  'report.saved.same': 'The current saved profile resolves to these captured inputs.',
+  'report.saved.pending':
+    'Saved changes are pending a new session. This conversation keeps its captured configuration, including when resumed.',
+  'report.saved.draft':
+    'The saved profile is now an unresolved draft. This conversation retains its captured inputs.',
+  'report.saved.missing':
+    'The saved profile was removed. This conversation retains its captured inputs.',
+  'report.captured': 'Captured at',
+  'report.revisions': 'Workspace revision {captured} · Saved revision {current}',
+  'report.adapter': 'Engine / adapter contract',
+  'report.cwd': 'Working directory',
+  'report.nativeId': 'Native conversation ID',
+  'report.observation': 'Last attachment checks',
+  'report.currentObservation': 'Recorded for this attachment',
+  'report.historicalObservation': 'Historical evidence; no current attachment is verified',
+  'report.noObservation':
+    'No successful attachment checks were recorded. Older sessions remain unverified until a successful native resume.',
+  'report.failed': 'The latest operation failed or was interrupted:',
+  'report.fieldRejected': 'Rejected by the latest configuration check.',
+  'report.priorEvidence': 'Earlier attachment: {evidence}',
+  'report.diagnosticMissing': 'No detailed configuration failure was recorded for this attempt.',
+  'report.diagnosticUnattributed': 'The check could not identify a specific configuration field.',
+  'report.diagnosticHint':
+    'This describes the failed attempt. Earlier successful checks remain historical. Native values and the winning source are not recorded. Review the captured inputs and native settings before retrying; create a new session to adopt changed inputs.',
+  'report.diagnosticReason.mismatch':
+    'The observed configuration did not match the captured requirements.',
+  'report.diagnosticReason.unavailable':
+    'The required native configuration could not be read or validated.',
+  'report.diagnosticReason.changed':
+    'Captured sources or managed native controls changed or became unavailable.',
+  'report.diagnosticCheck.snapshot': 'Captured input integrity',
+  'report.diagnosticCheck.sources': 'External source compatibility',
+  'report.diagnosticCheck.installation': 'Installed engine or protocol version',
+  'report.diagnosticCheck.opencode-instance-config': 'OpenCode ACP instance configuration',
+  'report.check.opencode.instance-config':
+    'Requested configuration matched the ACP server in the acknowledged session directory',
+  'report.diagnosticCheck.opencode-config': 'OpenCode configuration readback',
+  'report.diagnosticCheck.opencode-session': 'OpenCode session selection',
+  'report.diagnosticCheck.pi-state': 'Pi model and runtime state',
+  'report.diagnosticCheck.pi-skills': 'Pi Skill discovery',
+  'report.diagnosticCheck.opencode-skills': 'OpenCode Skill source preflight',
+  'report.skillSource.pi-rpc':
+    'Recorded Pi RPC source matched the captured Skill entry; invocation not verified.',
+  'report.skillSource.opencode-probe':
+    'A separate OpenCode process selected the captured Skill entry; the ACP instance and invocation remain unverified.',
+  'report.skillSource.dsh-registry':
+    'Recorded DSH session registry selected the captured Skill entry; invocation not verified.',
+  'report.diagnosticCheck.dsh-skills': 'DSH session Skill sources',
+  'report.check.dsh.skill-sources':
+    'DSH session-scoped registry Skill sources matched the captured entries',
+  'report.skillSource.opencode-acp':
+    'Recorded OpenCode ACP instance selected the captured Skill entry; invocation not verified.',
+  'report.diagnosticCheck.opencode-instance-skills': 'OpenCode ACP instance Skill sources',
+  'report.check.opencode.instance-skills':
+    'Skill sources matched in the native instance acknowledged by ACP',
+  'report.skillSource.unknown': 'No recorded native source check for this captured Skill.',
+  'report.nativeSkillEntry': 'Mapped native entry',
+  'report.diagnosticCheck.pi-controls': 'Pi managed native controls',
+  'report.diagnosticCheck.dsh-composition': 'DSH profile composition',
+  'report.diagnosticCheck.dsh-session': 'DSH session model and reasoning',
+  'report.diagnosticCheck.dsh-controls': 'DSH managed native controls',
+  'report.fields': 'Configuration fields and evidence',
+  'report.field': 'Field',
+  'report.capturedValue': 'Captured value',
+  'report.evidence': 'Evidence',
+  'report.update': 'Saved changes',
+  'report.field.installation': 'CLI installation',
+  'report.field.connection': 'Protocol / endpoint origin',
+  'report.field.authentication': 'Authentication configuration',
+  'report.field.model': 'Model selection',
+  'report.field.sampling': 'Sampling parameters',
+  'report.field.reasoning': 'Reasoning',
+  'report.field.execution': 'Requested tool policy',
+  'report.field.engine-options': 'Engine options',
+  'report.field.prompts': 'Prompt configuration',
+  'report.field.skills': 'Skill configuration',
+  'report.field.mcp': 'MCP configuration',
+  'report.field.plugins': 'Native plugins',
+  'report.default': 'Native default; value not observed',
+  'report.status.planned': 'Captured; not checked',
+  'report.status.observed': 'Native readback matched',
+  'report.status.composition': 'Composition matched; application unknown',
+  'report.status.unknown': 'Application unknown',
+  'report.pending': 'Pending new session',
+  'report.unchanged': 'Unchanged',
+  'report.unknown': 'Cannot compare',
+  'report.assets': 'Captured asset versions',
+  'report.asset': 'Asset / binding source / target / digest',
+  'report.noAssets': 'No shared Prompt or Skill assets were captured.',
+  'report.asset.prompt': 'Prompt',
+  'report.asset.skill': 'Skill',
+  'report.capturedVersion': 'This session',
+  'report.nextVersion': 'Next session binding',
+  'report.libraryVersion': 'Library latest',
+  'report.assetHint':
+    'Pinned bindings can remain on older versions. A missing next binding means it was removed, disabled, or the saved profile cannot resolve. These are captured file targets; generation alone does not establish native use.',
+  'report.sources': 'Observed external sources ({count})',
+  'report.coverage.partial':
+    'Partial coverage. Digests describe captured observations, not a fresh scan or a complete dependency lock. Nested instructions and native state may remain dynamic.',
+  'report.coverage.complete':
+    'All sources declared by this adapter were captured. Digests are historical observations, not a fresh scan.',
+  'report.sourceAbsent': 'Absent when captured',
+  'report.resourceDirectories': 'Native resource directories',
+  'report.resourceHint':
+    'Captured Markdown file lists and hashes are checked again at start or resume, including newly discovered files. They do not establish parsing, native loading, or which configuration wins. Active processes are not continuously monitored.',
+  'report.resourcesNotCaptured':
+    'This snapshot has no native resource directory inventory. Coverage remains partial.',
+  'report.resourcesEmpty': 'No native resource directories were declared for this snapshot.',
+  'report.resourceFiles': 'Captured files: {count}',
+  'report.resolvedPath': 'Resolved target:',
+  'report.resourceKind.opencode-agent': 'OpenCode agents',
+  'report.resourceKind.opencode-mode': 'OpenCode modes',
+  'report.resourceKind.opencode-command': 'OpenCode commands',
+  'report.integrity': 'Snapshot identity and recorded checks',
+  'report.credentials':
+    'Credentials are not resolved to display this report. Stored revisions are compared without decrypting values. Secret references, header values, prompt bodies, environment values, and command arguments are omitted. Only the endpoint origin is shown; URL paths, query parameters, and login details are omitted.',
+  'report.check.inputs.integrity': 'Captured files and snapshot integrity checked',
+  'report.check.sources.unchanged': 'Observed external sources matched at attachment',
+  'report.check.cli.version': 'Installed CLI version command',
+  'report.check.opencode.config': 'OpenCode debug config, checked in a separate native process',
+  'report.check.opencode.session-model': 'OpenCode ACP selected model',
+  'report.check.opencode.session-agent': 'OpenCode ACP selected agent',
+  'report.check.opencode.plugins':
+    'Selected OpenCode plugins initialized and configured in the acknowledged native instance; dependency source coverage remains partial',
+  'report.check.pi.state': 'Pi RPC state: route, endpoint, thinking, and idle policy',
+  'report.check.pi.skills': 'Pi RPC discovered Skill commands; invocation not checked',
+  'report.check.pi.skill-sources':
+    'Pi RPC Skill names and source paths matched the captured entries',
+  'report.check.opencode.skill-sources':
+    'OpenCode debug skill source paths matched in a separate native process',
+  'report.check.pi.plugins':
+    'Selected Pi factories and session-start handlers completed for the acknowledged native session; dependency source coverage remains partial',
+  'report.check.dsh.composition': 'DSH config dump matched; plugins were not activated by the dump',
+  'report.check.dsh.session-model': 'DSH ACP selected provider/model tuple',
+  'report.check.dsh.session-reasoning': 'DSH ACP selected reasoning effort',
+} as const

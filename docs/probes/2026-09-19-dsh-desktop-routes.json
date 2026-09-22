@@ -1,0 +1,60 @@
+{
+  "checkedAt": "2026-09-19T13:47:11.852125Z",
+  "sourceRevision": "cf7103c92b6a56ad1cb8dbbde004bde5ecd87f22",
+  "productionSourceChanges": false,
+  "platform": "darwin",
+  "architecture": "arm64",
+  "engine": "dsh",
+  "version": "0.1.5-rc.2",
+  "executable": "/private/tmp/agentmatrix-engine-probes/node_modules/.bin/dsh",
+  "service": "Local synthetic HTTP provider",
+  "model": "fixture-model",
+  "externalProviderCalls": false,
+  "command": "node --experimental-strip-types scripts/session-smoke.mjs",
+  "selection": "AGENT_MATRIX_SESSION_ENGINE=dsh; AGENT_MATRIX_DSH_ROUTE selects each recorded route; AGENT_MATRIX_TEST_DSH selects the executable.",
+  "runs": [
+    {
+      "route": "deepseek-native",
+      "checkedAt": "2026-09-19T13:46:41.443Z",
+      "protocol": "deepseek-official",
+      "providerComponent": "dsh-llm-deepseek",
+      "report": "2026-09-19-dsh-desktop-deepseek-native.json",
+      "sha256": "6afd1680cb0e276403d41616bf352c735cfa953b3b5502c82b93c470191c5ac9",
+      "exitCode": 0
+    },
+    {
+      "route": "pi-ai",
+      "checkedAt": "2026-09-19T13:43:56.945Z",
+      "protocol": "openai-chat-completions",
+      "providerComponent": "dsh-llm-pi-ai",
+      "report": "2026-09-19-dsh-desktop-pi-ai.json",
+      "sha256": "750caedfe0673ae6a83e526918d070b78b71623d37b641974f8cb65e29c09cbb",
+      "exitCode": 0
+    }
+  ],
+  "suitesRunSequentially": true,
+  "nativeReasoningChannelVerified": true,
+  "nativeReasoningRequestAndReadbackVerified": true,
+  "nativeReasoningValue": "high",
+  "genericReasoningObservationRemainsUnknown": true,
+  "nativeReportVisualInspection": {
+    "languages": ["en", "zh-CN"],
+    "scope": "Configuration report capability section",
+    "captureRunCheckedAt": "2026-09-19T13:42:48.480Z"
+  },
+  "validation": {
+    "scriptLint": true,
+    "typecheck": true,
+    "productionBuild": true,
+    "formatting": true,
+    "fullUnitSuiteRerun": false,
+    "priorUnitEvidence": "2026-09-19-three-engine-acceptance.json"
+  },
+  "deliveryGatesPromoted": [],
+  "remaining": [
+    "Intended external provider acceptance",
+    "Native-route credential rotation",
+    "Full X3 audit",
+    "Remaining native precedence and Skill behavior evidence"
+  ]
+}

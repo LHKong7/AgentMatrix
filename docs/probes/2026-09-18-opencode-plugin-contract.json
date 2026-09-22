@@ -1,0 +1,51 @@
+{
+  "checkedAt": "2026-09-17T22:37:40.541Z",
+  "engine": "opencode",
+  "engineVersion": "1.18.16",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "scope": "Installed CLI contract probe with direct native fixture declarations; product plugin bindings remain blocked",
+  "route": "Local synthetic Chat Completions endpoint",
+  "externalProviderCalls": false,
+  "legacyMultipleExports": true,
+  "legacyAliasDeduplication": true,
+  "v1ServerEntrypointAndRelativeTypeScriptDependency": true,
+  "v1UnrelatedNamedExportIgnored": true,
+  "nativeOptionsForwarded": true,
+  "sequentialInitializersAndSystemHooks": true,
+  "hookChangesObservedAtProvider": true,
+  "localPackageEngineRangeIsNotEnforced": true,
+  "readyDespiteImportInitAndConfigFailures": true,
+  "missingRelativeDependencyDoesNotPreventReady": true,
+  "nativeResumeReinitializesPluginsInNewProcess": true,
+  "readbackDebugProcessAlsoInitializesPlugins": true,
+  "acpInitializationsPerPluginAtNewSession": 2,
+  "acpInitializationsPerPluginAtResume": 2,
+  "initialAcpLifecycle": [
+    {
+      "cycle": 1,
+      "initialized": ["legacy-a", "legacy-b", "v1", "config-failure"],
+      "configured": ["legacy-a", "legacy-b", "v1", "config-failure"],
+      "disposedBeforeReady": []
+    },
+    {
+      "cycle": 2,
+      "initialized": ["legacy-a", "legacy-b", "v1", "config-failure"],
+      "configured": ["legacy-a", "legacy-b", "v1", "config-failure"],
+      "disposedBeforeReady": []
+    }
+  ],
+  "firstTurnUsesSecondInitializationCycle": true,
+  "nativeSessionModeDescriptionIdentifiesCurrentInstance": true,
+  "initializationEvidenceMustCoverCurrentInstanceNotOnlyPid": true,
+  "pureModeSkipsExternalPluginsDespiteConfigReadback": true,
+  "disposeHooksObservedAfterOwnedProcessTermination": [],
+  "generatedInputIntegrityAfterExit": true,
+  "limitations": [
+    "No generic activation verifier yet",
+    "No arbitrary plugin installation",
+    "No external provider acceptance",
+    "No cross-platform acceptance",
+    "Native engine startup may maintain its own SDK dependencies; this probe does not assert zero registry traffic"
+  ]
+}

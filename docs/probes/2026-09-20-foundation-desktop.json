@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-09-19T14:59:27.135Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "passed": true,
+  "gate": "B0",
+  "scope": "Development-host shared data/UI/credential/session contracts; no runtime delivery gate",
+  "applicationVersion": "0.1.0",
+  "electronVersion": "44.4.1",
+  "exactLegacyBackup": true,
+  "migrationSurvivesRestart": true,
+  "unresolvedDrafts": [
+    {
+      "locale": "en",
+      "engine": "opencode",
+      "uiLaunchBlocked": true,
+      "mainProcessRejected": true
+    },
+    {
+      "locale": "en",
+      "engine": "pi",
+      "uiLaunchBlocked": true,
+      "mainProcessRejected": true
+    },
+    {
+      "locale": "en",
+      "engine": "deepseek-harness",
+      "uiLaunchBlocked": true,
+      "mainProcessRejected": true
+    },
+    {
+      "locale": "zh-CN",
+      "engine": "opencode",
+      "uiLaunchBlocked": true,
+      "mainProcessRejected": true
+    },
+    {
+      "locale": "zh-CN",
+      "engine": "pi",
+      "uiLaunchBlocked": true,
+      "mainProcessRejected": true
+    },
+    {
+      "locale": "zh-CN",
+      "engine": "deepseek-harness",
+      "uiLaunchBlocked": true,
+      "mainProcessRejected": true
+    }
+  ],
+  "invalidCreatesLeaveNoSessionsOrCaptures": true,
+  "newModelsHaveNoImplicitSampling": true,
+  "sharedAndEngineSpecificEditors": true,
+  "pinnedAndLatestBindings": true,
+  "appendOnlyPromptAndSkillRevisions": true,
+  "originalDirectoryCaptureSurvivesSourceDeletion": true,
+  "dependentReferenceCleanup": true,
+  "realOsStorageAvailable": true,
+  "initialOsDecryptionVerified": true,
+  "credentialMetadataContainsNoValue": true,
+  "ordinaryWorkspaceUsesCredentialReference": true,
+  "replacementOsDecryptionAfterRestart": true,
+  "credentialDeletionVerified": true,
+  "englishAndChinese": true,
+  "localeSurvivesReloadAndRestart": true,
+  "contextIsolation": true,
+  "nodeIntegration": false,
+  "rendererSandbox": true,
+  "rendererErrors": 0,
+  "nativeCliExecuted": false,
+  "modelCalls": 0,
+  "externalProviderCalls": false,
+  "chooserSubstituted": true,
+  "nativeRuntimeGatesPromoted": []
+}

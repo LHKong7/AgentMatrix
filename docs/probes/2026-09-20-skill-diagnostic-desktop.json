@@ -1,0 +1,90 @@
+{
+  "checkedAt": "2026-09-19T15:12:00.759Z",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "passed": true,
+  "cases": [
+    {
+      "locale": "en",
+      "method": "importSkillDirectory",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "en",
+      "method": "importSkillDirectory",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "en",
+      "method": "importSkillDirectory",
+      "expected": "error.skillUnsafePath"
+    },
+    {
+      "locale": "en",
+      "method": "loadWorkspace",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "en",
+      "method": "saveWorkspace",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "en",
+      "method": "sessions.command",
+      "expected": "error.openCodeConfiguration"
+    },
+    {
+      "locale": "en",
+      "method": "sessions.command",
+      "expected": "error.piConfiguration"
+    },
+    {
+      "locale": "zh-CN",
+      "method": "importSkillDirectory",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "zh-CN",
+      "method": "importSkillDirectory",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "zh-CN",
+      "method": "importSkillDirectory",
+      "expected": "error.skillUnsafePath"
+    },
+    {
+      "locale": "zh-CN",
+      "method": "loadWorkspace",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "zh-CN",
+      "method": "saveWorkspace",
+      "expected": "error.failed"
+    },
+    {
+      "locale": "zh-CN",
+      "method": "sessions.command",
+      "expected": "error.openCodeConfiguration"
+    },
+    {
+      "locale": "zh-CN",
+      "method": "sessions.command",
+      "expected": "error.piConfiguration"
+    }
+  ],
+  "realFilesystemFailures": 6,
+  "forgedDependencyFailures": 2,
+  "trustedApplicationFailures": 2,
+  "duplicateSkillFailures": 4,
+  "duplicateFailuresPublishNoSessionOrCapture": true,
+  "busyRecoveryChecks": 6,
+  "repliesContainNoMarker": true,
+  "stderrContainsNoMarker": true,
+  "rendererErrors": 0,
+  "modelCalls": 0,
+  "externalProviderCalls": false,
+  "scope": "Real Electron preload/invoke handlers, workspace read/save, Skill import and duplicate-Skill capture rejection; dialog results/errors and installation metadata are controlled. No native runtime is attached. This checks exception projection, not successful payloads or arbitrary OS logs."
+}
