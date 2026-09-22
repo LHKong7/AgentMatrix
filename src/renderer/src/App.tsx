@@ -42,7 +42,9 @@ import {
   type LibraryEntry,
 } from '../../shared/engines/editing'
 import { engineWorkspaceSchema, type EngineWorkspace } from '../../shared/engines/workspace'
-import { bindingFor } from '../../shared/engines/provider'
+import { bindingFor, installationsBoundTo } from '../../shared/engines/provider'
+import { isSupportedEngine } from '../../shared/engines/contracts'
+import { EvidenceBadge } from './components/EvidenceBadge'
 import type { AgentProfile } from '../../shared/engines/schema'
 import type { MessageKey } from '../../shared/i18n'
 import { useI18n } from './i18n'
@@ -85,6 +87,7 @@ const icons: Record<Collection, LucideIcon> = {
  * knows. Engines own the installation, its granted connections and the model routes; the
  * library owns everything that is shared across every CLI.
  */
+const engineArea: Collection[] = ['installations', 'connections', 'models', 'nativePlugins']
 const navigation = [
   { label: 'nav.group.agents', items: ['agents'] },
   {
@@ -404,7 +407,9 @@ export function App() {
                         ? 'agents.eyebrow'
                         : page === 'settings'
                           ? 'settings.eyebrow'
-                          : 'resources.eyebrow',
+                          : engineArea.includes(page)
+                            ? 'engines.eyebrow'
+                            : 'resources.eyebrow',
                     )}
                   </div>
                   <h1>{label}</h1>
@@ -414,7 +419,9 @@ export function App() {
                         ? 'agents.description'
                         : page === 'settings'
                           ? 'settings.description'
-                          : 'config.libraryHint',
+                          : engineArea.includes(page)
+                            ? 'engines.description'
+                            : 'config.libraryHint',
                     )}
                   </p>
                 </div>
@@ -509,7 +516,13 @@ export function App() {
                             </CardHeader>
                             <CardContent className="grid gap-3">
                               <div className="grid gap-1">
-                                <h3 className="text-sm">{agent.name}</h3>
+                                <h3 className="flex flex-wrap items-center gap-2 text-sm">
+                                  {agent.name}
+                                  <EvidenceBadge
+                                    workspace={workspace}
+                                    subject={{ kind: 'agent', id: agent.id }}
+                                  />
+                                </h3>
                                 <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
                                   {agent.description || t('agents.descriptionEmpty')}
                                 </p>
@@ -617,6 +630,32 @@ export function App() {
                                 <Badge variant={entry.enabled ? 'success' : 'muted'}>
                                   {t(entry.enabled ? 'common.enabled' : 'common.disabled')}
                                 </Badge>
+                              )}
+                              {page === 'connections' && (
+                                <>
+                                  <Badge variant="muted">
+                                    {t('grants.engines', {
+                                      count: number(
+                                        installationsBoundTo(workspace, entry.id).length,
+                                      ),
+                                      total: number(
+                                        workspace.installations.filter((item) =>
+                                          isSupportedEngine(item.kind),
+                                        ).length,
+                                      ),
+                                    })}
+                                  </Badge>
+                                  <EvidenceBadge
+                                    workspace={workspace}
+                                    subject={{ kind: 'connection', id: entry.id }}
+                                  />
+                                </>
+                              )}
+                              {page === 'installations' && (
+                                <EvidenceBadge
+                                  workspace={workspace}
+                                  subject={{ kind: 'installation', id: entry.id }}
+                                />
                               )}
                             </h3>
                             {'description' in entry && (

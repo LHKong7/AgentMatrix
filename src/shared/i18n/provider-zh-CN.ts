@@ -5,6 +5,9 @@ export const providerZhCN = {
   'nav.group.agents': '我的 Agents',
   'nav.group.engines': '引擎',
   'nav.group.library': '资源库',
+  'engines.eyebrow': '引擎与服务商',
+  'engines.description':
+    '这里管理已安装的 CLI Agent、每个 CLI 可以使用的服务商，以及它们调用的模型路由。Agent 的 Prompt、Skills 和工具在资源库中。',
   'grants.title': '此 CLI 可使用的连接',
   'grants.description':
     '连接在工作空间中统一配置，但每个 CLI 需要单独授权。在这里授权之前，AgentMatrix 不会把服务地址和凭据交给该 CLI。',

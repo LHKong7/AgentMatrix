@@ -3,6 +3,9 @@ export const providerEn = {
   'nav.group.agents': 'My agents',
   'nav.group.engines': 'Engines',
   'nav.group.library': 'Library',
+  'engines.eyebrow': 'ENGINES AND PROVIDERS',
+  'engines.description':
+    'The CLI agents installed here, the providers each of them may reach, and the model routes they call. What an agent knows — instructions, Skills and tools — is in the library.',
   'grants.title': 'Connections this CLI may use',
   'grants.description':
     'A connection is set up once for the whole workspace, but each CLI is handed it separately. Until you make it available here, this CLI is never given the endpoint or the credential.',

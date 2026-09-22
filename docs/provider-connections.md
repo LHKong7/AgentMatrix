@@ -76,6 +76,24 @@ process that never prepared it, files nothing — the observation would be about
 other than the saved one. Filing never advances the workspace revision, because nobody edited
 anything, and a save prepared before an observation keeps it unless it removed the subject.
 
+## In the interface
+
+The sidebar reads as the workspace is used: **Conversations**, **My agents**, **Engines** —
+installed CLIs, the connections each may use, model routes and native plugins — and **Library**,
+which holds what is shared across every CLI.
+
+- **Engines** lists, per installed CLI, every connection with the route it was granted for, the
+  provider key it carries in that CLI's own configuration, what has been observed, and an action to
+  make it available or withdraw it. A grant given for a route the connection has since left is
+  named as such, with the option to give it again.
+- **Connections** shows how many CLIs each connection is available to, what has been observed about
+  it, and carries the provider identity fields.
+- An agent's **General** tab asks in the order the choice is made: the CLI, then a connection —
+  marked where it is not available to that CLI, with the grant offered inline — then a model on
+  that connection, then where it runs. Switching the agent to another CLI marks the same connection
+  unavailable again, because the grant is per CLI. The execution policy names a value the CLI does
+  not map instead of quietly offering something else.
+
 ## Boundaries
 
 A grant is authorization, not proof. It says this CLI may be handed this connection; whether the
