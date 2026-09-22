@@ -26,3 +26,16 @@ export function grantAgentConnections(
   }
   return result
 }
+
+/**
+ * Repoints a fixture's only connection at another route, the way the interface does: a grant is
+ * given for one route, so changing the route changes what was granted.
+ */
+export function useProtocol(
+  workspace: EngineWorkspace,
+  protocol: NonNullable<EngineWorkspace['connections'][number]['protocol']>,
+): void {
+  workspace.connections[0]!.protocol = protocol
+  for (const binding of workspace.engineBindings)
+    if (binding.connectionId === workspace.connections[0]!.id) binding.route = protocol
+}

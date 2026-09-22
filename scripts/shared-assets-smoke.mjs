@@ -53,6 +53,12 @@ workspace.installations = engines.map((engine) => ({
   probedAt: null,
   modes: [],
 }))
+// Each CLI is granted the shared connection separately: one setup, three explicit grants.
+workspace.engineBindings = engines.map((engine) => ({
+  ...workspace.engineBindings[0],
+  id: `grant-${engine}`,
+  installationId: engine,
+}))
 workspace.agents = engines.map((engine) => ({
   ...workspace.agents[0],
   id: engine,

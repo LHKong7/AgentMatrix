@@ -223,6 +223,14 @@ workspace.models = engines.map((engine) => ({
   modelId: `rotation-${engine.id}`,
   connectionId: engine.id === 'dsh_native' ? 'native-deepseek' : model.connectionId,
 }))
+// Each CLI is granted the connection its own agent uses; the native route is its own grant.
+workspace.engineBindings = engines.map((engine) => ({
+  ...workspace.engineBindings[0],
+  id: `grant-${engine.id}`,
+  installationId: engine.id,
+  connectionId: engine.id === 'dsh_native' ? 'native-deepseek' : workspace.connections[0].id,
+  route: engine.id === 'dsh_native' ? 'deepseek-official' : workspace.connections[0].protocol,
+}))
 workspace.prompts = []
 workspace.skills = []
 workspace.connections[0].baseUrl = `http://127.0.0.1:${server.address().port}/v1`

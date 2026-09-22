@@ -6,9 +6,34 @@ import type { Locale } from '../shared/i18n'
 import { migrateWorkspaceDocument } from '../shared/engines/migration'
 import { engineWorkspaceSchema, type EngineWorkspace } from '../shared/engines/workspace'
 import { createInitialEngineWorkspace, validateAssetHistory } from '../shared/engines/editing'
+import {
+  fingerprintFor,
+  mergeEvidence,
+  type EvidenceKind,
+  type EvidenceSubject,
+} from '../shared/engines/evidence'
+import { sha256Hex } from '../shared/digest'
 import type { DirectoryRevision } from './assets/skill-directory-store'
 import type { NativeImportRecord } from '../shared/engines/native-import'
 import { isDeepStrictEqual } from 'node:util'
+
+function keepObservations(
+  current: EngineWorkspace['evidence'],
+  next: EngineWorkspace,
+): EngineWorkspace['evidence'] {
+  const present: Record<EvidenceSubject['kind'], Set<string>> = {
+    installation: new Set(next.installations.map((item) => item.id)),
+    connection: new Set(next.connections.map((item) => item.id)),
+    binding: new Set(next.engineBindings.map((item) => item.id)),
+    agent: new Set(next.agents.map((item) => item.id)),
+  }
+  const kept = current.filter(
+    (record) =>
+      !next.evidence.some((item) => item.id === record.id) &&
+      present[record.subject.kind].has(record.subject.id),
+  )
+  return [...next.evidence, ...kept]
+}
 
 /** Active schema v2 persistence, including atomic migration of the legacy document. */
 export class EngineWorkspaceStore {
@@ -26,6 +51,39 @@ export class EngineWorkspaceStore {
   }
   load(): Promise<EngineWorkspace> {
     return this.enqueue(() => this.read())
+  }
+  /**
+   * Files one observation about the workspace as it stands.
+   *
+   * The fingerprint is the caller's record of the state it observed. A workspace that has moved on
+   * since keeps nothing: the observation applied to a configuration that is no longer the one
+   * saved, and it is dropped rather than transferred to the new one. Filing does not advance the
+   * revision, because nobody edited anything.
+   */
+  observe(entry: {
+    subject: EvidenceSubject
+    kind: EvidenceKind
+    result: 'pass' | 'fail'
+    fingerprint: string
+    adapterVersion: string
+    detail?: string
+  }): Promise<void> {
+    return this.enqueue(async () => {
+      const current = await this.read()
+      if (fingerprintFor(current, entry.subject) !== entry.fingerprint) return
+      const evidence = mergeEvidence(current.evidence, {
+        // One stable record per subject and kind, so repeated sessions replace rather than pile up.
+        id: `e-${sha256Hex(`${entry.subject.kind}/${entry.subject.id}/${entry.kind}`).slice(0, 32)}`,
+        subject: entry.subject,
+        kind: entry.kind,
+        result: entry.result,
+        observedAt: new Date().toISOString(),
+        adapterVersion: entry.adapterVersion,
+        fingerprint: entry.fingerprint,
+        detail: entry.detail ?? '',
+      })
+      await this.write(engineWorkspaceSchema.parse({ ...current, evidence }))
+    })
   }
   save(input: unknown): Promise<EngineWorkspace> {
     return this.enqueue(async () => {
@@ -59,7 +117,13 @@ export class EngineWorkspaceStore {
           await this.verifyDirectory(revision)
         }
       }
-      const next = { ...parsed.data, revision: current.revision + 1 }
+      const next = {
+        ...parsed.data,
+        // Observations are filed by the main process while a session runs. A save prepared before
+        // one arrived must not delete it, but a subject the save removed takes its records along.
+        evidence: keepObservations(current.evidence, parsed.data),
+        revision: current.revision + 1,
+      }
       await this.write(next)
       return next
     })

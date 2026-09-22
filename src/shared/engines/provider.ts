@@ -143,6 +143,19 @@ export function defaultRoute(
   return routes[0]!
 }
 
+/**
+ * Whether a grant still covers where the connection points.
+ *
+ * A grant is given for one route. Repointing the connection is a request to a different API with
+ * the same credential, so the grant has to be given again rather than following along.
+ */
+export function grantCoversRoute(
+  binding: EngineProviderBinding,
+  connection: Pick<ModelConnection, 'protocol'>,
+): boolean {
+  return !connection.protocol || binding.route === connection.protocol
+}
+
 export function createBinding(
   id: string,
   installation: EngineInstallation,

@@ -22,7 +22,9 @@ setup. Resolved prompts and Skills carry `source: 'shared'`, so a session's conf
 still shows where each instruction came from.
 
 An agent listed in `excludedAgentIds` inherits nothing and runs on its own bindings only. Its
-engine, model and endpoint are unaffected either way: the shared setup never contains them.
+engine, model and endpoint are unaffected either way: the shared setup never contains them, and it
+never makes a connection available to a CLI — that is a separate, explicit
+[grant](provider-connections.md).
 
 Deleting a prompt, Skill, MCP server, bundle or agent clears the matching reference from the shared
 setup, exactly as it does for agents and bundles, so the workspace stays valid.

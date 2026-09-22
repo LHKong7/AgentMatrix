@@ -301,6 +301,67 @@ export function ResourceEditor({
                   placeholder="https://api.example.com/v1"
                   onChange={(baseUrl) => setDraft({ ...draft, baseUrl })}
                 />
+                <TextField
+                  label={t('provider.vendor')}
+                  value={draft.provider?.vendor ?? ''}
+                  maxLength={80}
+                  placeholder="minimax"
+                  onChange={(vendor) =>
+                    setDraft({
+                      ...draft,
+                      // The identity exists once it names someone; clearing the vendor removes it.
+                      provider: vendor.trim()
+                        ? {
+                            product: '',
+                            region: '',
+                            organization: '',
+                            endpointScope: 'route-base',
+                            ...draft.provider,
+                            vendor,
+                          }
+                        : undefined,
+                    })
+                  }
+                />
+                <p className="-mt-3 mb-5 text-xs leading-relaxed text-muted-foreground">
+                  {t('provider.vendorHint')}
+                </p>
+                {draft.provider && (
+                  <>
+                    <TextField
+                      label={t('provider.organization')}
+                      value={draft.provider.organization}
+                      maxLength={120}
+                      onChange={(organization) =>
+                        setDraft({ ...draft, provider: { ...draft.provider!, organization } })
+                      }
+                    />
+                    <SelectField
+                      label={t('provider.endpointScope')}
+                      value={draft.provider.endpointScope}
+                      onChange={(value) =>
+                        setDraft({
+                          ...draft,
+                          provider: {
+                            ...draft.provider!,
+                            endpointScope:
+                              value === 'provider-root' ? 'provider-root' : 'route-base',
+                          },
+                        })
+                      }
+                    >
+                      <option value="route-base">{t('provider.endpointScope.route-base')}</option>
+                      <option value="provider-root">
+                        {t('provider.endpointScope.provider-root')}
+                      </option>
+                    </SelectField>
+                  </>
+                )}
+                {draft.origin?.kind === 'adopted' && (
+                  <p className="-mt-3 mb-5 text-xs leading-relaxed text-muted-foreground">
+                    {t('provider.adopted', { engine: draft.origin.engine })} · {draft.origin.path}
+                  </p>
+                )}
                 {draft.protocol === 'anthropic-messages' && (
                   <p className="text-xs leading-relaxed text-muted-foreground">
                     {t('config.anthropicEndpoint')}

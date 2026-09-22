@@ -10,6 +10,7 @@ import { planPiImport } from '../src/main/native-import/pi'
 import { planDshImport } from '../src/main/native-import/dsh'
 import { planOpenCodeImport } from '../src/main/native-import/opencode'
 import { parseImportYaml } from '../src/main/native-import/dsh-yaml'
+import { useProtocol } from './helpers/bindings'
 
 it.each([
   'https://gateway.test/proxy',
@@ -50,7 +51,7 @@ it.each(['?token=private', '#private', '/messages', '/messages/'])(
   'diagnoses unsupported Anthropic suffix %s without including its value',
   (suffix) => {
     const workspace = piWorkspace('/engine', '/project')
-    workspace.connections[0]!.protocol = 'anthropic-messages'
+    useProtocol(workspace, 'anthropic-messages')
     workspace.connections[0]!.baseUrl = `https://gateway.test/v1${suffix}`
     workspace.connections[0]!.auth = {
       kind: 'api-key',

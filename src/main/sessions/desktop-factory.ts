@@ -31,16 +31,34 @@ import { baseProcessEnvironment } from '../engines/process/managed-process'
 import { captureCommand } from '../engines/process/capture-command'
 import { RuntimeFailure } from '../engines/runtime'
 import type { SessionRuntimeFactory } from './coordinator'
+import {
+  fingerprintFor,
+  type EvidenceKind,
+  type EvidenceSubject,
+} from '../../shared/engines/evidence'
+import { adapterVersionFor, bindingFor } from '../../shared/engines/provider'
 import { buildConfigurationReport } from '../engines/configuration-report'
 import { trackCredentialResolution } from '../engines/credential-report'
 import type { CredentialVersions, ResolvedCredential } from '../credentials/vault'
 import { capturedSkillSources } from '../engines/skill-readback'
 import type { RunDataQuery, RunDataRemoval } from '../../shared/sessions/run-data'
 
+interface Observation {
+  subject: EvidenceSubject
+  fingerprint: string
+  adapterVersion: string
+}
 interface Dependencies {
   workspace: {
     load(): Promise<EngineWorkspace>
     save(value: EngineWorkspace): Promise<EngineWorkspace>
+    observe?(entry: {
+      subject: EvidenceSubject
+      kind: EvidenceKind
+      result: 'pass' | 'fail'
+      fingerprint: string
+      adapterVersion: string
+    }): Promise<void>
   }
   runs: RunInputStore
   skills: SkillDirectoryStore
@@ -86,7 +104,43 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
   }
   private readonly lifetime = new AbortController()
   private readonly probes = new Set<Promise<unknown>>()
+  /** What each prepared session's configuration was, so a later result is filed against it. */
+  private readonly prepared = new Map<string, Observation[]>()
   constructor(private readonly dependencies: Dependencies) {}
+
+  /**
+   * The agent's configuration and the grant it runs on, as they stand in the saved workspace.
+   *
+   * Taken before the per-launch working directory is applied, because that override is this run's
+   * and not what was saved. A run that started from an override files nothing about the saved
+   * configuration: the store drops an observation whose fingerprint has moved on.
+   */
+  private observations(workspace: EngineWorkspace, agentId: string): Observation[] {
+    const agent = workspace.agents.find((item) => item.id === agentId)
+    const installation = workspace.installations.find(
+      (item) => item.id === agent?.engineInstallationId,
+    )
+    const model = workspace.models.find((item) => item.id === agent?.modelProfileId)
+    const grant = bindingFor(workspace, installation?.id ?? null, model?.connectionId ?? null)
+    const adapterVersion = adapterVersionFor(installation?.kind ?? '')
+    const subjects: EvidenceSubject[] = [
+      { kind: 'agent', id: agentId },
+      ...(grant ? [{ kind: 'binding' as const, id: grant.id }] : []),
+    ]
+    return subjects.flatMap((subject) => {
+      const fingerprint = fingerprintFor(workspace, subject)
+      return fingerprint ? [{ subject, fingerprint, adapterVersion }] : []
+    })
+  }
+  private file(observations: Observation[], kind: EvidenceKind): void {
+    const { workspace } = this.dependencies
+    if (!workspace.observe) return
+    for (const observation of observations)
+      void workspace.observe({ ...observation, kind, result: 'pass' }).catch(() => {})
+  }
+  async observe(snapshot: SessionSnapshot, kind: 'session-ready' | 'model-response') {
+    this.file(this.prepared.get(snapshot.id) ?? [], kind)
+  }
 
   probe(input: unknown): Promise<EngineWorkspace> {
     const { installationId } = z.object({ installationId: entityId }).strict().parse(input)
@@ -174,6 +228,7 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
     if (exists) manifest = await runs.verifyForReuse(snapshotId)
     else {
       const state = await workspace.load()
+      const observations = this.observations(state, command.agentId)
       const profile = state.agents.find((item) => item.id === command.agentId)
       const installation = state.installations.find(
         (item) => item.id === profile?.engineInstallationId,
@@ -186,6 +241,11 @@ export class DesktopSessionFactory implements SessionRuntimeFactory {
       const resolved = resolveAgentProfile(state, profile.id)
       if (resolved.status !== 'resolved') throw appError('error.runConfiguration')
       assertEngineConfiguration(resolved.configuration, { platform: process.platform })
+      // The adapter accepted these values. Whether the provider does is a separate observation.
+      this.file(observations, 'configuration-valid')
+      // Keep only what a running session might still report on.
+      if (this.prepared.size > 200) this.prepared.clear()
+      this.prepared.set(sessionId, observations)
       const cwd = await resolveWorkingDirectory(profile.execution.cwd)
       const readSkillEntry = async (skill: ResolvedSkill) => {
         if (skill.revision.kind !== 'directory') throw appError('error.skillCaptureInvalid')

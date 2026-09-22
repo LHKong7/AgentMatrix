@@ -1,4 +1,4 @@
-import { credentialReachesEngine } from './provider'
+import { bindingFor } from './provider'
 import type { AgentProfile, EngineInstallation, ModelConnection, ModelProfile } from './schema'
 import {
   engineWorkspaceSchema,
@@ -25,6 +25,7 @@ export type ResolutionIssueCode =
   | 'model-required'
   | 'connection-required'
   | 'engine-binding-required'
+  | 'engine-binding-route'
   | 'protocol-required'
   | 'endpoint-required'
   | 'authentication-required'
@@ -131,8 +132,12 @@ function resolveParsedProfile(workspace: EngineWorkspace, agentId: string): Prof
   else {
     // The connection is managed once for the workspace, but reaching this CLI is a separate,
     // explicit grant. Without it the engine is never handed this provider's credential.
-    if (installation && !credentialReachesEngine(workspace, installation.id, connection.id))
-      issue('engine-binding-required', 'modelProfileId.connectionId')
+    const grant = installation ? bindingFor(workspace, installation.id, connection.id) : null
+    if (installation && !grant) issue('engine-binding-required', 'modelProfileId.connectionId')
+    // A grant is for one route. Repointing the connection is a different request to a different
+    // API, so it waits for the grant to be given again rather than carrying the old one over.
+    if (grant && connection.protocol && grant.route !== connection.protocol)
+      issue('engine-binding-route', 'modelProfileId.connectionId')
     if (!connection.protocol) issue('protocol-required', 'connection.protocol')
     if (!connection.baseUrl && !['engine-login', 'cloud-identity'].includes(connection.auth.kind))
       issue('endpoint-required', 'connection.baseUrl')

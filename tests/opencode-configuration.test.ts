@@ -15,6 +15,7 @@ import type { EngineWorkspace } from '../src/shared/engines/workspace'
 import { openCodeWorkspace } from './helpers/opencode-fixture'
 import { captureCommand } from '../src/main/engines/process/capture-command'
 import { verifyOpenCodeSkillReadback } from '../src/main/engines/adapters/opencode/readback'
+import { useProtocol } from './helpers/bindings'
 
 vi.mock('../src/main/engines/process/capture-command', () => ({ captureCommand: vi.fn() }))
 
@@ -170,7 +171,7 @@ describe('OpenCode configuration', () => {
   ] as const)(
     'selects the documented SDK for %s without claiming endpoint acceptance',
     async (protocol, npm, header) => {
-      workspace.connections[0]!.protocol = protocol
+      useProtocol(workspace, protocol)
       if (protocol !== 'openai-responses')
         workspace.connections[0]!.auth = {
           kind: 'api-key',
@@ -373,7 +374,7 @@ describe('OpenCode configuration', () => {
     async (feature) => {
       if (feature === 'version') workspace.installations[0]!.version = '999.0.0'
       if (feature === 'reasoning') workspace.models[0]!.parameters.reasoning = 'high'
-      if (feature === 'vertex') workspace.connections[0]!.protocol = 'vertex'
+      if (feature === 'vertex') useProtocol(workspace, 'vertex')
       if (feature === 'engine-login') workspace.connections[0]!.auth = { kind: 'engine-login' }
       if (feature === 'native-plugin') {
         workspace.nativePlugins = [

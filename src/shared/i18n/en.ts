@@ -11,6 +11,7 @@ import { discoveryEn } from './discovery-en'
 import { sessionListEn } from './session-list-en'
 import { requirementsEn } from './requirements-en'
 import { sharedSetupEn } from './shared-setup-en'
+import { providerEn } from './provider-en'
 
 export const en = {
   'runData.title': 'Unused run data',
@@ -50,6 +51,7 @@ export const en = {
   ...discoveryEn,
   ...requirementsEn,
   ...sharedSetupEn,
+  ...providerEn,
   ...reportEn,
   ...impactEn,
   ...supportEn,
@@ -62,7 +64,6 @@ export const en = {
   'brand.tagline': 'YOUR AGENT WORKSPACE',
   'workspace.personal': 'Personal workspace',
   'workspace.local': 'Local workspace',
-  'workspace.title': 'Workspace',
   'sidebar.title': 'Your workflow, your way',
   'sidebar.description': 'Connect tools and share knowledge. Give every agent its own strengths.',
   'sidebar.plugins': 'Explore plugin configuration',

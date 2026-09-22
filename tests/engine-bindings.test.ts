@@ -17,6 +17,7 @@ import {
   bindingIssues,
   connectionsBoundTo,
   credentialReachesEngine,
+  grantCoversRoute,
   installationsBoundTo,
 } from '../src/shared/engines/provider'
 import { resolveAgentProfile } from '../src/shared/engines/resolution'
@@ -279,5 +280,39 @@ describe('evidence records what was observed and never more', () => {
     const status = evidenceStatus(second, subject)
     expect(status.level).toBeNull()
     expect(status.failures.map((record) => record.detail)).toEqual(['HTTP 401'])
+  })
+})
+
+describe('a grant is for one route', () => {
+  it('stops covering the connection when it is repointed, until it is given again', () => {
+    const granted = grantOpenCode(workspace())
+    expect(issuesFor(granted, 'writer')).toEqual([])
+    const repointed = upsertConfiguration(granted, 'connections', {
+      ...granted.connections[0]!,
+      protocol: 'anthropic-messages',
+      auth: { kind: 'api-key', header: 'x-api-key', secret: { kind: 'credential', id: 'key' } },
+    })
+    expect(issuesFor(repointed, 'writer')).toEqual(['engine-binding-route'])
+    expect(grantCoversRoute(repointed.engineBindings[0]!, repointed.connections[0]!)).toBe(false)
+    // Giving it again for the new route replaces the grant rather than adding a second one.
+    const regranted = bindConnectionToEngine(repointed, {
+      id: 'grant-opencode',
+      installationId: 'opencode-1',
+      connectionId: 'minimax',
+      boundAt: at,
+    })
+    expect(regranted.engineBindings).toHaveLength(1)
+    expect(regranted.engineBindings[0]!.route).toBe('anthropic-messages')
+    expect(issuesFor(regranted, 'writer')).toEqual([])
+  })
+
+  it('leaves a grant alone while the connection has no route of its own', () => {
+    const granted = grantOpenCode(workspace())
+    const draft = upsertConfiguration(granted, 'connections', {
+      ...granted.connections[0]!,
+      protocol: null,
+    })
+    expect(grantCoversRoute(draft.engineBindings[0]!, draft.connections[0]!)).toBe(true)
+    expect(issuesFor(draft, 'writer')).toEqual(['protocol-required'])
   })
 })

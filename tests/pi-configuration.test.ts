@@ -12,6 +12,7 @@ import type { PiClient } from '../src/main/engines/pi/client'
 import { resolveAgentProfile } from '../src/shared/engines/resolution'
 import type { EngineWorkspace } from '../src/shared/engines/workspace'
 import { piWorkspace } from './helpers/pi-fixture'
+import { useProtocol } from './helpers/bindings'
 
 let root: string, workspace: EngineWorkspace, store: RunInputStore, context: PiPlanContext
 beforeEach(async () => {
@@ -50,7 +51,7 @@ describe('Pi configuration contract', () => {
   it.each([false, true])(
     'checks captured Anthropic endpoint semantics, legacy=%s',
     async (legacy) => {
-      workspace.connections[0]!.protocol = 'anthropic-messages'
+      useProtocol(workspace, 'anthropic-messages')
       workspace.connections[0]!.baseUrl = 'https://gateway.test/proxy/v1'
       workspace.connections[0]!.auth = {
         kind: 'api-key',
@@ -174,7 +175,7 @@ describe('Pi configuration contract', () => {
     ['anthropic-messages', 'anthropic-messages', 'x-api-key'],
     ['gemini', 'google-generative-ai', 'x-goog-api-key'],
   ] as const)('maps the documented %s API separately', async (protocol, api, header) => {
-    workspace.connections[0]!.protocol = protocol
+    useProtocol(workspace, protocol)
     if (protocol !== 'openai-responses')
       workspace.connections[0]!.auth = {
         kind: 'api-key',
@@ -221,7 +222,7 @@ describe('Pi configuration contract', () => {
     expect((await plan()).launch.args).toContain('--no-tools')
     workspace.connections[0]!.auth = { kind: 'none' }
     await expect(plan()).rejects.toThrow('connection.auth')
-    workspace.connections[0]!.protocol = 'anthropic-messages'
+    useProtocol(workspace, 'anthropic-messages')
     workspace.connections[0]!.auth = {
       kind: 'api-key',
       header: 'x-api-key',

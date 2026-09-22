@@ -80,16 +80,23 @@ export function SelectField({
   value,
   onChange,
   children,
+  disabled = false,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   children: ReactNode
+  disabled?: boolean
 }) {
   return (
     <label className="mb-5 grid gap-2 text-xs font-medium">
       {label}
-      <Select aria-label={label} value={value} onChange={(event) => onChange(event.target.value)}>
+      <Select
+        aria-label={label}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      >
         {children}
       </Select>
     </label>

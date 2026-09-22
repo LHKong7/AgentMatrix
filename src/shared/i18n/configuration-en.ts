@@ -165,6 +165,8 @@ export const configurationEn = {
   'resolution.connection-required': 'Select a model connection.',
   'resolution.engine-binding-required':
     'Make this connection available to the selected CLI before using it.',
+  'resolution.engine-binding-route':
+    'This connection was made available for a different route. Make it available again.',
   'resolution.protocol-required': 'Select an API protocol.',
   'resolution.endpoint-required': 'Enter an endpoint for the selected authentication route.',
   'resolution.authentication-required': 'Choose an authentication strategy.',

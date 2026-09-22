@@ -56,6 +56,8 @@ export interface SessionRuntimeFactory {
   removeSnapshot?(snapshotId: string): Promise<void>
   unusedRunData?(references: ReadonlySet<string>, query: RunDataQuery): Promise<UnusedRunDataPage>
   removeUnusedRunData?(query: RunDataRemoval, references: ReadonlySet<string>): Promise<void>
+  /** File what this session proved about its configuration. Never fails the session. */
+  observe?(snapshot: SessionSnapshot, kind: 'session-ready' | 'model-response'): Promise<void>
 }
 interface PendingInteraction {
   resolve(answer: InteractionResponse): void
@@ -78,6 +80,8 @@ interface Context {
   attachment?: Attachment
   interactions: Map<string, PendingInteraction>
   storageFailed: boolean
+  /** What this session has already been reported to have proved. */
+  observed?: Set<'session-ready' | 'model-response'>
 }
 const appendSchema = sessionEventSchema.omit({ sessionId: true, cursor: true, timestamp: true })
 const digest = (value: string) => createHash('sha256').update(value).digest('hex')
@@ -485,10 +489,21 @@ export class SessionCoordinator {
     try {
       const event = await this.journal.append(state.id, state.cursor, data)
       context.stream.append(data, event.timestamp)
+      // The durable event is the observation: the engine started a session with these inputs, and
+      // the provider answered with this model. Nothing weaker is reported as either.
+      if (data.data.kind === 'run.ready') this.observe(context, 'session-ready')
+      if (data.data.kind === 'message.delta' && data.data.channel === 'assistant')
+        this.observe(context, 'model-response')
       return event
     } catch {
       this.storageFailure(context)
     }
+  }
+  private observe(context: Context, kind: 'session-ready' | 'model-response'): void {
+    const observed = (context.observed ??= new Set())
+    if (observed.has(kind) || !this.factory.observe) return
+    observed.add(kind)
+    void this.factory.observe(context.stream.snapshot(), kind).catch(() => {})
   }
   private storageFailure(context: Context): never {
     context.storageFailed = true

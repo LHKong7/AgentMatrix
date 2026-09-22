@@ -1,7 +1,8 @@
 # Model configuration follows the CLI
 
 Model routes are per-agent configuration (see [shared setup](shared-setup.md) for what is shared
-instead). A model profile and connection describe a provider route; what may be filled in depends on
+instead, and [provider connections](provider-connections.md) for how a connection becomes usable by
+one CLI at all). A model profile and connection describe a provider route; what may be filled in depends on
 the CLI that will run it. OpenCode, Pi and DeepSeek Harness map different protocols, accept
 different authentication strategies, and ignore or reject different parameters. The editors
 therefore ask which engine the values are for and describe that engine's rules field by field.

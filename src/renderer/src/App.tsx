@@ -28,6 +28,7 @@ import {
 import type { AppInfo } from '../../shared/api'
 import { appError, formatError } from '../../shared/errors'
 import {
+  bindConnectionToEngine,
   collectionLabels,
   libraryEntryLabels,
   profileResourceCounts,
@@ -41,7 +42,9 @@ import {
   type LibraryEntry,
 } from '../../shared/engines/editing'
 import { engineWorkspaceSchema, type EngineWorkspace } from '../../shared/engines/workspace'
+import { bindingFor } from '../../shared/engines/provider'
 import type { AgentProfile } from '../../shared/engines/schema'
+import type { MessageKey } from '../../shared/i18n'
 import { useI18n } from './i18n'
 import { api } from './lib/api'
 import { AgentEditor } from './components/AgentEditor'
@@ -54,6 +57,7 @@ import { EngineDiscoveryPanel } from './components/EngineDiscoveryPanel'
 import { SessionsPanel } from './components/SessionsPanel'
 import { SessionListPanel } from './components/SessionListPanel'
 import { SharedSetupPanel } from './components/SharedSetupPanel'
+import { EngineGrants } from './components/EngineGrants'
 import { Badge } from './components/ui/badge'
 import { Button } from './components/ui/button'
 import { Alert, AlertDescription } from './components/ui/alert'
@@ -76,7 +80,32 @@ const icons: Record<Collection, LucideIcon> = {
   bundles: Boxes,
   nativePlugins: Puzzle,
 }
-const collections = Object.keys(collectionLabels) as Collection[]
+/**
+ * The workspace read in the order it is used: what a CLI runs, who it reaches, and what it
+ * knows. Engines own the installation, its granted connections and the model routes; the
+ * library owns everything that is shared across every CLI.
+ */
+const navigation = [
+  { label: 'nav.group.agents', items: ['agents'] },
+  {
+    label: 'nav.group.engines',
+    items: ['installations', 'connections', 'models', 'nativePlugins'],
+  },
+  { label: 'nav.group.library', items: ['prompts', 'mcpServers', 'skills', 'bundles'] },
+] as const satisfies readonly { label: MessageKey; items: readonly Collection[] }[]
+
+function NavHeading({ label, first = false }: { label: string; first?: boolean }) {
+  return (
+    <span
+      className={cn(
+        'px-3 pb-1 text-[10px] font-medium tracking-[0.14em] text-muted-foreground uppercase',
+        !first && 'pt-3',
+      )}
+    >
+      {label}
+    </span>
+  )
+}
 
 function NavItem({
   icon: Icon,
@@ -253,10 +282,8 @@ export function App() {
           </div>
           <span className="size-2 rounded-full bg-success" aria-hidden="true" />
         </div>
-        <span className="px-1 text-[10px] font-medium tracking-[0.14em] text-muted-foreground uppercase">
-          {t('workspace.title')}
-        </span>
         <nav aria-label={t('nav.main')} className="grid gap-0.5">
+          <NavHeading label={t('nav.group.sessions')} first />
           <NavItem
             icon={MessageSquare}
             label={t('nav.sessions')}
@@ -273,21 +300,28 @@ export function App() {
             active={page === 'sessionList'}
             onClick={() => navigate('sessionList')}
           />
-          <NavItem
-            icon={Layers}
-            label={t('nav.sharedSetup')}
-            active={page === 'sharedSetup'}
-            onClick={() => navigate('sharedSetup')}
-          />
-          {collections.map((kind) => (
-            <NavItem
-              key={kind}
-              icon={icons[kind]}
-              label={t(collectionLabels[kind])}
-              active={page === kind}
-              count={workspace ? number(workspace[kind].length) : undefined}
-              onClick={() => navigate(kind)}
-            />
+          {navigation.map((group) => (
+            <div key={group.label} className="grid gap-0.5">
+              <NavHeading label={t(group.label)} />
+              {group.items.map((kind) => (
+                <NavItem
+                  key={kind}
+                  icon={icons[kind]}
+                  label={t(collectionLabels[kind])}
+                  active={page === kind}
+                  count={workspace ? number(workspace[kind].length) : undefined}
+                  onClick={() => navigate(kind)}
+                />
+              ))}
+              {group.label === 'nav.group.agents' && (
+                <NavItem
+                  icon={Layers}
+                  label={t('nav.sharedSetup')}
+                  active={page === 'sharedSetup'}
+                  onClick={() => navigate('sharedSetup')}
+                />
+              )}
+            </div>
           ))}
         </nav>
         <div className="mt-auto grid gap-3">
@@ -394,14 +428,17 @@ export function App() {
                 )}
               </div>
               {page === 'installations' && (
-                <EngineDiscoveryPanel
-                  workspace={workspace}
-                  desktop={info?.storage === 'desktop'}
-                  platform={info?.platform}
-                  busy={saving}
-                  onSave={save}
-                  onWorkspace={setWorkspace}
-                />
+                <>
+                  <EngineDiscoveryPanel
+                    workspace={workspace}
+                    desktop={info?.storage === 'desktop'}
+                    platform={info?.platform}
+                    busy={saving}
+                    onSave={save}
+                    onWorkspace={setWorkspace}
+                  />
+                  <EngineGrants workspace={workspace} busy={saving} onSave={save} />
+                </>
               )}
               {page !== 'settings' && (
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -746,6 +783,16 @@ export function App() {
           platform={info?.platform}
           busy={saving}
           onClose={() => setEditor(null)}
+          onGrant={(installationId, connectionId) =>
+            save(
+              bindConnectionToEngine(workspace, {
+                // Re-granting a connection that moved to another route replaces its grant.
+                id: bindingFor(workspace, installationId, connectionId)?.id ?? crypto.randomUUID(),
+                installationId,
+                connectionId,
+              }),
+            )
+          }
           onSave={async (agent) => {
             await save(upsertConfiguration(workspace, 'agents', agent))
             setEditor(null)

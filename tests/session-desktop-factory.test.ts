@@ -21,6 +21,7 @@ import { createSessionSnapshot } from '../src/shared/sessions/state'
 import { appError, formatError } from '../src/shared/errors'
 import { safeSessionOperation } from '../src/main/sessions/ipc'
 import { translate } from '../src/shared/i18n'
+import { fingerprintFor } from '../src/shared/engines/evidence'
 
 const cleanup: { root: string; factory: DesktopSessionFactory }[] = []
 async function fixture(version = '1.18.16', kind: 'opencode' | 'pi' = 'opencode') {
@@ -36,7 +37,13 @@ async function fixture(version = '1.18.16', kind: 'opencode' | 'pi' = 'opencode'
   state.installations[0]!.version = null
   state.installations[0]!.probedAt = null
   state.installations[0]!.modes = []
+  const observed: { subject: { kind: string; id: string }; kind: string; fingerprint: string }[] =
+    []
   const workspace = {
+    observe: vi.fn(async (entry: (typeof observed)[number]) => {
+      // The real store drops an observation whose subject has moved on; keep that check honest.
+      if (fingerprintFor(state, entry.subject as never) === entry.fingerprint) observed.push(entry)
+    }),
     load: vi.fn(async () => structuredClone(state)),
     save: vi.fn(async (value: typeof state) => {
       if (value.revision !== state.revision) throw appError('error.conflict')
@@ -70,6 +77,7 @@ async function fixture(version = '1.18.16', kind: 'opencode' | 'pi' = 'opencode'
     home,
     executable,
     workspace,
+    observed,
     factory,
     runs,
     skills,
@@ -440,5 +448,39 @@ describe.skipIf(process.platform === 'win32')('desktop session factory', () => {
     expect(await f.factory.create('pi-session', command)).toEqual(identity)
     expect(f.resolveSecret).not.toHaveBeenCalled()
     expect(await readdir(join(f.root, 'probes'))).toEqual([])
+  })
+
+  it('files what a session proved, and nothing it did not', async () => {
+    const f = await fixture()
+    await f.factory.probe({ installationId: 'oc' })
+    const identity = await f.factory.create('session-a', {
+      kind: 'create',
+      commandId: 'create',
+      agentId: 'reviewer',
+    })
+    // Passing the adapter checks is a configuration that was accepted, not a provider that was.
+    expect(f.observed.map((entry) => [entry.subject.kind, entry.kind])).toEqual([
+      ['agent', 'configuration-valid'],
+      ['binding', 'configuration-valid'],
+    ])
+    const snapshot = createSessionSnapshot({
+      ...identity,
+      id: 'session-a',
+      createdAt: new Date().toISOString(),
+    })
+    await f.factory.observe(snapshot, 'session-ready')
+    await f.factory.observe(snapshot, 'model-response')
+    expect(f.observed.map((entry) => entry.kind)).toEqual([
+      'configuration-valid',
+      'configuration-valid',
+      'session-ready',
+      'session-ready',
+      'model-response',
+      'model-response',
+    ])
+    // A session this process never prepared vouches for nothing.
+    f.observed.length = 0
+    await f.factory.observe({ ...snapshot, id: 'other' }, 'model-response')
+    expect(f.observed).toEqual([])
   })
 })

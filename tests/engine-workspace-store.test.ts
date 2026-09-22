@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { EngineWorkspaceStore } from '../src/main/engine-workspace-store'
 import { createWorkspace } from '../src/shared/workspace'
+import { fingerprintFor } from '../src/shared/engines/evidence'
 
 let root: string
 let store: EngineWorkspaceStore
@@ -79,5 +80,55 @@ describe('schema v2 storage and migration', () => {
     expect(saved.prompts[0]!.versions).toHaveLength(2)
     expect(saved.revision).toBe(2)
     expect((await readdir(root)).some((file) => file.endsWith('.tmp'))).toBe(false)
+  })
+
+  it('files an observation without an edit, and drops one the workspace has moved past', async () => {
+    const initial = await store.load()
+    const state = structuredClone(initial)
+    state.installations.push({
+      id: 'oc',
+      name: 'OpenCode',
+      kind: 'opencode',
+      executable: '/opt/bin/opencode',
+      prefixArgs: [],
+      platform: 'darwin',
+      version: '1.18.16',
+      modes: ['acp'],
+      probedAt: '2026-09-22T00:00:00.000Z',
+    })
+    const saved = await store.save(state)
+    const subject = { kind: 'installation', id: 'oc' } as const
+    const fingerprint = fingerprintFor(saved, subject)!
+    await store.observe({
+      subject,
+      kind: 'discovered',
+      result: 'pass',
+      fingerprint,
+      adapterVersion: 'opencode-acp@1+1.18.16',
+    })
+    const observed = await store.load()
+    expect(observed.evidence.map((record) => [record.subject.id, record.kind])).toEqual([
+      ['oc', 'discovered'],
+    ])
+    // Nobody edited anything, so an editor holding the saved revision can still save.
+    expect(observed.revision).toBe(saved.revision)
+    // A save prepared before the observation keeps it; the subject is still there.
+    const later = await store.save({ ...saved, revision: observed.revision })
+    expect(later.evidence).toHaveLength(1)
+    // The same observation no longer applies once the engine it was about changes.
+    const moved = structuredClone(later)
+    moved.installations[0]!.executable = '/opt/bin/opencode-next'
+    const afterChange = await store.save(moved)
+    await store.observe({
+      subject,
+      kind: 'connection-tested',
+      result: 'pass',
+      fingerprint,
+      adapterVersion: 'opencode-acp@1+1.18.16',
+    })
+    expect((await store.load()).evidence.map((record) => record.kind)).toEqual(['discovered'])
+    // Removing the subject takes its records with it, even from a save that still lists them.
+    const removed = { ...afterChange, installations: [], evidence: [] }
+    expect((await store.save(removed)).evidence).toEqual([])
   })
 })

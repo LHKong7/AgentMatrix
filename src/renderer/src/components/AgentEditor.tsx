@@ -8,6 +8,13 @@ import {
   type EngineKind,
 } from '../../../shared/engines/schema'
 import { upsertConfiguration } from '../../../shared/engines/editing'
+import { agentConfigurationDefinitions } from '../../../shared/engines/agent-definition'
+import {
+  bindingFor,
+  bindingIssues,
+  defaultRoute,
+  grantCoversRoute,
+} from '../../../shared/engines/provider'
 import { resolveAgentProfile } from '../../../shared/engines/resolution'
 import type { EngineWorkspace } from '../../../shared/engines/workspace'
 import { useI18n } from '../i18n'
@@ -18,6 +25,8 @@ import { isSupportedEngine } from '../../../shared/engines/contracts'
 import { protocolRequirement } from '../../../shared/engines/model-requirements'
 import { sharedSetupFor } from '../../../shared/engines/resolution'
 import { Badge } from './ui/badge'
+import { Button } from './ui/button'
+import { EvidenceBadge } from './EvidenceBadge'
 import { AssetBindings } from './AssetBindings'
 import { ResourcePicker } from './ResourcePicker'
 import { NumberField, SelectField, TextField } from './ConfigurationFields'
@@ -38,6 +47,7 @@ export function AgentEditor({
   isNew,
   busy,
   onSave,
+  onGrant,
   onClose,
 }: {
   agent: AgentProfile
@@ -46,6 +56,7 @@ export function AgentEditor({
   isNew: boolean
   busy: boolean
   onSave: (agent: AgentProfile) => Promise<void>
+  onGrant: (installationId: string, connectionId: string) => Promise<void>
   onClose: () => void
 }) {
   const { t, locale } = useI18n()
@@ -63,8 +74,24 @@ export function AgentEditor({
     return kind && isSupportedEngine(kind) ? kind : null
   })()
   const selectedModel = workspace.models.find((item) => item.id === draft.modelProfileId) ?? null
-  const selectedConnection =
-    workspace.connections.find((item) => item.id === selectedModel?.connectionId) ?? null
+  // The connection comes first: the model chosen below has to be one it serves.
+  const [pickedConnection, setPickedConnection] = useState<string | null>(null)
+  const connectionId = selectedModel?.connectionId ?? pickedConnection
+  const selectedConnection = workspace.connections.find((item) => item.id === connectionId) ?? null
+  const selectedEngineName =
+    workspace.installations.find((item) => item.id === draft.engineInstallationId)?.name ?? ''
+  const grant = bindingFor(workspace, draft.engineInstallationId, connectionId)
+  const grantIssues =
+    draft.engineInstallationId && selectedConnection
+      ? bindingIssues(workspace, {
+          id: 'draft',
+          installationId: draft.engineInstallationId,
+          connectionId: selectedConnection.id,
+          route: engineKind
+            ? defaultRoute(selectedConnection, engineKind)
+            : (selectedConnection.protocol ?? 'openai-chat-completions'),
+        }).filter((issue) => issue !== 'duplicate')
+      : []
   const close = () => {
     if (JSON.stringify(draft) === JSON.stringify(agent) || window.confirm(t('common.unsaved')))
       onClose()
@@ -154,25 +181,128 @@ export function AgentEditor({
                   ))}
                 </SelectField>
                 <SelectField
-                  label={t('config.model')}
-                  value={draft.modelProfileId ?? ''}
-                  onChange={(modelProfileId) => patch({ modelProfileId: modelProfileId || null })}
+                  label={t('agents.connection')}
+                  value={selectedConnection?.id ?? ''}
+                  disabled={!draft.engineInstallationId}
+                  onChange={(id) => {
+                    setPickedConnection(id || null)
+                    // A model belongs to one connection; changing connection clears a stale one.
+                    if (selectedModel && selectedModel.connectionId !== id)
+                      patch({ modelProfileId: null })
+                  }}
                 >
-                  <option value="">{t('config.choose')}</option>
-                  {workspace.models.map((model) => {
-                    const protocol =
-                      workspace.connections.find((item) => item.id === model.connectionId)
-                        ?.protocol ?? null
-                    const usable =
-                      !engineKind || !protocol || Boolean(protocolRequirement(engineKind, protocol))
+                  <option value="">
+                    {t(draft.engineInstallationId ? 'config.choose' : 'agents.pickEngine')}
+                  </option>
+                  {workspace.connections.map((connection) => {
+                    const available = Boolean(
+                      bindingFor(workspace, draft.engineInstallationId, connection.id),
+                    )
                     return (
-                      <option key={model.id} value={model.id}>
-                        {model.name} · {model.modelId || t('agents.modelEmpty')}
-                        {usable ? '' : ` · ${t('requirements.protocolUnsupported', { protocol })}`}
+                      <option key={connection.id} value={connection.id}>
+                        {connection.name} ·{' '}
+                        {connection.provider?.vendor ??
+                          connection.protocol ??
+                          t('provider.unknown')}
+                        {available ? '' : ` · ${t('agents.connectionUngranted')}`}
                       </option>
                     )
                   })}
                 </SelectField>
+                <p className="-mt-3 mb-4 text-xs leading-relaxed text-muted-foreground">
+                  {t('agents.connectionHint')}
+                </p>
+                {selectedConnection && draft.engineInstallationId && (
+                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                    <div className="grid min-w-0 gap-1">
+                      <span className="text-xs">
+                        {grant
+                          ? t('grants.available', { name: selectedEngineName })
+                          : grantIssues.includes('route-mismatch')
+                            ? t('grants.routeMismatch', {
+                                protocol: selectedConnection.protocol ?? '',
+                              })
+                            : grantIssues.includes('route-unsupported') ||
+                                grantIssues.includes('engine-unsupported')
+                              ? t('grants.unsupported')
+                              : t('agents.connectionUngranted')}
+                      </span>
+                      {grant && (
+                        <span className="text-[11px] text-muted-foreground">
+                          {t('grants.route')}: {grant.route}
+                          {grant.nativeProviderId
+                            ? ` · ${t('grants.native', { id: grant.nativeProviderId })}`
+                            : ''}
+                        </span>
+                      )}
+                      {grant && !grantCoversRoute(grant, selectedConnection) && (
+                        <span className="text-[11px] text-warning">
+                          {t('grants.routeStale', {
+                            route: grant.route,
+                            protocol: selectedConnection.protocol ?? '',
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <EvidenceBadge
+                        workspace={workspace}
+                        subject={
+                          grant
+                            ? { kind: 'binding', id: grant.id }
+                            : { kind: 'connection', id: selectedConnection.id }
+                        }
+                      />
+                      {(!grant || !grantCoversRoute(grant, selectedConnection)) && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={busy || grantIssues.length > 0}
+                          onClick={() =>
+                            void onGrant(draft.engineInstallationId!, selectedConnection.id)
+                          }
+                        >
+                          {t(grant ? 'grants.regrant' : 'grants.make')}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <SelectField
+                  label={t('config.model')}
+                  value={draft.modelProfileId ?? ''}
+                  disabled={!selectedConnection}
+                  onChange={(modelProfileId) => patch({ modelProfileId: modelProfileId || null })}
+                >
+                  <option value="">
+                    {t(selectedConnection ? 'config.choose' : 'agents.pickConnection')}
+                  </option>
+                  {workspace.models
+                    .filter((model) => !selectedConnection || model.connectionId === connectionId)
+                    .map((model) => {
+                      const protocol =
+                        workspace.connections.find((item) => item.id === model.connectionId)
+                          ?.protocol ?? null
+                      const usable =
+                        !engineKind ||
+                        !protocol ||
+                        Boolean(protocolRequirement(engineKind, protocol))
+                      return (
+                        <option key={model.id} value={model.id}>
+                          {model.name} · {model.modelId || t('agents.modelEmpty')}
+                          {usable
+                            ? ''
+                            : ` · ${t('requirements.protocolUnsupported', { protocol })}`}
+                        </option>
+                      )
+                    })}
+                </SelectField>
+                {selectedConnection &&
+                  !workspace.models.some((model) => model.connectionId === connectionId) && (
+                    <p className="-mt-3 mb-5 text-xs leading-relaxed text-muted-foreground">
+                      {t('agents.noModels')}
+                    </p>
+                  )}
                 <ModelRequirements
                   kind={engineKind}
                   connection={selectedConnection}
@@ -195,11 +325,21 @@ export function AgentEditor({
                     })
                   }
                 >
-                  {(['ask', 'deny', 'unrestricted'] as const).map((policy) => (
-                    <option key={policy} value={policy}>
-                      {t(`config.approval.${policy}`)}
-                    </option>
-                  ))}
+                  {(['ask', 'deny', 'unrestricted'] as const).map((policy) => {
+                    // A policy this CLI has no idea of is shown as such, never downgraded.
+                    const mapped =
+                      !engineKind ||
+                      agentConfigurationDefinitions[engineKind].approvals.includes(policy)
+                    return (
+                      <option key={policy} value={policy}>
+                        {mapped
+                          ? t(`config.approval.${policy}`)
+                          : t('agents.approvalUnmapped', {
+                              policy: t(`config.approval.${policy}`),
+                            })}
+                      </option>
+                    )
+                  })}
                 </SelectField>
                 <p className="text-xs leading-relaxed text-muted-foreground">
                   {t('config.policyHint')}

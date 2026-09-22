@@ -349,6 +349,7 @@ workspace.connections[0].baseUrl = `http://127.0.0.1:${address.port}/v1`
 workspace.connections[0].auth.secret.name = 'AGENT_MATRIX_SESSION_KEY'
 if (nativeDsh) {
   workspace.connections[0].protocol = 'deepseek-official'
+  workspace.engineBindings[0].route = 'deepseek-official'
   workspace.connections[0].headers = {}
   workspace.models[0].parameters.reasoning = 'high'
 }

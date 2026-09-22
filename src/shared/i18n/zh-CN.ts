@@ -11,6 +11,7 @@ import { discoveryZhCN } from './discovery-zh-CN'
 import { sessionListZhCN } from './session-list-zh-CN'
 import { requirementsZhCN } from './requirements-zh-CN'
 import { sharedSetupZhCN } from './shared-setup-zh-CN'
+import { providerZhCN } from './provider-zh-CN'
 
 export const zhCN = {
   'runData.title': '未使用的运行数据',
@@ -45,6 +46,7 @@ export const zhCN = {
   ...discoveryZhCN,
   ...requirementsZhCN,
   ...sharedSetupZhCN,
+  ...providerZhCN,
   ...reportZhCN,
   ...impactZhCN,
   ...supportZhCN,
@@ -57,7 +59,6 @@ export const zhCN = {
   'brand.tagline': '你的 AGENT 工作空间',
   'workspace.personal': '个人工作空间',
   'workspace.local': '本地工作空间',
-  'workspace.title': '工作空间',
   'sidebar.title': '你的工作方式，你来定义',
   'sidebar.description': '连接工具、沉淀经验，让每个 Agent 各有所长。',
   'sidebar.plugins': '探索插件配置',
