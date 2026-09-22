@@ -17,6 +17,13 @@ import type { DirectoryRevision } from './assets/skill-directory-store'
 import type { NativeImportRecord } from '../shared/engines/native-import'
 import { isDeepStrictEqual } from 'node:util'
 
+/**
+ * Observations survive a save, and a save cannot make one.
+ *
+ * Evidence says what this application watched happen, so only its own observations may file it —
+ * a saved document is a statement of intent and never a claim about what was observed. What a save
+ * can do is remove the subject, and a record about something that no longer exists goes with it.
+ */
 function keepObservations(
   current: EngineWorkspace['evidence'],
   next: EngineWorkspace,
@@ -27,12 +34,7 @@ function keepObservations(
     binding: new Set(next.engineBindings.map((item) => item.id)),
     agent: new Set(next.agents.map((item) => item.id)),
   }
-  const kept = current.filter(
-    (record) =>
-      !next.evidence.some((item) => item.id === record.id) &&
-      present[record.subject.kind].has(record.subject.id),
-  )
-  return [...next.evidence, ...kept]
+  return current.filter((record) => present[record.subject.kind].has(record.subject.id))
 }
 
 /** Active schema v2 persistence, including atomic migration of the legacy document. */
@@ -119,8 +121,7 @@ export class EngineWorkspaceStore {
       }
       const next = {
         ...parsed.data,
-        // Observations are filed by the main process while a session runs. A save prepared before
-        // one arrived must not delete it, but a subject the save removed takes its records along.
+        // Only this process files observations; a save keeps the ones whose subject it kept.
         evidence: keepObservations(current.evidence, parsed.data),
         revision: current.revision + 1,
       }

@@ -115,8 +115,26 @@ describe('schema v2 storage and migration', () => {
     // A save prepared before the observation keeps it; the subject is still there.
     const later = await store.save({ ...saved, revision: observed.revision })
     expect(later.evidence).toHaveLength(1)
+    // A save cannot claim an observation of its own, whatever it puts in the document.
+    const forged = await store.save({
+      ...later,
+      evidence: [
+        ...later.evidence,
+        {
+          id: 'forged',
+          subject,
+          kind: 'model-response',
+          result: 'pass',
+          observedAt: '2026-09-22T00:00:00.000Z',
+          adapterVersion: 'opencode-acp@1+1.18.16',
+          fingerprint,
+          detail: '',
+        },
+      ],
+    })
+    expect(forged.evidence.map((record) => record.kind)).toEqual(['discovered'])
     // The same observation no longer applies once the engine it was about changes.
-    const moved = structuredClone(later)
+    const moved = structuredClone(forged)
     moved.installations[0]!.executable = '/opt/bin/opencode-next'
     const afterChange = await store.save(moved)
     await store.observe({

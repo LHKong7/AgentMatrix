@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   bindConnectionToEngine,
-  recordEvidence,
   releaseEngineBinding,
   removeConfiguration,
   upsertConfiguration,
@@ -11,6 +10,9 @@ import {
   fingerprintFor,
   hasEvidence,
   meetsEvidence,
+  mergeEvidence,
+  type EvidenceKind,
+  type EvidenceSubject,
 } from '../src/shared/engines/evidence'
 import { migrateWorkspaceDocument } from '../src/shared/engines/migration'
 import {
@@ -98,6 +100,25 @@ const grantOpenCode = (state: EngineWorkspace) =>
     connectionId: 'minimax',
     boundAt: at,
   })
+/** What the workspace store does when it files an observation of its own. */
+function recordEvidence(
+  state: EngineWorkspace,
+  entry: {
+    id: string
+    subject: EvidenceSubject
+    kind: EvidenceKind
+    result: 'pass' | 'fail'
+    fingerprint: string
+    adapterVersion: string
+    observedAt: string
+    detail?: string
+  },
+): EngineWorkspace {
+  return engineWorkspaceSchema.parse({
+    ...state,
+    evidence: mergeEvidence(state.evidence, { detail: '', ...entry }),
+  })
+}
 const issuesFor = (state: EngineWorkspace, agentId: string) => {
   const resolution = resolveAgentProfile(state, agentId)
   return resolution.status === 'invalid' ? resolution.issues.map((issue) => issue.code) : []

@@ -74,7 +74,9 @@ started, and the first assistant message is a provider that answered, so they fi
 and `model-response`. A session started from a per-launch working directory, or resumed by a
 process that never prepared it, files nothing — the observation would be about a configuration
 other than the saved one. Filing never advances the workspace revision, because nobody edited
-anything, and a save prepared before an observation keeps it unless it removed the subject.
+anything. Only this application files observations: a saved document is a statement of intent, so
+the store keeps the records it made and ignores any the document carries — what a save can do is
+remove the subject, and a record about something that no longer exists goes with it.
 
 ## In the interface
 

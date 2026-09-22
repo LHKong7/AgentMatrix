@@ -1,12 +1,6 @@
 import { appError } from '../errors'
 import { translate, type Locale, type MessageKey } from '../i18n'
-import {
-  mergeEvidence,
-  pruneEvidence,
-  type EvidenceKind,
-  type EvidenceSubject,
-  type VerificationEvidence,
-} from './evidence'
+import { pruneEvidence } from './evidence'
 import {
   adapterVersionFor,
   bindingIssues,
@@ -319,37 +313,6 @@ export function releaseEngineBinding(input: EngineWorkspace, bindingId: string):
     engineBindings: workspace.engineBindings.filter((binding) => binding.id !== bindingId),
   }
   return engineWorkspaceSchema.parse({ ...remaining, evidence: pruneEvidence(remaining) })
-}
-
-/** Files one observation. Nothing here derives a stronger state than what was observed. */
-export function recordEvidence(
-  input: EngineWorkspace,
-  entry: {
-    id: string
-    subject: EvidenceSubject
-    kind: EvidenceKind
-    result: 'pass' | 'fail'
-    fingerprint: string
-    adapterVersion: string
-    observedAt?: string
-    detail?: string
-  },
-): EngineWorkspace {
-  const workspace = engineWorkspaceSchema.parse(input)
-  const record: VerificationEvidence = {
-    id: entry.id,
-    subject: entry.subject,
-    kind: entry.kind,
-    result: entry.result,
-    observedAt: entry.observedAt ?? new Date().toISOString(),
-    adapterVersion: entry.adapterVersion,
-    fingerprint: entry.fingerprint,
-    detail: entry.detail ?? '',
-  }
-  return engineWorkspaceSchema.parse({
-    ...workspace,
-    evidence: mergeEvidence(workspace.evidence, record),
-  })
 }
 
 export function revisePrompt(asset: PromptAsset, content: string): PromptAsset {
